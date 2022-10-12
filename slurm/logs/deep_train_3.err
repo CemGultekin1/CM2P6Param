@@ -1,0 +1,17 @@
+/ext3/miniconda3/lib/python3.8/site-packages/scipy/__init__.py:138: UserWarning: A NumPy version >=1.16.5 and <1.23.0 is required for this version of SciPy (detected version 1.23.3)
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion} is required for this version of "
+/ext3/miniconda3/lib/python3.8/site-packages/torch/cuda/__init__.py:52: UserWarning: CUDA initialization: Found no NVIDIA driver on your system. Please check that you have an NVIDIA GPU and installed a driver from http://www.nvidia.com/Download/index.aspx (Triggered internally at  /pytorch/c10/cuda/CUDAFunctions.cpp:100.)
+  return torch._C._cuda_getDeviceCount() > 0
+Traceback (most recent call last):
+  File "run/train.py", line 130, in <module>
+    main()
+  File "run/train.py", line 127, in main
+    cnn_train(args)
+  File "run/train.py", line 120, in cnn_train
+    save_statedict(modelid,state_dict,logs)
+  File "/scratch/cg3306/climate/CM2p6_parameterization/models/save.py", line 11, in save_statedict
+FileNotFoundError: [Errno 2] No such file or directory: '/scratch/cg3306/climate/CM2p6_parameterization/saves/logs/0c38f58a1dbe330abbbb287b200b1338e4cf36c376206001686ee678.json'
+/ext3/miniconda3/lib/python3.8/site-packages/scipy/__init__.py:138: UserWarning: A NumPy version >=1.16.5 and <1.23.0 is required for this version of SciPy (detected version 1.23.3)
+  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion} is required for this version of "
+/ext3/miniconda3/lib/python3.8/site-packages/torch/cuda/__init__.py:52: UserWarning: CUDA initialization: Found no NVIDIA driver on your system. Please check that you have an NVIDIA GPU and installed a driver from http://www.nvidia.com/Download/index.aspx (Triggered internally at  /pytorch/c10/cuda/CUDAFunctions.cpp:100.)
+  return torch._C._cuda_getDeviceCount() > 0

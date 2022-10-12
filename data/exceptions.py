@@ -1,0 +1,2 @@
+class RequestDoesntExist(Exception):
+    pass

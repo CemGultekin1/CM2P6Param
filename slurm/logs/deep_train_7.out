@@ -1,0 +1,15 @@
+model e894ac54c5c2e5600ad338d37d112ceb01f9c618309d579252dd3f0e state_dict has not been found
+Model was not found
+Namespace(co2=False, depth=5.0, disp=-1, domain='global', epoch=0, latitude=False, linsupres=True, lossfun='MSE', lr=0.01, lsrp_span=12, maxepoch=100, minibatch=16, mode='train', normalization='standard', num_workers=16, parts=[2, 2], persistent_workers=False, prefetch_factor=1, relog=False, rerun=False, sigma=8, temperature=True)
+data_address /scratch/zanna/data/cm2.6/coarse_8_beneath_surface.zarr
+epochs started
+#epoch  0    val-loss:  2.387629220360204  train-loss:  2.392189501784742  lr:  0.01
+#epoch  1    val-loss:  2.3793397953635766  train-loss:  2.3156994194723666  lr:  0.01
+#epoch  2    val-loss:  2.3989420313584175  train-loss:  2.2976793930865824  lr:  0.01
+#epoch  3    val-loss:  2.4499983850278353  train-loss:  2.291042127646506  lr:  0.01
+model e894ac54c5c2e5600ad338d37d112ceb01f9c618309d579252dd3f0e state_dict has been found
+Loaded the existing model
+Loaded the existing model
+Namespace(co2=False, depth=5.0, disp=-1, domain='global', epoch=3, latitude=False, linsupres=True, lossfun='MSE', lr=0.01, lsrp_span=12, maxepoch=100, minibatch=16, mode='train', normalization='standard', num_workers=16, parts=[2, 2], persistent_workers=False, prefetch_factor=1, relog=False, rerun=False, sigma=8, temperature=True)
+data_address /scratch/zanna/data/cm2.6/coarse_8_beneath_surface.zarr
+epochs started
