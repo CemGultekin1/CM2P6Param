@@ -29,7 +29,7 @@ def hreslres(u,v,T,coarse_grain_u,coarse_grain_t):
     dlat = {f"d{x}dlat":forward_difference(y,"lat") for x,y in lres.items()}
     dlon = {f"d{x}dlon":forward_difference(y,"lon") for x,y in lres.items()}
     lres = dict(lres,**dlat,**dlon)
-    
+
     for res in (hres,lres):
         for key in res.keys():
             if "T" in key:

@@ -28,7 +28,7 @@ def coarse_graining_2d_generator(ugrid,sigma,):
         y = gaussian.apply(y,dims=['lat','lon'])
         y = y.assign_coords(lon = x.lon,lat = x.lat)
         return y
-        
+
     def area2d(grid:xr.Dataset):
         lat = grid.lat.values
         lon = grid.lon.values
@@ -45,7 +45,7 @@ def coarse_graining_2d_generator(ugrid,sigma,):
         )
         dAbar = _gaussian_apply(dA,)
         return dA,dAbar
-    
+
     dA,dAbar = area2d(ugrid)
 
     def weighted_gaussian(x:xr.DataArray):
@@ -75,18 +75,18 @@ def coarse_graining_1d_generator(grid,sigma):
     area_lat = xr.DataArray(data = area_lat.reshape([-1,1]),\
         dims=["lat","lon"],\
             coords = dict(lat = np.arange(ny),lon = np.arange(1)))
-    
+
     area_lon = xr.DataArray(data = area_lon.reshape([1,-1]),\
         dims=["lat","lon"],\
             coords = dict(lon = np.arange(nx),\
                 lat = np.arange(1)))
-    
+
     gaussian = get_gcm_filter(sigma)
 
     carea_lat = gaussian.apply(area_lat,dims=["lat","lon"])
     carea_lon = gaussian.apply(area_lon,dims=["lat","lon"])
-   
-    
+
+
     area = dict(lat = (area_lat,carea_lat),lon = (area_lon,carea_lon))
 
     def coarse_grain1d(data,lat = False,lon = False):
@@ -108,7 +108,7 @@ def coarse_graining_1d_generator(grid,sigma):
             coords[key][1] = coords[key][1].values
             coords[key] =  tuple(coords[key])
         harea,larea = area[field1]
-        
+
         n2 = len(data[field2])
         n1 = len(data[field1])
         data[field1] = np.arange(n1)
@@ -129,4 +129,3 @@ def coarse_graining_1d_generator(grid,sigma):
                     coords = coords)
         return xhats
     return coarse_grain1d
-

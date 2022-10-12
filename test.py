@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from utils.arguments import options
 import xarray as xr
-def main(): 
-    
+def main():
+
 
 
     return
@@ -18,7 +18,7 @@ def main():
     path = os.path.join(root,file)
     ds = xr.open_zarr(path)
     print(ds)
-    return 
+    return
     sigmas = [4,8,12,16]
     for sigma in sigmas:
         args = f"--sigma {sigma} --domain four_regions --depth 5 --parts 3 3 --temperature True --latitude True --normalization standard".split()
@@ -48,9 +48,9 @@ def main():
     #     axs[i,1].imshow(outputs[0])
     #     print(i,inputs.shape,outputs.shape)
     # fig.savefig('dummy.png')
-    # return 
+    # return
 
-    
+
     ds = load_xr_dataset(args)
     # sigma = 4
     # dd = TorchDatasetWrap(ds,sigma,boundaries = REGIONS["four_regions"],parts = (1,1),linsupres = True,lsrp_span = 5)
@@ -73,7 +73,7 @@ def main():
         figaxs[key_][0] = plt.subplots(nrows,ncols,figsize = (5*ncols,5*nrows))
         figaxs[key_][1] = plt.subplots(nrows,ncols,figsize = (5*ncols,5*nrows))
         # figaxs[key_][2] = plt.subplots(nrows,ncols,figsize = (5*ncols,5*nrows))
-    
+
     for i,j in itertools.product(range(ncols),range(nrows)):
         l = i*nrows + j
         UF = dd[l]
@@ -89,7 +89,7 @@ def main():
         for i,(fig,axs) in enumerate(figaxs[key].values()):
             fig.savefig(f"dummy_{key}_{i}.png")
     plt.close()
-    
+
 
 if __name__=='__main__':
     main()

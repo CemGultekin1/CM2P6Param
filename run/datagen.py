@@ -18,8 +18,8 @@ def save_separate_depths():
     datargs = sys.argv[1:]
     generator,= get_data(datargs,half_spread = 0, torch_flag = False, data_loaders = True,groups = ('all',))
     datargs,_ = options(datargs,key = "data")
-    depth = datargs.depth 
-    
+    depth = datargs.depth
+
     timer = Timer()
     timer.start('data')
     for fields,forcings,masks,locations in generator:
@@ -86,7 +86,7 @@ def concat_zarrs():
         # return
         flushed_print('\tconcatenating')
         ds = xr.concat(datasets,dim = 'depth')
-        
+
         flushed_print('\twriting')
         ds.to_zarr(path1,mode = "a")
         flushed_print('\twrote')

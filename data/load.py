@@ -69,7 +69,7 @@ def get_var_grouping(args)-> Tuple[Tuple[List[str],...],Tuple[List[str],...]]:
         varnames.append(forcings)
         masknames.append(forcingmasks)
     varnames.extend(masknames)
-    
+
     for i in range(len(varnames)):
         varnames[i] = tuple(varnames[i])
     varnames = tuple(varnames)
@@ -79,7 +79,7 @@ def dataset_arguments(args,**kwargs_):
     ds_zarr = load_xr_dataset(args)
     prms,_=options(args,key = "data")
     runprms,_=options(args,key = "run")
-    
+
     scalars_dict = load_scalars(args)
     boundaries = REGIONS[prms.domain]
     kwargs = ['linsupres','parts','latitude','normalization','lsrp_span','temperature']
@@ -87,7 +87,7 @@ def dataset_arguments(args,**kwargs_):
     kwargs['boundaries'] = boundaries
     kwargs['scalars_dict'] = scalars_dict
     kwargs['coarse_grain_needed'] = runprms.mode == "data"
-    
+
     for key,val in kwargs_.items():
         kwargs[key] = val
     def isarray(x):
@@ -131,7 +131,7 @@ class TorchDatasetWrap(torch.utils.data.Dataset):
 
 def get_data(args,torch_flag = False,data_loaders = True,**kwargs):
     dsets = load_dataset(args,torch_flag = torch_flag,**kwargs)
-    
+
     if data_loaders:
         ns,_ = options(args,key = "run")
         params={'batch_size':ns.minibatch,\
@@ -143,7 +143,7 @@ def get_data(args,torch_flag = False,data_loaders = True,**kwargs):
         return (torch.utils.data.DataLoader(tset_, **params) for tset_ in torchdsets)
     else:
         return dsets
-    
+
 
 def populate_dataset(dataset:MultiDomainDataset,groups = ("train","validation"),**kwargs):
     datasets = []
@@ -178,5 +178,3 @@ def physical_domains(domain:str,):
         for key,val in TIMES[part].items():
             partition[part][key] = val
     return partition
-
-

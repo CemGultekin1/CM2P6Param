@@ -21,7 +21,7 @@ def python_args():
         lines.append(givearg(*args))
     njob = len(lines)
     lines = '\n'.join(lines)
-    
+
     argsfile = JobName + '.txt'
     path = os.path.join(root,argsfile)
     with open(path,'w') as f:

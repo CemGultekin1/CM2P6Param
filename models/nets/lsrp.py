@@ -4,7 +4,7 @@ import xarray as xr
 import os
 import numpy as np
 import torch.nn as nn
-import torch 
+import torch
 
 from transforms.subgrid_forcing import forward_difference
 from utils.xarray import concat, fromtorch, totorch
@@ -24,23 +24,23 @@ class ConvolutionalLSRP:
             z = z.reshape([-1])
             I = np.where(z>0)[0]
             return I
-        
+
         lsrp = lsrp.interp(clat = clats)
         lsrp = lsrp.sel(latkernel = slice(-span,span),lonkernel = slice(-span,span))
         if len(lsrp.latkernel)//2 != span:
             print(len(lsrp.latkernel),span)
             raise Exception
-        
+
 
         ncomp_dlon = len(lsrp.ncomp_dlon)
         ncomp_dlat = len(lsrp.ncomp_dlat)
-        
+
         def weights2convolution(weights):
             weights = weights.reshape(-1,1,rfield,rfield)
             conv = nn.Conv2d(1,weights.shape[0],rfield,bias = False)
             conv.weight.data = torch.from_numpy(weights).type(torch.float32)
             return conv
-        
+
         def get_id_conv():
             conv = nn.Conv2d(1,(2*span+1)**2,2*span+1,bias = False)
             conv.weight.data = 0*conv.weight.data
@@ -68,18 +68,18 @@ class ConvolutionalLSRP:
         y = np.stack([y],axis = 2)
 
         self.lat_transfer_dlon = torch.from_numpy(y).type(torch.float32)
-        
 
-        # if torch.cuda.is_available():  
-        #     device = "cuda:0" 
-        # else:  
-        #     device = "cpu"  
+
+        # if torch.cuda.is_available():
+        #     device = "cuda:0"
+        # else:
+        #     device = "cpu"
         # self.device = device
 
         self.conv_dlat = conv_dlat#.to(device)
         self.conv_dlon = conv_dlon#.to(device)
         self.conv_shift = conv_id#.to(device)
-        
+
         self.ncomp_dlat = ncomp_dlat
         self.ncomp_dlon = ncomp_dlon
         self.span = span
@@ -112,7 +112,7 @@ class ConvolutionalLSRP:
             var[name] =  self._forward(u,v,a)
         return concat(**var)
     def _forward(self,u:xr.DataArray,v:xr.DataArray,T:xr.DataArray)->xr.DataArray:
-        lat,lon = self.read_coords(u)        
+        lat,lon = self.read_coords(u)
         dTdx = forward_difference(T,'lon')
         dTdy = forward_difference(T,'lat')
         u,v,T,dTdy,dTdx = totorch(u,v,T,dTdy,dTdx,leave_nan = False)

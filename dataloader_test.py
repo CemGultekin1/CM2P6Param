@@ -20,7 +20,7 @@
 #     outputs = torch.unbind(outputs.to('cpu'), dim = 1)
 #     def value_norms(fields):
 #         return {key: fields[key]['val']  for key in fields},{key: fields[key]['normalization']  for key in fields}
-    
+
 #     def denormalize(fields,nfields):
 #         def _denorm(f,n):
 #             return f#*n[:,1].reshape([-1,1,1]) + n[:,0].reshape([-1,1,1])
@@ -94,10 +94,10 @@ def main():
     # flushed_print("epochs started")
     # timer = Timer()
 
-    import matplotlib.pyplot as plt 
+    import matplotlib.pyplot as plt
     import numpy as np
     for epoch in range(runargs.epoch,runargs.maxepoch):
-        for infields,outfields,mask in training_generator: 
+        for infields,outfields,mask in training_generator:
             outfields[mask<1] = np.nan
             vars = [infields,outfields,mask]
             vars = [var[0].numpy() for var in vars]
@@ -113,7 +113,7 @@ def main():
             for i,j in itertools.product(range(nrow),range(ncol)):
                 axs[i,j].imshow(vars[i][j])
             fig.savefig(f'dummy-{t}.png')
-                
+
             # if not torch.any(mask):
             #     continue
 
@@ -121,11 +121,11 @@ def main():
             # infields,outfields,mask = preprocess(infields,outfields,mask,device,runargs.linsupres)
             # if isinstance(outfields,tuple):
             #     outfields = outfields[1]
-            
-            
-            
+
+
+
             # timer.start('model')
-            # mean,prec = net.forward(infields) 
+            # mean,prec = net.forward(infields)
             # print(outfields.shape,mean.shape,prec.shape)
             t+=1
             if t == 9 :

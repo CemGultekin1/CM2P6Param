@@ -7,7 +7,7 @@ from data.load import load_xr_dataset
 import numpy as np
 import gcm_filters
 import torch.nn as nn
-import torch 
+import torch
 
 def save_filter_inversion(sigma):
     args = f'--sigma {sigma} --mode data'.split()
@@ -31,7 +31,7 @@ def save_filter_inversion(sigma):
         'grid_type': gcm_filters.GridType.REGULAR,
         'filter_shape':gcm_filters.FilterShape.GAUSSIAN,
     }
-    gaussian = gcm_filters.Filter(**specs,)#grid_vars = {'wet_mask':wetmask})  
+    gaussian = gcm_filters.Filter(**specs,)#grid_vars = {'wet_mask':wetmask})
 
 
     coarsen_specs = dict(boundary = "trim")
@@ -119,8 +119,8 @@ def single_component(f,k,i,j,x,field='lat',hres = True):
         B = f[f"inv_{field}"][j,:]
         DB = f[f"diff_inv_{field}"][j,:]
         C = f[f"forward_{field}"][k,:]
-        return np.sum(A*B*C),np.sum(A*DB*C) 
-    
+        return np.sum(A*B*C),np.sum(A*DB*C)
+
     E = 0
 
     if i==k:
@@ -173,13 +173,13 @@ def visualize_weights(sigma):
     filters =  filters.assign(diff_inv_lon = diff_inv_lon,diff_inv_lat = diff_inv_lat)
     span = 11
     rfield = 2*span + 1
-    
+
     lati = np.argmin(np.abs(filters.clat.values))
     print('nclat = ',len(filters.clat.values),' lati = ',lati)
     lati = 500
 
     hwlat,hdwlat,hwlon,hdwlon,lwlat,ldwlat,lwlon,ldwlon, = lat_spec_weights(filters,lati,span)
-    
+
     # def locality_estimate(x):
     #     n = x.shape[0]//2
     #     loc = np.zeros(n)
@@ -219,7 +219,7 @@ def visualize_weights(sigma):
     conv_dwlon = fill_weights_to_conv(span,hwlat,hdwlon,lwlat,ldwlon)
     def lsr_forcing(u,v,T):
         return torch.sum(conv_id(u)*conv_dwlon(T) + conv_id(v)*conv_dwlat(T),dim = 1,keepdim = True)
-    
+
     def coarse_grain(u,selkwargs):
         u = u.values
         u[u!=u]= 0
@@ -260,7 +260,7 @@ def visualize_weights(sigma):
     Strue = S0 - S1
     ubar = coarse_grain(ds.u,selkwargs)
     vbar = coarse_grain(ds.v,selkwargs)
-    
+
 
     clat,clon = ubar.clat.values,ubar.clon.values
     ubar_,vbar_, = (totorch(a) for a in (ubar,vbar,))

@@ -14,7 +14,7 @@ class QCNN(ClimateNet):
         device=self.device
         self.nn_layers = nn.ModuleList()
         spread=0
-        
+
         self.rescale=torch.tensor(rescale,dtype=torch.float32,requires_grad=False)
         self.freq_coord=freq_coord
         self.heteroscedastic=heteroscedastic
@@ -31,7 +31,7 @@ class QCNN(ClimateNet):
         self.physical_force_features=physical_force_features
         self.nparam=0
         self.bnflag=True
-        
+
         self.nn_layers.append(nn.Conv2d(initwidth, qwidth, qfilt[0]).to(device) )
         self.nparam+=initwidth*qwidth*qfilt[0]**2
         self.nn_layers.append(nn.BatchNorm2d(qwidth).to(device) )
@@ -50,7 +50,7 @@ class QCNN(ClimateNet):
             self.nn_layers.append(nn.Conv2d(width[i-1], width[i], filter_size[i]).to(device) )
             self.nparam+=width[i-1]*width[i]*filter_size[i]**2
             spread+=(filter_size[i]-1)/2
-        
+
         self.nn_layers.append(nn.Softplus().to(device))
         spread+=coarsen
         self.spread=np.int64(spread)
@@ -66,13 +66,13 @@ class QCNN(ClimateNet):
         cn+=1
         u = self.nn_layers[cn](u)
         cn+=1
-        
+
         for i in range(self.num_layers-1):
             x = self.nn_layers[cn](x)
             cn+=1
             x = F.relu(self.nn_layers[cn](x))
             cn+=1
-            
+
         x=self.nn_layers[cn](x)
         cn+=1
         precision=self.nn_layers[cn](x)
@@ -129,39 +129,39 @@ class UNET(ClimateNet):
         self.initwidth=initwidth
         self.outwidth=outwidth
         self.spread=int((np.sum(filter_size)-len(filter_size))/2)
-        
-        
-        
+
+
+
         widthin=initwidth
         widthout=outwidth+nprecision
-        
+
         #widths=[64,128,256,512]#[2,4,8,16]#
         nlevel=len(widths)
         self.nlevel=nlevel
         self.locs=[]
         self.pools=pools
-        
+
         self.receptive_field=1
         for i in range(len(pools)):
             ww=np.sum(deep_filters[-1-i])-len(deep_filters[-1-i])
             self.receptive_field=(self.receptive_field+ww)*pools[-i-1]
         self.receptive_field+=np.sum(filter_size[:3])-3
-        #self.add_conv_layers([5,5,3],[widths[0]]*4,widthin=widthin) 
-        self.add_conv_layers(filter_size[:3],[widths[0]]*4,widthin=widthin) 
+        #self.add_conv_layers([5,5,3],[widths[0]]*4,widthin=widthin)
+        self.add_conv_layers(filter_size[:3],[widths[0]]*4,widthin=widthin)
         self.add_conv_layers(1,[widths[0]]*3)
         for i in range(nlevel-1):
             pool=[pools[i],pools[i]]
             self.add_down_sampling(pool)
             self.add_conv_layers(deep_filters[i],[widths[i+1]]*(len(deep_filters[i])+1),widthin=widths[i])
             #self.add_conv_layers(1,[widths[i+1]]*3)
-            
-        
+
+
         for i in range(nlevel-2):
             pool=[pools[-1-i],pools[-1-i]]
             self.add_up_sampling(1,[widths[-1-i],widths[-1-i]//2],pool)
             self.add_conv_layers(deep_filters[-1-i],[widths[-2-i]]*(len(deep_filters[-1-i])+1),widthout=widths[-2-i],widthin=widths[-1-i])
-            
-        
+
+
         i=nlevel-2
         pool=[pools[-1-i],pools[-1-i]]
         self.add_up_sampling(1,[widths[-1-i],widths[-1-i]//2],pool)
@@ -207,7 +207,7 @@ class UNET(ClimateNet):
         return x
     def to_device(self,):
         for i in range(len(self.nn_layers)):
-            self.nn_layers[i]= self.nn_layers[i].to(self.device)       
+            self.nn_layers[i]= self.nn_layers[i].to(self.device)
 
     def trim_merge(self,f,x):
         if type(x)==torch.Tensor:
@@ -223,7 +223,7 @@ class UNET(ClimateNet):
         if nx0+nx1<nx:
             nx1+=1
         f=f[:,:,ny0:-ny1,nx0:-nx1]
-        
+
         if type(x)==torch.Tensor:
             return torch.cat([f,x],dim=1)
         else:
@@ -235,17 +235,17 @@ class UNET(ClimateNet):
         else:
             diffY=(f.shape[2]-x.shape[2])
             diffX=(f.shape[3]-x.shape[3])
-        
+
         x = F.pad(x, [diffX // 2, diffX - diffX // 2,
                         diffY // 2, diffY - diffY // 2])
-        
+
         if type(x)==torch.Tensor:
             return torch.cat([f,x],dim=1)
         else:
             return f
     def forward(self,u):
         locs=self.locs
-        
+
         features=[]
         nlevel=self.nlevel
         t=0
@@ -254,25 +254,25 @@ class UNET(ClimateNet):
         if self.verbose:
             print('conv: '+str(0)+' '+str(t)+  '  '+ str(x.shape))
         t+=1
-        
+
         f=x*1
         f=self.apply_layers(f,t) # ptswise
         if self.verbose:
             print('ptswise: '+str(0)+' '+str(t)+  '  '+ str(f.shape))
         t+=1
         features.append(f)
-        
+
         for i in range(nlevel-1):
             x=self.apply_layers(x,t) # downsampling
             if self.verbose:
                 print('down: '+str(i+1)+' '+str(t)+  '  '+ str(x.shape))
             t+=1
-            
+
             x=self.apply_layers(x,t) # convolutions
             if self.verbose:
                 print('conv: '+str(i+1)+' '+str(t)+  '  '+ str(x.shape))
             t+=1
-            
+
             f=x*1
             '''
             f=self.apply_layers(f,t) # ptswise
@@ -309,7 +309,7 @@ class GAN(ClimateNet):
         super(GAN, self).__init__(gan=True)
         device=self.device
         self.freq_coord=freq_coord
-        
+
         self.outwidth=outwidth
         self.initwidth=initwidth
         self.random_field=random_field
@@ -323,7 +323,7 @@ class GAN(ClimateNet):
         self.latsig=latsig
         self.generator_layers=[]
         self.discriminator_layers=[]
-        
+
         if self.direct_coord:
             if self.latsig:
                 initwidth+=1
@@ -338,7 +338,7 @@ class GAN(ClimateNet):
                 initwidth+=1
             if self.longitude:
                 initwidth+=2
- 
+
         # Discriminator build
         discriminator=ClimateNet()
         width=copy.deepcopy(width_discriminator)
@@ -354,14 +354,14 @@ class GAN(ClimateNet):
             discriminator.nn_layers.append(nn.Conv2d(width[i], width[i+1], filter_size[i]).to(device) )
             self.nparam+=width[i]*width[i+1]*filter_size[i]**2
             spread+=(filter_size[i]-1)/2
-            
+
             discriminator.nn_layers.append(nn.BatchNorm2d(width[i+1]).to(device) )
             self.nparam+=width[i+1]
             if i<len(filter_size)-1:
-                discriminator.nn_layers.append(nn.ReLU(inplace=True).to(device)) 
+                discriminator.nn_layers.append(nn.ReLU(inplace=True).to(device))
         self.receptive_field=np.int64(spread*2+1)
         self.discriminator=discriminator
-        
+
         # Generator build
         generator=ClimateNet()
         width=copy.deepcopy(width_generator)
@@ -376,7 +376,7 @@ class GAN(ClimateNet):
             if i<len(filter_size)-1:
                 generator.nn_layers.append(nn.BatchNorm2d(width[i+1]).to(device) )
                 self.nparam+=width[i+1]
-                generator.nn_layers.append(nn.ReLU(inplace=True).to(device)) 
+                generator.nn_layers.append(nn.ReLU(inplace=True).to(device))
             else:
                 generator.nn_layers.append(nn.BatchNorm2d(width[i+1]).to(device) )
                 self.nparam+=width[i+1]
@@ -397,9 +397,3 @@ class GAN(ClimateNet):
         for i in range(len(self.generator.nn_layers)):
             x = self.generator.nn_layers[i](x)
         return x#torch.tanh(x)*50
-
-
-
-
-
-

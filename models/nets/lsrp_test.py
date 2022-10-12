@@ -25,7 +25,7 @@ def test_model(sigma,save_true_force = False):
         )
         return ubar.sel(selkwargs)
 
-    
+
     def save_true_forcing():
         from data.load import load_xr_dataset
         args = f'--sigma {sigma} --mode data'.split()
@@ -54,7 +54,7 @@ def test_model(sigma,save_true_force = False):
         return  xr.open_dataset(path)
     if save_true_force:
         save_true_forcing()
-        return 
+        return
     Strue = get_true_forcing()
     # print(Strue)
     clat,clon = Strue.clat.values,Strue.clon.values
@@ -86,7 +86,7 @@ def plot_weights(sigma):
             W[ii,jj] = subw
             W[ii.stop-1,:] = np.nan
             W[:,jj.stop-1] = np.nan
-        
+
         return xr.DataArray(W)
 
 
@@ -103,17 +103,17 @@ def plot_weights(sigma):
         axs[i].set_xlabel('longitude',**specs)
     fig.savefig(f'/scratch/cg3306/climate/saves/plots/lsrp/lsrp_weights_{sigma}.png')
 
-            
+
 
 def main():
-    
+
     # return
     for sigma in range(4,6,4):
         print('sigma = ',sigma)
         # test_model(sigma,save_true_force= True)
         test_model(sigma,save_true_force= False)
         # plot_weights(sigma)
-    
+
 
 if __name__=='__main__':
     main()

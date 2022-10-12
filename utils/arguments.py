@@ -18,7 +18,7 @@ def options(string_input,key:str = "model"):
         prms = TRAIN_PARAMS
     else:
         raise Exception('not implemented')
-    
+
 
     model_parser=argparse.ArgumentParser()
     for argname,argdesc in prms.items():
@@ -45,7 +45,7 @@ def args2num(prms:dict,args:argparse.Namespace):
     for i,(u,v) in zip(range(nkeys),args.__dict__.items()):
         if prms[u]["default"] != v:
             s = append_el(s,i,v)
-            
-   
+
+
     s = tuple(s)
-    return hashlib.sha224(str(s).encode()).hexdigest()   
+    return hashlib.sha224(str(s).encode()).hexdigest()

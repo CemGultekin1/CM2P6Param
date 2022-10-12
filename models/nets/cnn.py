@@ -30,23 +30,23 @@ class CNNLayer(nn.Module):
 class CNN(nn.Module):
     def __init__(self,widths,kernels,batchnorm,skipconn,seed):#,**kwargs):
         super(CNN, self).__init__()
-        if torch.cuda.is_available():  
-            device = "cuda:0" 
-        else:  
-            device = "cpu"  
+        if torch.cuda.is_available():
+            device = "cuda:0"
+        else:
+            device = "cpu"
         self.device = device
-        
+
         self.skipcons = False
         layers = OrderedDict()
         spread = 0
         for i in range(len(kernels)):
             spread+=kernels[i]-1
         self.spread = spread//2
-        
+
         torch.manual_seed(seed)
 
 
-        lastlayer = lambda i: i != len(kernels) -1 
+        lastlayer = lambda i: i != len(kernels) -1
         for i in range(len(kernels)):
             layers[f'conv-{i}'] = CNNLayer(widths[i],widths[i+1],kernels[i],\
                 batchnorm[i],skipconn[i],lastlayer(i))
@@ -74,7 +74,7 @@ class CNN(nn.Module):
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters())
-    
+
 def adjustcnn(widths,kernels,batchnorm,skipconn,seed,kernel_factor = 1.,width_factor =1., kernel_size = -1,constant_nparam = True):
     kernels = list(kernels)
     widths = list(widths)
@@ -83,7 +83,7 @@ def adjustcnn(widths,kernels,batchnorm,skipconn,seed,kernel_factor = 1.,width_fa
         for i in range(len(kernels)):
             spread+=kernels[i]-1
         return spread
-    
+
     n0 = count_parameters(CNN(widths,kernels,batchnorm,skipconn,seed))
     view_field = compute_view_field(kernels)
     def compare(view,):
@@ -93,8 +93,8 @@ def adjustcnn(widths,kernels,batchnorm,skipconn,seed,kernel_factor = 1.,width_fa
     i=0
     while compare(compute_view_field(kernels)):
         K = np.amax(np.array(kernels))
-        if K ==1 : 
-            break            
+        if K ==1 :
+            break
         I = np.where(np.array(kernels)== K)[0]
         i = I[-1]
         kernels[i]-=1
@@ -112,19 +112,19 @@ def adjustcnn(widths,kernels,batchnorm,skipconn,seed,kernel_factor = 1.,width_fa
 class LCNN(nn.Module):
     def __init__(self,widths,kernels,batchnorm,skipconn,seed):#,**kwargs):
         super(CNN, self).__init__()
-        if torch.cuda.is_available():  
-            device = "cuda:0" 
-        else:  
-            device = "cpu"  
+        if torch.cuda.is_available():
+            device = "cuda:0"
+        else:
+            device = "cpu"
         self.device = device
-        
+
         self.skipcons = False
         # layers = OrderedDict()
         spread = 0
         for i in range(len(kernels)):
             spread+=(kernels[i]-1)/2
         spread = int(spread)
-        
+
         torch.manual_seed(seed)
 
         self.nn_layers = nn.ModuleList()
@@ -141,14 +141,14 @@ class LCNN(nn.Module):
 
 
 
-        # lastlayer = lambda i: i != len(kernels) -1 
+        # lastlayer = lambda i: i != len(kernels) -1
         # for i in range(len(kernels)):
         #     layers[f'conv-{i}'] = CNNLayer(widths[i],widths[i+1],kernels[i],\
         #         batchnorm[i],skipconn[i],lastlayer(i))
         #     # layers[f'conv-{i}'] = nn.Conv2d(widths[i],widths[i+1],kernels[i])
         #     # layers[f'norm-{i}'] = nn.BatchNorm2d(widths[i+1])
         #     # layers[f'relu-{i}'] = nn.ReLU(inplace = True)
-            
+
         # for u in layers:
         #     layers[u] = layers[u].to(device)
         self.receptive_field=int(spread*2+1)
@@ -164,7 +164,7 @@ class LCNN(nn.Module):
         # precision=self.softplus(precision)
         # return mean,precision
         cn=0
-        for _ in range(self.num_layers-1):            
+        for _ in range(self.num_layers-1):
             x = self.nn_layers[cn](x)
             cn+=1
             x = F.relu(self.nn_layers[cn](x))
@@ -173,5 +173,5 @@ class LCNN(nn.Module):
         cn+=1
         mean,precision=torch.split(x,x.shape[1]//2,dim=1)
         precision=self.nn_layers[cn](precision)
-        
+
         return mean,precision

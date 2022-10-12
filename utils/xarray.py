@@ -30,7 +30,7 @@ def no_nan_input_mask(u,span,codition:Callable = lambda x:  np.isnan(x))->xr.Dat
         )
     )
     return mask
-    
+
 
 def concat_datasets(x,y):
     for key in y:
@@ -64,7 +64,7 @@ def unpad(fields):
         field['val'],field['lat'],field['lon'] = vals,lats,lons
         fields[key] = field
     return fields
-        
+
 
 def numpydict2dataset(outs,time = 0):
     datarrs = {}
@@ -88,7 +88,7 @@ def numpydict2dataset(outs,time = 0):
                     name = key
                 )
             datarrs[key].append(datarr)
-            
+
     keys = list(outs.keys())
     merged_dataarrs = {}
     for key in keys:
@@ -99,7 +99,7 @@ def numpydict2dataset(outs,time = 0):
     return xr.Dataset(data_vars = merged_dataarrs)
 
 
-    
+
 def concat(**kwargs):
     data_vars = dict()
     for name,var in kwargs.items():

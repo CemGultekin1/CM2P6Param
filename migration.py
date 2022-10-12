@@ -23,7 +23,7 @@ def model_iterator(testid:int):
         if 'G-' not in m:
             continue
         modelid = int(m[m.find('G-') + len('G-'):])
-        testflag = modelid//STEP - testid == 0 
+        testflag = modelid//STEP - testid == 0
         if not testflag:
             continue
         yield os.path.join(root,source,m),modelid
@@ -98,7 +98,7 @@ def get_target_models(testid):
         args = Namespace()
         args.model_id=model_id
         args.co2 = 0
-    
+
         newargs,description = golden_model_bank(args)
         if newargs is None:
             continue
@@ -121,7 +121,7 @@ def migrate_models(models:dict):
         update_modelsdict(modelid,args)
         # break
 
-    
+
 def delete_models(testid):
     modelsdict = get_target_models(testid)
     for fname in modelsdict.keys():

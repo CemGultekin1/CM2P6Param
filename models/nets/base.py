@@ -7,13 +7,13 @@ class ClimateNet(nn.Module):
     def __init__(self,spread=0,coarsen=0,rescale=[1/10,1/1e7],latsig=False,\
                  timeshuffle=True,direct_coord=True,longitude=False,latsign=False,gan=False):
         super(ClimateNet, self).__init__()
-        if torch.cuda.is_available():  
-            device = "cuda:0" 
-        else:  
-            device = "cpu"  
+        if torch.cuda.is_available():
+            device = "cuda:0"
+        else:
+            device = "cpu"
         self.generative=False
         self.timeshuffle=timeshuffle
-        self.device = torch.device(device) 
+        self.device = torch.device(device)
         self.spread=spread
         self.latsig=latsig
         self.direct_coord=direct_coord

@@ -21,12 +21,12 @@ def get_filename(sigma,depth,co2,):
 def get_high_res_data_location(args):
     prms,_ = options(args,key = "data")
     return get_filename(1,prms.depth,prms.co2)
-    
+
 
 def get_low_res_data_location(args):
     prms,_ = options(args,key = "data")
     return  get_filename(prms.sigma,prms.depth,prms.co2)
-    
+
 
 def get_data_address(args):
     drs = os.listdir(root)
@@ -46,11 +46,11 @@ def get_data_address(args):
         includestr += ' CO2'
     else:
         excludestr += ' CO2'
-    
+
     if prms.depth <1e-3 :
         includestr += ' surf'
     else:
-        assert prms.depth > 0 
+        assert prms.depth > 0
         includestr += ' 3D'
     if len(excludestr)>0:
         excludestr = excludestr[1:]
@@ -83,7 +83,7 @@ def _get_data_address(sigma,depth,co2):
     if depth <1e-3 :
         includestr += ' surf'
     else:
-        assert depth > 0 
+        assert depth > 0
         includestr += ' 3D'
     if sigma > 1:
         includestr += ' coarse'
@@ -101,7 +101,7 @@ def _get_data_address(sigma,depth,co2):
         return os.path.join(root,drs[0])
     else:
         return None
-    
+
 # print('get_data_address(4,1,False)\t:',get_data_address(4,1,False))
 # print('get_data_address(8,1,True)\t:',get_data_address(4,1,True))
 # print('get_data_address(8,0,False)\t:',get_data_address(8,0,False))

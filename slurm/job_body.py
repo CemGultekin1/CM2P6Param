@@ -19,7 +19,3 @@ def create_slurm_job(path,python_file = 'run/train.py',**kwargs):
     text = job(argsfile,python_file,**kwargs)
     with open(path,'w') as f:
         f.write(text)
-
-
-
-

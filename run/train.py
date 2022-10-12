@@ -10,7 +10,7 @@ import sys
 
 from utils.slurm import flushed_print
 
-    
+
 class Timer:
     def __init__(self,):
         self.times = {}
@@ -61,21 +61,21 @@ def cnn_train(args):
         tt=0
         net.train()
         timer.start('data')
-        for infields,outfields,mask in training_generator:     
+        for infields,outfields,mask in training_generator:
             if not torch.any(mask>0):
                 continue
             infields,outfields,mask = infields.to(device),outfields.to(device),mask.to(device)
             timer.end('data')
             timer.start('model')
-            outputs = net.forward(infields) 
+            outputs = net.forward(infields)
             loss = criterion(outputs, outfields, mask)
             logs['train-loss'][-1].append(loss.item())
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             timer.end('model')
-            
-            
+
+
             tt+=1
             if runargs.disp > 0 and tt%runargs.disp==0:
                 flushed_print('\t\t\t train-loss: ',str(np.mean(np.array(logs['train-loss'][-1]))),\
@@ -101,7 +101,7 @@ def cnn_train(args):
         logs['val-loss'].append(val_loss/num_val)
         logs['lr'].append(optimizer.param_groups[0]['lr'])
         scheduler.step(logs['val-loss'][-1])
-            
+
 
 
         if len(logs['epoch'])>0:
@@ -113,14 +113,14 @@ def cnn_train(args):
                     ' val-loss: ',str(logs['val-loss'][-1]),\
                     ' train-loss: ',str(np.mean(np.array(logs['train-loss'][-1]))),\
                     ' lr: ',str(logs['lr'][-1]))
-        
+
         state_dict = update_statedict(state_dict,net,optimizer,scheduler,last_model = True)
         if np.amin(logs['val-loss']) == logs['val-loss'][-1]:
             state_dict = update_statedict(state_dict,net,optimizer,scheduler,last_model = False)
         save_statedict(modelid,state_dict,logs)
         if logs['lr'][-1]<1e-8:
             break
-       
+
 
 def main():
     args = sys.argv[1:]

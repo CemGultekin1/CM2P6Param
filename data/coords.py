@@ -1,5 +1,5 @@
 REGIONS = {
-    "four_regions" : 
+    "four_regions" :
         [
             # written in (ymin, ymax, xmin, xmax)
             (35,50,-50,-20),
@@ -8,10 +8,10 @@ REGIONS = {
             (0,15,-48,-30)
         ]
     ,
-    "global" : 
+    "global" :
         (-80,80,-180,180)
     ,
-    "custom" : 
+    "custom" :
         (-40,40,-180,-90)
     ,
 }

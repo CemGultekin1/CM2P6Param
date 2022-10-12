@@ -11,10 +11,10 @@ from data.gcm_lsrp import DividedDomain
 def determine_ndoms(*args,**kwargs):
     arglens = [1]
     for i in range(len(args)):
-        if isinstance(args[i],list): 
+        if isinstance(args[i],list):
             arglens.append(len(args[i]))
     for key,val in kwargs.items():
-        if isinstance(kwargs[key],list): 
+        if isinstance(kwargs[key],list):
             arglens.append(len(kwargs[key]))
     return  int(np.amax(arglens))
 class MultiDomain(CM2p6Dataset):
@@ -50,7 +50,7 @@ class MultiDomain(CM2p6Dataset):
         x = copy.deepcopy(self)
         x.set_time_constraint(t0,t1)
         return x
-        
+
     def set_half_spread(self,num):
         self.half_spread = num
         for dds in self.domain_datasets:
@@ -63,8 +63,8 @@ class MultiDomain(CM2p6Dataset):
             lat = np.maximum(lat_,lat)
             lon = np.maximum(lon_,lon)
         return lat,lon
-    
-            
+
+
     def outs2numpydict(self,outs):
         vald = {}
         for key,val in outs.items():
@@ -118,7 +118,7 @@ class MultiDomainDataset(MultiDomain):
         self.running_mean = {}
         self.torch_flag = torch_flag
         super().__init__(*args,**kwargs)
-        
+
     @property
     def max_shape(self,):
         return np.array(self.get_max_shape())
@@ -134,7 +134,7 @@ class MultiDomainDataset(MultiDomain):
                 # name = f"{key}_{varname}"
                 vald[varname] = dict( val = vals.values,lat = vals.lat.values.reshape([-1]) ,lon = vals.lon.values.reshape([-1]) )
         return vald
-    
+
     def shapeshift(self,values):
         for name in values.keys():
             if not isinstance(values[name],dict):
@@ -147,7 +147,7 @@ class MultiDomainDataset(MultiDomain):
             values[name]['val'] = np.pad(values[name]['val'],pad_width = ((0,pad[0]),(0,pad[1])),constant_values = np.nan)
             values[name]['lon'] = np.pad(values[name]['lon'],pad_width = ((0,pad[1]),),constant_values = np.nan)
             values[name]['lat'] = np.pad(values[name]['lat'],pad_width = ((0,pad[0]),),constant_values = np.nan)
-        
+
         return values
 
     def add_lat_features(self,vals,):
@@ -196,7 +196,7 @@ class MultiDomainDataset(MultiDomain):
         for key in keys_list:
             if not isinstance(values[key],dict):
                 continue
-            f = values[key]['val'] 
+            f = values[key]['val']
             mask = f==f
             values[key]['val'][~mask] = 0
             varmask = get_var_mask_name(key)
@@ -222,10 +222,10 @@ class MultiDomainDataset(MultiDomain):
         location = {key: outs.pop(key) for key in ['ilat','ilon','itime','idom','depth']}
         values = self.outs2numpydict_latlon(outs)
         values = dict(values,**location)
-        
+
         if self.latitude:
             values = self.add_lat_features(values)
-        
+
         values = self.normalize(values)
         values = self.shapeshift(values)
         values = self.mask(values)
@@ -236,5 +236,3 @@ class MultiDomainDataset(MultiDomain):
             return self.group_to_torch(grouped_vars)
         else:
             return grouped_vars
-
-

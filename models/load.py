@@ -1,5 +1,5 @@
 import json
-import os 
+import os
 from models.bank import init_architecture
 from models.lossfuns import MSE, heteroscedasticGaussianLoss
 import torch
@@ -48,11 +48,11 @@ def load_model(args):
     elif modelargs.lossfun == "MSE":
         criterion = MSE
     runargs,_ = options(args,key = "run")
-    # if state_dict is None:  
+    # if state_dict is None:
     #     warmuptime = 50
     #     strlr = 1e-8
     #     optimizer = torch.optim.Adam(net.parameters(), lr=strlr)
-    #     curlr = runargs.lr        
+    #     curlr = runargs.lr
     #     gamma = torch.exp(torch.log(torch.tensor([curlr/strlr]))/warmuptime).item()
     # else:
     optimizer = torch.optim.Adam(net.parameters(), lr=runargs.lr)

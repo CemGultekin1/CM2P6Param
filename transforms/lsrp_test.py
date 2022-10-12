@@ -35,7 +35,7 @@ def test_model(sigma,save_true_force = False):
         boundary = (-30,30,-180,-120)
         selkwargs = boundary2kwargs(*make_divisible_by_grid(u,sigma,*boundary))
         flushed_print(selkwargs)
-        
+
         def project(u):
             uv = u.values.copy()
             flushed_print(filters.proj_lat.values.shape,uv.shape,filters.proj_lon.values.shape)
@@ -48,7 +48,7 @@ def test_model(sigma,save_true_force = False):
                     lat = (["lat"],u.lat.values),
                     lon = (["lon"],u.lon.values),
                 )
-            )        
+            )
 
         up,vp,Tp= project(u),project(v),project(T)
         u,v,T = u.sel(**selkwargs),v.sel(**selkwargs),T.sel(**selkwargs)
@@ -57,7 +57,7 @@ def test_model(sigma,save_true_force = False):
         cg2u = coarse_graining_2d_generator(u,sigma)
         cg2t = coarse_graining_2d_generator(T,sigma)
 
-        
+
         Strue,_ = subgrid_forcing(u,v,T,cg2u,cg2t)
         Strue = concat(**Strue)
         for key in "u v T".split():
@@ -74,7 +74,7 @@ def test_model(sigma,save_true_force = False):
         upbar = cg2u(up)
         vpbar = cg2u(vp)
         Tpbar = cg2t(Tp).interp(lat = ubar.lat.values,lon = ubar.lon.values)
-        
+
 
         Strue = Strue.assign(ubar = ubar,vbar = vbar,Tbar = Tbar)
         Strue = Strue.assign(upbar = upbar,vpbar = vpbar,Tpbar = Tpbar)
@@ -89,8 +89,8 @@ def test_model(sigma,save_true_force = False):
         return  xr.open_dataset(path)
     if save_true_force:
         save_true_forcing()
-        return 
-    
+        return
+
     Strue = get_true_forcing()
     ubar = Strue.ubar
     vbar = Strue.vbar
@@ -162,7 +162,7 @@ def plot_weights(sigma):
             W[ii,jj] = subw
             W[ii.stop-1,:] = np.nan
             W[:,jj.stop-1] = np.nan
-        
+
         return xr.DataArray(W)
 
 
@@ -180,7 +180,7 @@ def plot_weights(sigma):
     fig.savefig(f'/scratch/cg3306/climate/saves/plots/lsrp/lsrp_weights_{sigma}.png')
     flushed_print(f'/scratch/cg3306/climate/saves/plots/lsrp/lsrp_weights_{sigma}.png')
 
-            
+
 def lsrp_weight_interpolation(sigma):
     # save_weights(sigma)
     root = '/scratch/cg3306/climate/saves/lsrp/'
@@ -251,14 +251,14 @@ def lsrp_weight_interpolation(sigma):
         cwdlat,cwdlon = decompress(latval)
         flushed_print(latval,np.linalg.norm(dwlat - cwdlat),np.linalg.norm(dwlon - cwdlon))
 
-    
+
 
 def main():
     for sigma in range(4,18,4):
         flushed_print('sigma = ',sigma)
         test_model(sigma,save_true_force= True)
         test_model(sigma,save_true_force= False)
-    
+
 
 if __name__=='__main__':
     main()

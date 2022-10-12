@@ -59,7 +59,7 @@ def run_models(datamodel:dict):
         for datargs,modelargs,modelid,modelname in idlist:
             print('loading model:')
             modelid,_,net,_,_,_,_,_=load_from_save(modelargs.split(' '))
-            
+
             nets[modelid] = net
         (dataset,_),_,_=get_loaders(datargs.split(' '))
         '''
@@ -72,9 +72,9 @@ def run_models(datamodel:dict):
         # ext = dataset.most_ocean_points(30,30,5,1)[0]
         extent = [-160.35, -120.35000000000136, 20.412099623311953 ,48.724758482833984]
         dataset.confine(0,*extent)
-        
 
-        
+
+
         # print(ext)
         # dataset.confine(0,*ext)
         # dataset.outmasks[0] = None
@@ -86,7 +86,7 @@ def run_models(datamodel:dict):
         datasets[dataid] = dataset
 
     device=get_device()
-    
+
     stak = lambda G: torch.from_numpy(np.stack([G],axis=0)).type(torch.float32).to(device)
     nonstak = lambda G: G[0].numpy()[:,::-1]
     outputs = {}
@@ -99,7 +99,7 @@ def run_models(datamodel:dict):
                 print(dataid,modelid,index,n)
                 net = nets[modelid]
                 dataset = datasets[dataid]
-                
+
                 X,Y,mask = (stak(G) for G in dataset[index])
                 net.eval()
                 with torch.set_grad_enabled(False):
@@ -129,17 +129,17 @@ def run_models(datamodel:dict):
     path = os.path.join(rootdir,filename)
     with open(path , 'wb') as f:
         pickle.dump(outputs, f, pickle.HIGHEST_PROTOCOL)
-    
+
 def plot_snapshots():
     rootdir = '/scratch/cg3306/climate/saves/plots/data'
     filename = 'snapshot_data.pkl'
     path = os.path.join(rootdir,filename)
     with open(path , 'rb') as f:
        output = pickle.load(f)
-    
+
     nsnapshots = len(output[list(output.keys())[0]])
     def plot_snapshot(output,si):
-        
+
         nmodels = len(output)+3
         def init_params(nchans,nmodels):
             data = np.empty((nchans,nmodels),dtype = object)
@@ -230,9 +230,9 @@ def plot_snapshots():
         imshow_plot(data,lons,lats,titles,nrow,ncol,figsize,suptitle,filename,kwargs)
     for si in range(nsnapshots):
         plot_snapshot(output,si)
-    
-            
-    
+
+
+
 def save_snapshots():
     def change_depth(margs,*args):
         marglist = margs.split(' ')
@@ -250,9 +250,9 @@ def save_snapshots():
         modelname = f"{modelnames[int(linsupres)]}({depthval}m)"
         modelargs = f'--domain global --temperature True --latitude True --sigma 8 --depth {depthval} --linsupres {linsupres}'
         modelargs,modelid = find_best_match(modelargs)
-        
+
         datargs = change_depth(modelargs,'depth',110,'domain','global')
-        
+
         datargs_,dataid = options(datargs.split(' '),key = "data")
         if dataid not in datamodel:
             datamodel[dataid] = []
@@ -264,7 +264,6 @@ def main():
     plot_snapshots()
     show_training()
 
- 
+
 if __name__=='__main__':
     main()
- 

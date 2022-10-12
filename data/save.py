@@ -47,7 +47,7 @@ def iterate_datargs():
     nco2  = 2
     nnorm = len(normalizationvals)
     numdata = ndepth*nsigma*ndoms*nco2*nnorm
-    
+
     for i in range(numdata):
         domain = domainvals[i%ndoms]
         i=i//ndoms
@@ -62,7 +62,7 @@ def iterate_datargs():
         i = i//nco2
 
         normalization = normalizationvals[i%nnorm]
-        
+
         parts = "1 1"
         if domain == "global":
             parts = "3 3"

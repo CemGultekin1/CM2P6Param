@@ -22,7 +22,7 @@ def save_coarse_grain_inversion(sigma):
             dims=["lat",'lon'],\
             coords = dict(lat = ds.lat.values,\
                 lon = ds.lat.values))
-    
+
     xlat = cg1(x,lat = True)
     x = xr.DataArray(data = np.eye(nx),\
             dims=["lat",'lon'],\
@@ -60,7 +60,7 @@ def save_coarse_grain_inversion(sigma):
     )
 
     filters.to_netcdf(path = inverse_coarse_graining_weights_path(sigma))
-    
+
     proj = xr.Dataset(
         data_vars = dict(
             proj_lat = (["clat","lat"],latproj),
@@ -86,7 +86,7 @@ def test(sigma):
     ds = ds.rename({"ulon" : "lon","ulat":"lat"})
     cg2d = coarse_graining_2d_generator(ds,sigma)
     u = ds.u
-    
+
     def carry_coord_multiples(val, field,sigma):
         cs = filters[field].values[::sigma]
         return cs[np.argmin(np.abs(cs - val))]
@@ -100,7 +100,7 @@ def test(sigma):
         return u.lat.values[[0,-1]],u.lon.values[[0,-1]]
 
     ubar = cg2d(u).sel(**selkwargs)
-    
+
 
     loccg2d = coarse_graining_2d_generator(ds.sel(**selkwargs),sigma)
     locubar = loccg2d(u.sel(**selkwargs))
@@ -118,10 +118,10 @@ def test(sigma):
                 lon = (["lon"],u.lon.values),
             )
         )
-    up = project(u)  
+    up = project(u)
     upbar = cg2d(up).sel(**selkwargs1)
     locupbar = loccg2d(up.sel(**selkwargs))
-        
+
 
     import matplotlib.pyplot as plt
     fig,axs = plt.subplots(2,3,figsize = (30,15))

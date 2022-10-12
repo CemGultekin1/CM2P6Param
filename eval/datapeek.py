@@ -11,7 +11,7 @@ def pre_processing(datargs,recfield,*datasets:List[Dataset]):
     for i in range(1,len(datasets)):
         datasets[i].receive_scalars(datasets[0])
     return datasets
-        
+
 
 
 def peek(datargs):
@@ -24,11 +24,11 @@ def peek(datargs):
     infield[infield==0] = np.nan
     mask[mask==0] = np.nan
     outfield = outfield*mask
-    
-    lat = lat[::-1]
-    
 
-    
+    lat = lat[::-1]
+
+
+
     n = infield.shape[0]
     lons = [lon]*n*2
     lats = [lat]*n*2
@@ -52,7 +52,6 @@ def main():
     # peek(datargs)
     data_masks()
 
- 
+
 if __name__=='__main__':
     main()
- 

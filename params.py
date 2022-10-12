@@ -3,7 +3,7 @@ from argparse import ArgumentTypeError
 
 SCALAR_PARAMS = {
     "domain" : {"type": str, "choices" : ["four_regions","global","custom"],},
-    "sigma" : {"type": int, "choices" : (4,8,12,16)}, 
+    "sigma" : {"type": int, "choices" : (4,8,12,16)},
     "depth" : {"type": float, "default" : 0.},
     "co2" : {"type":bool,"default":False},
     "normalization" :  {"type": str, "choices" : ["standard","absolute"],},
@@ -79,7 +79,7 @@ def str2bool(v):
 
 
 
-        
+
 for d in (DATA_PARAMS,ARCH_PARAMS,RUN_PARAMS,SCALAR_PARAMS,TRAIN_PARAMS):
     for key in d:
         if "choices" in d[key]:
@@ -88,9 +88,7 @@ for d in (DATA_PARAMS,ARCH_PARAMS,RUN_PARAMS,SCALAR_PARAMS,TRAIN_PARAMS):
             d[key]["dest"] =key
             d[key]["type"] = str2bool
         # if "type" in d[key]:
-        #     if d[key]["type"] == bool : 
+        #     if d[key]["type"] == bool :
         #         d[key].pop("type")
         #         d[key]["action"] = "store_true"
         #         d[key]["dest"] = key
-
-

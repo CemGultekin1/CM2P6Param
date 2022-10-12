@@ -31,9 +31,9 @@ def lcnn_architecture(ninchans,noutchans,width_scale,nlayers,filter_size,mode=0)
 
     filters = filters[:nlayers]
     assert cursize == filter_size
-    
+
     return widths,filters
-    
+
 def filter_shrink_method(filters,mode):
     if mode==0:
         # Default
@@ -136,7 +136,7 @@ def unet_architecture(sigma):
     net=UNET(filter_size=filter_size,deep_filters=deep_filters)
     nparam1=net.nparam
     rat=np.sqrt(nparam0/nparam1)
-    
+
     widths=[int(np.ceil(w*rat)) for w in widths]
     net=UNET(widths=widths,filter_size=filter_size,deep_filters=deep_filters)
     nparam2=net.nparam
@@ -146,16 +146,16 @@ def qcnn_receptive_field_compute(filter_size):
     return np.sum(filter_size)-len(filter_size)+1
 def qcnn_architecture(sigma):
     sigma1=4
-    
+
     receptive_field1=21
     receptive_field=int(receptive_field1/sigma*sigma1)//2*2+1
-    
+
     filter_size=[5,5,3,3,3,3,3,3]
     qwidth=64
     widths=[128,64,32,32,32,32,32,1]
     if sigma==sigma1:
         return widths,filter_size,qwidth,[11,11]
-    
+
     qfilt1=(receptive_field+1)//2
     if qfilt1%2==0:
         qfilt2=qfilt1-1
@@ -163,11 +163,11 @@ def qcnn_architecture(sigma):
     else:
         qfilt2=qfilt1
     qfilt=[qfilt1,qfilt2]
-    
+
     org_filter_size__=copy.deepcopy(filter_size)
     rec=qcnn_receptive_field_compute(filter_size)
     nomoreleft=False
-    
+
     while rec>receptive_field:
         filter_size__=copy.deepcopy(filter_size)
         ff=np.array(filter_size)
@@ -188,13 +188,12 @@ def qcnn_architecture(sigma):
     net=QCNN(filter_size=filter_size,qfilt=qfilt)
     nparam1=net.nparam
     rat=np.sqrt(nparam0/nparam1)
-    
-   
-    
+
+
+
     qwidth=int(np.ceil(qwidth*rat**2))
     widths=[int(np.ceil(w*rat)) for w in widths]
 
     net=QCNN(width=widths,qwidth=qwidth,filter_size=filter_size,qfilt=qfilt)
     nparam2=net.nparam
     return widths,filter_size,qwidth,qfilt
-

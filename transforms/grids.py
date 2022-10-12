@@ -39,7 +39,7 @@ def ugrid2tgrid(ulat,ulon):
     tlon = ulon - dulon/2
     tlat = ulat - dulat/2
     return tlat,tlon
-    
+
 def assign_tgrid(ds):
     ulat,ulon = ds.ulat.values,ds.ulon.values
     tlat,tlon = ugrid2tgrid(ulat,ulon)
@@ -55,7 +55,7 @@ def expand_longitude(ulon,lonmin,lonmax,expand):
     return np.sort(ulon)
 
 def bound_grid(lat,lon,latmin,latmax,lonmin,lonmax,expand):
-    
+
     I = np.where(lon>lonmin)[0]
     ilon0 = I[0] - expand
 
@@ -126,7 +126,7 @@ def fix_longitude(u,target_grid,):
     dilon0 = np.maximum(ilon0_ - ilon0,0)
     dilon1 = np.maximum(ilon1 - ilon1_,0)
     u = u.pad(lon = (dilon0,dilon1),mode="wrap").compute()
-    
+
     ilon0__ = ilon0_-dilon0
     ilon1__ = ilon1_+dilon1+1
     new_grid = larger_grid[ilon0__:ilon1__]
@@ -141,7 +141,7 @@ def longitude_overlaps(u:xr.DataArray,):
     nlon = np.round(((lon + 180*m) %(360*m))-180*m).astype(int)
     uniqs,cts = np.unique(nlon,return_counts = True)
     if np.all(cts == 1):
-        return u 
+        return u
     overlaps = uniqs[cts > 1]
     uval = u.values
     cuval = np.empty(uval.shape)
@@ -172,7 +172,7 @@ def normalize_longitude(u:xr.DataArray,):
     lon = u["lon"].values
     ilon0 = np.argmin(np.abs(lon + 180))
     u = u.roll({"lon": -ilon0},roll_coords = True)
-    return u 
+    return u
 
 def make_divisible_by_grid(ds,sigma,*boundary):
     lat = boundary[:2]
@@ -187,7 +187,7 @@ def make_divisible_by_grid(ds,sigma,*boundary):
         ioff = int(ioff)
         val =  arr[ioff]
         return val
-        
+
     b[2] = getnearest(lons,lon[0],-1)
     b[3] = getnearest(lons,lon[1],+1)
     b[0] = getnearest(lats,lat[0],-1)
@@ -197,7 +197,7 @@ def make_divisible_by_grid(ds,sigma,*boundary):
 def boundary2kwargs(*boundary):
     return {'lon':slice(boundary[2],boundary[3]),'lat':slice(boundary[0],boundary[1])}
 def equispace(vec,n):
-    x = np.linspace(0,len(vec)-1,n +1 ) 
+    x = np.linspace(0,len(vec)-1,n +1 )
     doubles = np.empty((n,2))
     for i in range(n):
         doubles[i,:] = x[i]-1,x[i+1]+1
@@ -221,5 +221,3 @@ def divide2equals(lats,lons,nlat,nlon,*boundary):
         bds = [*lats[[lat0,lat1]],*lons[[lon0,lon1]]]
         z[(i,j)] = tuple(bds)
     return z
-    
-

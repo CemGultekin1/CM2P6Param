@@ -52,9 +52,9 @@ def python_args():
         flag,i = scalars_exist(line.split())
         if not flag:
             print(line)
-            
+
     lines = '\n'.join(lines)
-    
+
     argsfile = DEPTHJOB + '.txt'
     path = os.path.join(root,argsfile)
     with open(path,'w') as f:

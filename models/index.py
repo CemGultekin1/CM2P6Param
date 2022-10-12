@@ -7,12 +7,12 @@ def reset():
     lookupfile=MODELIDS_JSON
     with open(lookupfile,'w') as infile:
         json.dump(data_info,infile)
-        
+
 def safe():
     lookupfile=MODELIDS_JSON
     with open(lookupfile) as infile:
         data_info=json.load(infile)
-    
+
     lookupfile=BACKUP_MODELIDS_JSON
     with open(lookupfile,'w') as infile:
         json.dump(data_info,infile)
@@ -21,12 +21,12 @@ def recover():
     random_wait()
     with open(lookupfile) as infile:
         data_info=json.load(infile)
-    
+
     lookupfile=MODELIDS_JSON
     random_wait()
     with open(lookupfile,'w') as infile:
         json.dump(data_info,infile)
-        
+
 def get_dict(model_bank_id,model_id,parallel=True):
     expand_dict(model_bank_id,model_id)
     lookupfile=MODELIDS_JSON
@@ -45,7 +45,7 @@ def expand_dict(model_bank_id,model_id,parallel=True):
         iskey1=True
         if str(model_id) in list(data_info_[str(model_bank_id)].keys()):
             iskey2=True
-            
+
     if not iskey1:
         data_info_[str(model_bank_id)]={}
     if not iskey2:

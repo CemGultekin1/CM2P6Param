@@ -12,22 +12,22 @@ def data_fourier_analysis(args):
     _,_,_,(dataset,datagen)=load_data(net,args)
     MASK=climate_data.get_land_masks(datagen)[0,0]
 
-    
-    
-    
+
+
+
     sx=dataset.dimens[1]-2*dx-2*dx
     sy=dataset.dimens[0]-2*dx-2*dx
-    
+
     xx=np.arange(0,sx,dx)
     yy=np.arange(0,sy,dy)
     nx=len(xx)
     ny=len(yy)
-    
+
     G=np.zeros((8,ny*width, nx*width))
-    
-    
+
+
     tot=0
-    
+
     for i in range(len(dataset)):
         UV,_,SXY = dataset[i]
         #for local_batch,nan_mask, _ in datagen:
@@ -35,7 +35,7 @@ def data_fourier_analysis(args):
         for k in range(ny):
             for l in range(nx):
                 K,L=yy[k],xx[l]
-                if MASK[K,L]>0:    
+                if MASK[K,L]>0:
                     uv=UV[:,K:K+width,L:L+width].numpy()
                     sxy=SXY[:,K:K+width,L:L+width].numpy()
                     ff=[np.abs(np.fft.fftshift(np.fft.fft2(uv[oo]))) for oo in range(2)]
@@ -55,4 +55,4 @@ def data_fourier_analysis(args):
                 NN=NN/MNN
                 NG[4:,k*width:(k+1)*width,l*width:(l+1)*width]=NN
         with open('/scratch/cg3306/climate/global-fourier-analysis.npy', 'wb') as f:
-            np.save(f, NG.numpy()) 
+            np.save(f, NG.numpy())

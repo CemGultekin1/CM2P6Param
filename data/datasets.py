@@ -9,7 +9,7 @@ import xarray as xr
 # class GeographicBoundary:
 #     def __init__(self,boundaries):
 
-        
+
 class ClimateData:
     'Characterizes a dataset for PyTorch'
     def __init__(self,data_address,):
@@ -24,16 +24,16 @@ class ClimateData:
         geo = []
         for nd in range(self.num_domains):
             datsel=None
-            
+
             xx=datsel.xu_ocean.values
             yy=datsel.yu_ocean.values
-            
+
             i0=np.argmin(np.abs(yy[0]-y))
             i1=np.argmin(np.abs(yy[-1]-y))+1
-            
+
             j0=np.argmin(np.abs(xx[0]-x))
             j1=np.argmin(np.abs(xx[-1]-x))+1
-            
+
             locgeo = lat1[i0:i1], lat2[i0:i1], lng1[j0:j1], lng2[j0:j1]
             locgeo = [torch.tensor(ll,dtype=torch.float32) for ll in locgeo]
             geo.append(locgeo)
@@ -46,7 +46,7 @@ class ClimateData:
         self.geo  = dataset.geo
 
     def compute_normalization_constants(self,):
-        
+
         stats = {}
         for key in self.input_fields + self.output_fields:
             mom1 = 0
@@ -57,7 +57,7 @@ class ClimateData:
                 vals = subds_data[key].values
                 vals[vals!=vals]= 0
                 vals = vals[vals!=0]
-                
+
                 if self.normalization == "standard":
                     mom1 += np.mean(vals)
                     mom2 += np.mean(np.square(vals))
@@ -119,7 +119,7 @@ class ClimateData:
         #     return None
         inds = np.dstack(np.unravel_index(np.argsort(density.ravel()), density.shape))[0]
         # inds = inds[::-1,:]
-        inds = inds + self.rec_field//2 
+        inds = inds + self.rec_field//2
         lat,lon = self.coords[0]
         spread = self.rec_field//2
         lon=np.concatenate([lon[-spread:],lon,lon[:spread]], axis=0)
@@ -130,7 +130,7 @@ class ClimateData:
         # print(lat.shape,lon.shape)
         def remove_close_ones(vecs,s,i,d):
             vec = vecs[s]
-            I = np.where(np.abs(vec[i]-vec[i+1:])>d)[0] 
+            I = np.where(np.abs(vec[i]-vec[i+1:])>d)[0]
             if len(I)==0:
                 return vecs,False
             I = I +i+1
@@ -164,7 +164,7 @@ class ClimateData:
         self.geo = self.load_geo(rec_field)
     def domain_index(self,index):
         return index%self.num_domains
-    
+
     def normalize(self,vec,input=True):
         if input:
             scalars = self.inscalars
@@ -221,20 +221,20 @@ class ClimateData:
 
         coords=[]
         icoords=[]
-        
+
         y=self.ds_data.yu_ocean.values
         x=self.ds_data.xu_ocean.values
         for nd in range(self.num_domains):
             datsel=self.ds_data.sel(time=self.ds_data.time[0].data,\
                 xu_ocean=slice(self.domains['xmin'][nd], self.domains['xmax'][nd]),\
                 yu_ocean=slice(self.domains['ymin'][nd], self.domains['ymax'][nd]))
-            
+
             xx=datsel.xu_ocean.values
             yy=datsel.yu_ocean.values
-            
+
             i0=np.argmin(np.abs(yy[0]-y))
             i1=np.argmin(np.abs(yy[-1]-y))+1
-            
+
             j0=np.argmin(np.abs(xx[0]-x))
             j1=np.argmin(np.abs(xx[-1]-x))+1
 
@@ -244,7 +244,7 @@ class ClimateData:
         self.coords=coords
         self.icoords=icoords
         # print(icoords)
-   
+
 
     def __getitem__(self,index):
         nd=index%self.num_domains
@@ -258,14 +258,14 @@ class ClimateData:
             # print(spread,datsel[self.output_fields[0]].shape)
             Y=[datsel[key].values[spread:-spread,:] for key in self.output_fields]
             # Y=[y[::-1] for y in Y]
-           
+
             nouts = len(self.output_fields)
             if not self.periodic_lon_expand:
                 Y=[Y[i][:,spread:-spread] for i in range(nouts)]
         else:
             Y=[datsel[key].values for key in self.output_fields]
             # Y=[y[::-1] for y in Y]
-        
+
         if self.normalization is not None and self.inscalars is not None and self.outscalars is not None:
             X = self.normalize(X,input=True)
             Y = self.normalize(Y,input=False)
@@ -297,15 +297,15 @@ class ClimateData:
         X[X!=X] = 0
         Y[Y!=Y] = 0
         return X,Y,self.outmasks[nd]
-               
+
     def pad_with_zero(self,Y,spread,padding_val=0,centered=False):
-        #p3d = (0, self.dimens[1]-2*spread-Y.shape[2], 0, self.dimens[0]-2*spread-Y.shape[1]) 
+        #p3d = (0, self.dimens[1]-2*spread-Y.shape[2], 0, self.dimens[0]-2*spread-Y.shape[1])
         if not centered:
-            p3d = (0, self.dimens[1]-2*spread-Y.shape[2], 0, self.dimens[0]-2*spread-Y.shape[1]) 
+            p3d = (0, self.dimens[1]-2*spread-Y.shape[2], 0, self.dimens[0]-2*spread-Y.shape[1])
         else:
             d1=self.dimens[1]-2*spread-Y.shape[2]
             d2=self.dimens[0]-2*spread-Y.shape[1]
-            p3d = (d1//2,d1-d1//2 , d2//2, d2-d2//2) 
+            p3d = (d1//2,d1-d1//2 , d2//2, d2-d2//2)
         Y = F.pad(torch.from_numpy(Y), p3d, "constant", padding_val).numpy()
         return Y
 
@@ -336,7 +336,7 @@ class Dataset(torch.utils.data.Dataset):
         self.output_fields = output_fields
 
         self.latfeat = latfeat
-        
+
         self.ds_data = ds_data.sel(yu_ocean=slice(-85, 85))
         self.domains=domains
         self.num_domains=len(self.domains['xmin'])
@@ -345,7 +345,7 @@ class Dataset(torch.utils.data.Dataset):
         self.time_tr=np.int64(np.ceil(tot_time*self.domains['tmax']))
         self.tot_time=self.time_tr-self.time_st
         self.num_time=np.int64(np.ceil(self.tot_time))
-        
+
         dimens=[]
         for nd in range(self.num_domains):
             datsel=self.ds_data.sel(time=self.ds_data.time[0].data, \
@@ -355,30 +355,30 @@ class Dataset(torch.utils.data.Dataset):
         dimens=torch.tensor(dimens)
         self.dimens=torch.amax(dimens,dim=0)
         self.glbl_data=self.ds_data.yu_ocean.shape[0]*self.ds_data.xu_ocean.shape[0]==self.dimens[0]*self.dimens[1]
-        
+
         self.periodic_lon_expand = self.glbl_data
         coords=[]
         icoords=[]
         geo=[]
-        
+
         y=self.ds_data.yu_ocean.values
         x=self.ds_data.xu_ocean.values
-        
+
         # lat1, lat2, lng1, lng2 = geographic_features2(len(y),net.spread*2+1)
         for nd in range(self.num_domains):
             datsel=self.ds_data.sel(time=self.ds_data.time[0].data,\
                 xu_ocean=slice(self.domains['xmin'][nd], self.domains['xmax'][nd]),\
                 yu_ocean=slice(self.domains['ymin'][nd], self.domains['ymax'][nd]))
-            
+
             xx=datsel.xu_ocean.values
             yy=datsel.yu_ocean.values
-            
+
             i0=np.argmin(np.abs(yy[0]-y))
             i1=np.argmin(np.abs(yy[-1]-y))+1
-            
+
             j0=np.argmin(np.abs(xx[0]-x))
             j1=np.argmin(np.abs(xx[-1]-x))+1
-            
+
             # locgeo = lat1[i0:i1], lat2[i0:i1], lng1[j0:j1], lng2[j0:j1]
             # locgeo = [torch.tensor(ll,dtype=torch.float32) for ll in locgeo]
             # geo.append(locgeo)
@@ -392,7 +392,7 @@ class Dataset(torch.utils.data.Dataset):
         # self.geo=geo
         self.icoords=icoords
         self.no_more_mask_flag=True
-        
+
         self.inscalars = None
         self.outscalars = None
         y,x=self.coords[0]
@@ -412,16 +412,16 @@ class Dataset(torch.utils.data.Dataset):
             datsel=self.ds_data.sel(time=self.ds_data.time[0].data,\
                 xu_ocean=slice(self.domains['xmin'][nd], self.domains['xmax'][nd]),\
                 yu_ocean=slice(self.domains['ymin'][nd], self.domains['ymax'][nd]))
-            
+
             xx=datsel.xu_ocean.values
             yy=datsel.yu_ocean.values
-            
+
             i0=np.argmin(np.abs(yy[0]-y))
             i1=np.argmin(np.abs(yy[-1]-y))+1
-            
+
             j0=np.argmin(np.abs(xx[0]-x))
             j1=np.argmin(np.abs(xx[-1]-x))+1
-            
+
             locgeo = lat1[i0:i1], lat2[i0:i1], lng1[j0:j1], lng2[j0:j1]
             locgeo = [torch.tensor(ll,dtype=torch.float32) for ll in locgeo]
             geo.append(locgeo)
@@ -434,7 +434,7 @@ class Dataset(torch.utils.data.Dataset):
         self.geo  = dataset.geo
 
     def compute_normalization_constants(self,):
-        
+
         stats = {}
         for key in self.input_fields + self.output_fields:
             mom1 = 0
@@ -445,7 +445,7 @@ class Dataset(torch.utils.data.Dataset):
                 vals = subds_data[key].values
                 vals[vals!=vals]= 0
                 vals = vals[vals!=0]
-                
+
                 if self.normalization == "standard":
                     mom1 += np.mean(vals)
                     mom2 += np.mean(np.square(vals))
@@ -507,7 +507,7 @@ class Dataset(torch.utils.data.Dataset):
         #     return None
         inds = np.dstack(np.unravel_index(np.argsort(density.ravel()), density.shape))[0]
         # inds = inds[::-1,:]
-        inds = inds + self.rec_field//2 
+        inds = inds + self.rec_field//2
         lat,lon = self.coords[0]
         spread = self.rec_field//2
         lon=np.concatenate([lon[-spread:],lon,lon[:spread]], axis=0)
@@ -518,7 +518,7 @@ class Dataset(torch.utils.data.Dataset):
         # print(lat.shape,lon.shape)
         def remove_close_ones(vecs,s,i,d):
             vec = vecs[s]
-            I = np.where(np.abs(vec[i]-vec[i+1:])>d)[0] 
+            I = np.where(np.abs(vec[i]-vec[i+1:])>d)[0]
             if len(I)==0:
                 return vecs,False
             I = I +i+1
@@ -552,7 +552,7 @@ class Dataset(torch.utils.data.Dataset):
         self.geo = self.load_geo(rec_field)
     def domain_index(self,index):
         return index%self.num_domains
-    
+
     def normalize(self,vec,input=True):
         if input:
             scalars = self.inscalars
@@ -609,20 +609,20 @@ class Dataset(torch.utils.data.Dataset):
 
         coords=[]
         icoords=[]
-        
+
         y=self.ds_data.yu_ocean.values
         x=self.ds_data.xu_ocean.values
         for nd in range(self.num_domains):
             datsel=self.ds_data.sel(time=self.ds_data.time[0].data,\
                 xu_ocean=slice(self.domains['xmin'][nd], self.domains['xmax'][nd]),\
                 yu_ocean=slice(self.domains['ymin'][nd], self.domains['ymax'][nd]))
-            
+
             xx=datsel.xu_ocean.values
             yy=datsel.yu_ocean.values
-            
+
             i0=np.argmin(np.abs(yy[0]-y))
             i1=np.argmin(np.abs(yy[-1]-y))+1
-            
+
             j0=np.argmin(np.abs(xx[0]-x))
             j1=np.argmin(np.abs(xx[-1]-x))+1
 
@@ -632,7 +632,7 @@ class Dataset(torch.utils.data.Dataset):
         self.coords=coords
         self.icoords=icoords
         # print(icoords)
-   
+
 
     def __getitem__(self,index):
         nd=index%self.num_domains
@@ -646,14 +646,14 @@ class Dataset(torch.utils.data.Dataset):
             # print(spread,datsel[self.output_fields[0]].shape)
             Y=[datsel[key].values[spread:-spread,:] for key in self.output_fields]
             # Y=[y[::-1] for y in Y]
-           
+
             nouts = len(self.output_fields)
             if not self.periodic_lon_expand:
                 Y=[Y[i][:,spread:-spread] for i in range(nouts)]
         else:
             Y=[datsel[key].values for key in self.output_fields]
             # Y=[y[::-1] for y in Y]
-        
+
         if self.normalization is not None and self.inscalars is not None and self.outscalars is not None:
             X = self.normalize(X,input=True)
             Y = self.normalize(Y,input=False)
@@ -685,16 +685,14 @@ class Dataset(torch.utils.data.Dataset):
         X[X!=X] = 0
         Y[Y!=Y] = 0
         return X,Y,self.outmasks[nd]
-               
+
     def pad_with_zero(self,Y,spread,padding_val=0,centered=False):
-        #p3d = (0, self.dimens[1]-2*spread-Y.shape[2], 0, self.dimens[0]-2*spread-Y.shape[1]) 
+        #p3d = (0, self.dimens[1]-2*spread-Y.shape[2], 0, self.dimens[0]-2*spread-Y.shape[1])
         if not centered:
-            p3d = (0, self.dimens[1]-2*spread-Y.shape[2], 0, self.dimens[0]-2*spread-Y.shape[1]) 
+            p3d = (0, self.dimens[1]-2*spread-Y.shape[2], 0, self.dimens[0]-2*spread-Y.shape[1])
         else:
             d1=self.dimens[1]-2*spread-Y.shape[2]
             d2=self.dimens[0]-2*spread-Y.shape[1]
-            p3d = (d1//2,d1-d1//2 , d2//2, d2-d2//2) 
+            p3d = (d1//2,d1-d1//2 , d2//2, d2-d2//2)
         Y = F.pad(torch.from_numpy(Y), p3d, "constant", padding_val).numpy()
         return Y
-
-

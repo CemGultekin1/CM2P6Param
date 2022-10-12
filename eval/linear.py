@@ -1,7 +1,7 @@
 def data_covariance(args):
     net,criterion,(data_init,partition),logs,(PATH0,PATH1,LOG,root)=load_from_save(args)
     _,_,_,(dataset,datagen)=load_data(data_init,partition,args)
-    
+
     MASK=climate_data.get_land_masks(datagen)[0,0]
     device=get_device()
     net.eval()
@@ -9,17 +9,17 @@ def data_covariance(args):
     spread=net.spread
     dx=spread
     dy=spread
-    
+
     W=np.reshape(np.arange(spread+1),[-1,1])
     sx=dataset.dimens[1]-width+1
     sy=dataset.dimens[0]-width+1
-    
+
     xx=np.arange(0,sx,dx)
     yy=np.arange(0,sy,dy)
     nx=len(xx)
     ny=len(yy)
-    
-    
+
+
     UV,_,_ = dataset[0]
     nchan=UV.shape[0]
     G=np.zeros((nchan*2,ny*width, nx*width))
@@ -35,7 +35,7 @@ def data_covariance(args):
         for k in range(ny):
             for l in range(nx):
                 K,L=yy[k],xx[l]
-                if MASK[K,L]>0:  
+                if MASK[K,L]>0:
                     uv=torch.reshape(UV[:2,K:K+width,L:L+width],(1,-1))
                     uv=torch.cat([uv,torch.ones(1,1)],dim=1)
                     COV=COV+(uv.T@uv).numpy()
@@ -49,8 +49,8 @@ def data_covariance(args):
         if i%10==0:
             print('\t\t '+str(tot/nx/ny/len(dataset)),flush=True)
         with open('/scratch/cg3306/climate/data-covariance.npy', 'wb') as f:
-            np.save(f, COV/tot) 
-            
+            np.save(f, COV/tot)
+
 def projection_analysis(args):
     model_id=int(args.model_id)%4
     sigma_id=int(args.model_id)//4

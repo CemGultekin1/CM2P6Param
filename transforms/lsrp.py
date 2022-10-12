@@ -6,7 +6,7 @@ import numpy as np
 from transforms.subgrid_forcing import forward_difference
 import torch.nn as nn
 import torch
-from utils.slurm import flushed_print 
+from utils.slurm import flushed_print
 
 MAXSPAN = 15
 def weights2convolution(weights,):
@@ -31,12 +31,12 @@ def single_component(f,k,i,j,field='lat'):
     B = f[f"inv_{field}"][j,:]
     DB = f[f"diff_inv_{field}"][j,:]
     C = f[f"forward_{field}"][k,:]
-    return np.sum(A*B*C),np.sum(A*DB*C) 
-    
+    return np.sum(A*B*C),np.sum(A*DB*C)
+
 def lat_spec_weights(filters,lati,span):
     _,nlon = len(filters.clat),len(filters.clon)
 
-  
+
 
     rfield = 2*span + 1
     def fun(latii,**kwargs):
@@ -110,7 +110,7 @@ def save_uncompressed_weights(sigma,span):
     )
     path = convolutional_lsrp_weights_path(sigma)
     lsrp.to_netcdf(path)
-    
+
 def shrink_shift_span(lspan,span):
     lrfield = lspan*2+1
     z = np.zeros((lrfield,lrfield))
@@ -140,7 +140,7 @@ def save_compressed_weights(sigma,span):
     nchan = len(lsrp.shiftchan.values)
     latkernel = len(lsrp.latkernel.values)
     lonkernel = len(lsrp.lonkernel.values)
-    
+
     def compress(weights,tol = 1e-6):
         weights = weights.reshape(weights.shape[0],-1)
         u,s,vh = np.linalg.svd(weights,full_matrices = False)
@@ -154,7 +154,7 @@ def save_compressed_weights(sigma,span):
         vh = vh[:K,:].reshape(K,*wshp)
         return K,us,vh
 
-    
+
     kdlat,lat_dlat,_convdlat = compress(convdlat)
     kdlon,lat_dlon,_convdlon = compress(convdlon)
 
@@ -183,7 +183,7 @@ def get_projection_weights(sigma):
 
 def get_compressed_weights(sigma,span):
     _,spns = search_compressed_lsrp_paths(sigma)
-    
+
     spns = np.array(spns)
     mspns = spns[spns >= span]
     if len(mspns)==0:

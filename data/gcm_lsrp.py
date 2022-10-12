@@ -116,7 +116,7 @@ class ConvLSRSingleDomain(SingleDomain):
         U = xr.where(M0, U, np.nan)
         K =  dict(fields = U,forcings = F,lsrp_res_forcings = F - RF)
         return K
-    
+
 
 class DividedDomain(CM2p6Dataset):
     cgs : Dict[Tuple[int,int],SingleDomain]

@@ -76,17 +76,17 @@ def sigmoid_freq(n,span):
     p0=1/2
     p1=4
     d=20
-    
+
     x=np.linspace(-1,1,n)
     x=1/(1+np.exp(-x*d))
-    
+
     Pmin=span*p0
     Pmax=span*p1
 
     Fmin=1/Pmax
     Fmax=1/Pmin
     dF=(Fmax-Fmin)
-    
+
     x=x*dF+Fmin
     x=np.cumsum(x)
     return x*2*np.pi

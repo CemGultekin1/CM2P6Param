@@ -110,7 +110,7 @@ def cartopy_subplot(fig,nrow,ncol,index,u,lons,lats,title,\
                   add_colorbar=False)
     ax.set_title(title)
     ax.coastlines()
-    
+
     # tickvals=[10**(-(i-1)) for i in range(8)]
     # tickstr=[str(tt) for tt in tickvals]
     if colorbar:

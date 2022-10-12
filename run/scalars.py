@@ -40,7 +40,7 @@ def main():
         for key,val in scalars.items():
             if norm == "standard":
                 scalars[key][1] = np.sqrt(val[1]-val[0]**2)
-    
+
     def set_normalization(args,name:str):
         if "--normalization" in args:
             i = args.index("--normalization") + 1

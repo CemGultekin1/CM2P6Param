@@ -22,7 +22,7 @@ def find_best_match(incargs:str,):
                     flag = inc[key]==prm[key]
             if not flag:
                 return False
-        return flag   
+        return flag
     def compare_float_prms(prm,inc,):
         distance = 0
         for key in MODEL_PARAMS:
@@ -30,7 +30,7 @@ def find_best_match(incargs:str,):
                 continue
             if key in inc:
                 distance += abs(inc[key]-prm[key])
-        return distance         
+        return distance
     inc = read_params(incargs)
     with open(modelsdict) as f:
         models = json.load(f)
@@ -44,13 +44,8 @@ def find_best_match(incargs:str,):
     distances = []
     for mid in mids:
         args = models[mid]
-        prms = read_params(args)     
+        prms = read_params(args)
         distances.append(compare_float_prms(prms,inc))
     i = np.argmin(distances)
     mid = mids[i]
     return models[mid],mid
-
-
-    
-
-

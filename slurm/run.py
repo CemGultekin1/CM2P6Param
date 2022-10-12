@@ -59,6 +59,6 @@ def main():
         projection_analysis(args)
     if args.action=="global-averages":
         global_averages()
-    
+
 if __name__=='__main__':
     main()

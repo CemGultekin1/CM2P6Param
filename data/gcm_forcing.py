@@ -34,7 +34,7 @@ class CM2p6Dataset:
         varnames = kwargs.get('var_grouping')
         self.field_names = flatten_tuple_list(varnames[0])
         self.forcing_names = flatten_tuple_list(varnames[1])
-     
+
         if boundaries is None:
             boundaries = (-90,90,-180,180)
         if coarse_grain_needed:
@@ -47,17 +47,17 @@ class CM2p6Dataset:
                 boundaries = make_divisible_by_grid(ds.rename({"ulon":"lon","ulat":"lat"}),sigma,*boundaries)
             ulat,ulon = ds.ulat.values,ds.ulon.values
             tlat,tlon = ugrid2tgrid(ulat,ulon)
-            
+
             self.ds = self.ds.assign(tlat = tlat,tlon = tlon)
             ulon,tlon = larger_longitude_grid(ulon),larger_longitude_grid(tlon)
-            self.global_hres_coords = ulat,ulon,tlat,tlon 
+            self.global_hres_coords = ulat,ulon,tlat,tlon
             def coarsen(ulon):
                 return  xr.DataArray(data = ulon).coarsen(dim_0 = sigma,boundary = "trim").mean().values
             self.global_lres_coords = coarsen(ulon),coarsen(ulat)
         else:
             self.global_lres_coords = self.ds.lat.values,larger_longitude_grid(self.ds.lon.values)
         self.preboundaries = boundaries
-    
+
     @property
     def depth(self,):
         return self.ds.depth.values
@@ -77,8 +77,8 @@ class CM2p6Dataset:
     @property
     def lres_spread(self,):
         return self.half_spread
-    
-    
+
+
     def locate(self,*args,lat = True,):
         clat,clon = self.global_lres_coords
         if lat:
@@ -95,8 +95,8 @@ class CM2p6Dataset:
         if not self.coarse_grain_needed:
             return 0
         return self.sigma*5
-            
-    
+
+
 class SingleDomain(CM2p6Dataset):
     coarse_grain : Callable
     local_hres_coords: Tuple[np.ndarray,...] # larger hres grid
@@ -111,10 +111,10 @@ class SingleDomain(CM2p6Dataset):
         self.coarse_grain = None
         self.initiated = False
         self.all_land = None
-        
+
     @property
     def shape(self,):
-        clat,clon = self.final_local_lres_coords    
+        clat,clon = self.final_local_lres_coords
         return len(clat), len(clon)
     def set_half_spread(self,addsp):
         self.half_spread = addsp
@@ -144,7 +144,7 @@ class SingleDomain(CM2p6Dataset):
             cbulat,cbulon,lat0,lat1,lon0,lon1 = bound_grid(cbulat,cbulon,latmin,latmax,lonmin,lonmax,self.lres_spread)
             self.final_boundaries = {"lat":slice(lat0,lat1),"lon": slice(lon0,lon1)}
             self.final_local_lres_coords = cbulat,cbulon
-        
+
     def fix_grid(self,u, Tgrid = False):
         if not self.coarse_grain_needed:
             latlon = self.local_lres_coords
@@ -157,7 +157,7 @@ class SingleDomain(CM2p6Dataset):
 
     def get_hres(self,i,fillna = False):
         ds = self.ds.isel(time = i)
-        if fillna: 
+        if fillna:
             ds = ds.fillna(0)
         u,v,T = ds.u,ds.v,ds.T
         u = u.rename(ulat = "lat",ulon = "lon")
@@ -177,7 +177,7 @@ class SingleDomain(CM2p6Dataset):
         mask = no_nan_input_mask(self.wet_mask,self.half_spread,lambda x: x==0)
         mask = xr.where(mask==0,1,0)
         return mask
-        
+
     def build_wet_mask(self,u,T):
         def coarsen_hres_mask(u):
             mask = no_nan_input_mask(u,self.coarse_graining_spread)
@@ -187,7 +187,7 @@ class SingleDomain(CM2p6Dataset):
         mask = umask + tmask
         mask = xr.where(mask==0,1,0)
         return mask
-        
+
     def init_coarse_graining(self,):
         u,_,T=self.get_hres(0)
         u,T = self.fix_grid(u,Tgrid = False),self.fix_grid(T,Tgrid = True)
@@ -197,7 +197,7 @@ class SingleDomain(CM2p6Dataset):
         self.wet_mask = self.build_wet_mask(u,T)
         self.forcing_mask = self.build_forcing_mask()
         self.all_land = np.mean(self.forcing_mask.values) > 1 - 1e-2
-        
+
     def init_coarse_masks(self,):
         u = self.ds.isel(time = 0).u
         u = self.fix_grid(u)
@@ -224,7 +224,7 @@ class SingleDomain(CM2p6Dataset):
         if not self.initiated:
             self.init_coarse_graining()
             self.initiated = True
-        if self.all_land:            
+        if self.all_land:
             U,F = self.nan_map
             return dict(fields = U, forcings = F)
         u,v,T = self.get_grid_fixed_hres(i,fillna = True)
@@ -232,7 +232,7 @@ class SingleDomain(CM2p6Dataset):
 
         M0 = self.wet_mask.sel(**self.final_boundaries) == 1
         M1 = self.forcing_mask.sel(**self.final_boundaries) == 1
-        
+
         F = xr.where(M1, F.sel(**self.final_boundaries), np.nan)
         U = xr.where(M0, U.sel(**self.final_boundaries), np.nan)
         return dict(fields = U,forcings = F)
@@ -241,10 +241,10 @@ class SingleDomain(CM2p6Dataset):
         if not self.initiated:
             self.init_coarse_masks()
             self.initiated = True
-        if self.all_land:  
+        if self.all_land:
             Zs = self.nan_map
             return dict(fields = Zs, forcings = Zs)
-        
+
         U = self.get_grid_fixed_lres(i, self.field_names)
         F = self.get_grid_fixed_lres(i, self.forcing_names)
         M1 = self.forcing_mask.sel(**self.final_boundaries) == 1
@@ -257,8 +257,8 @@ class SingleDomain(CM2p6Dataset):
             return self.hres2lres(i)
         else:
             return self.lres2lres(i)
-        
-        
+
+
 
 
 
@@ -285,5 +285,3 @@ def reng_ut_grid_alignment():
         # break
     py,px = np.unravel_index(np.argmax(m.flatten()),m.shape)
     py,px = py - ddy//2, px - ddx//2
-
-

@@ -1,6 +1,6 @@
 import sys
 import torch
-from data.load import get_data, load_dataset, populate_dataset
+from data.load import get_data,
 from models.load import load_model
 from utils.arguments import options
 import matplotlib.pyplot as plt
@@ -29,7 +29,7 @@ def postprocessing(forcings,masks,outputs,):
     outputs = torch.unbind(outputs.to('cpu'), dim = 1)
     def value_norms(fields):
         return {key: fields[key]['val']  for key in fields},{key: fields[key]['normalization']  for key in fields}
-    
+
     def denormalize(fields,nfields):
         def _denorm(f,n):
             return f#*n[:,1].reshape([-1,1,1]) + n[:,0].reshape([-1,1,1])
@@ -68,17 +68,17 @@ def main():
     modelid,_,net,_,_,_,_,runargs=load_model(modelargs)
 
     net.eval()
-    
+
     device=get_device()
     test_generator, = get_data(datargs,half_spread = net.spread*sigma, torch_flag = False, data_loaders = True,groups = ('test',))
 
     i=0
     dataset = None
-    for infields,outfields,mask in test_generator:     
+    for infields,outfields,mask in test_generator:
         print(list(infields.keys()))
         return
         net_fields,net_forcings,net_masks = preprocess(fields,forcings,masks,device)
-        
+
         with torch.set_grad_enabled(False):
             mean,_ = net.forward(net_fields)
 
@@ -106,8 +106,8 @@ def main():
             fig.savefig('snapshot_global_time_0_new_1.png')
             plt.close()
             break
-    
-    
+
+
 
 
 
