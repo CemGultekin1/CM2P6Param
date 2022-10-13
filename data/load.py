@@ -62,7 +62,7 @@ def get_var_grouping(args)-> Tuple[Tuple[List[str],...],Tuple[List[str],...]]:
     if runprms.linsupres:
         if runprms.mode != 'train':
             varnames.append(forcings)
-            masknames.append(forcingmasks)
+            # masknames.append(forcingmasks)
         varnames.append(lsrp_res_forcings)
         masknames.append(lsrpresforcingmasks)
     else:
@@ -138,7 +138,8 @@ def get_data(args,torch_flag = False,data_loaders = True,**kwargs):
             'shuffle':ns.mode == "train",\
             'num_workers':ns.num_workers,\
             'prefetch_factor':ns.prefetch_factor,\
-            'persistent_workers':ns.persistent_workers,}
+            'persistent_workers':ns.persistent_workers,
+            'pin_memory': True}
         torchdsets = (TorchDatasetWrap(dset_) for dset_ in dsets)
         return (torch.utils.data.DataLoader(tset_, **params) for tset_ in torchdsets)
     else:

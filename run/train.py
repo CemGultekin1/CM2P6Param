@@ -50,9 +50,11 @@ def preprocess(infields,outfields,mask,device,linsupres = False,return_true_forc
 
 def cnn_train(args):
     modelid,state_dict,net,criterion,optimizer,scheduler,logs,runargs=load_model(args)
-    flushed_print(runargs)
+    flushed_print('torch.cuda.is_available():\t',torch.cuda.is_available())
+    flushed_print('runargs:\t',runargs)
     training_generator,val_generator=get_data(args,half_spread = net.spread,torch_flag = True,data_loaders = True,groups = ('train','validation'))
     device=get_device()
+    print(f"using device: {device}")
     flushed_print("epochs started")
     timer = Timer()
 
@@ -77,7 +79,7 @@ def cnn_train(args):
 
 
             tt+=1
-            if runargs.disp > 0 and tt%runargs.disp==0:
+            if False:#runargs.disp > 0 and tt%runargs.disp==0:
                 flushed_print('\t\t\t train-loss: ',str(np.mean(np.array(logs['train-loss'][-1]))),\
                         '\t ±',\
                         str(np.std(np.array(logs['train-loss'][-1]))))

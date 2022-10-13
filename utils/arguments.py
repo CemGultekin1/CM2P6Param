@@ -1,7 +1,52 @@
 import argparse
 import hashlib
+import itertools
 from typing import List
-from params import DATA_PARAMS,MODEL_PARAMS,ARCH_PARAMS,RUN_PARAMS, SCALAR_PARAMS, TRAIN_PARAMS
+from params import DATA_PARAMS,MODEL_PARAMS,ARCH_PARAMS,RUN_PARAMS, SCALAR_PARAMS, TRAIN_PARAMS,USUAL_PARAMS
+def populate_data_options(args,non_static_params = ["depth","co2"],**kwargs):
+    prms,_ = options(args,key = "data")
+    d = prms.__dict__
+    def isarray(val):
+        return isinstance(val,list) or isinstance(val,tuple)
+    for key,val in kwargs.items():
+        if not isarray(val):
+            d[key] = val
+        else:
+            d[key] = ' '.join([str(v) for v in val])
+    prods = []
+    paramnames = []
+    for param in DATA_PARAMS:
+        if param in kwargs:
+            continue
+        if param not in non_static_params:
+            continue
+        opts = DATA_PARAMS[param]
+        paramnames.append(param)
+        if isinstance(opts['default'],bool):
+            prods.append((False,True))
+            continue
+        if param in USUAL_PARAMS:
+            prods.append(USUAL_PARAMS[param])
+            continue
+        if "choices" in opts:
+            prods.append(opts["choices"])
+            continue
+        print(param)
+        raise NotImplemented
+    arglines = []
+    for pargs in itertools.product(*prods):
+        arglines.append(" ".join([f"--{name} {arg_}"for name,arg_ in zip(paramnames,pargs)]))
+    static_part = ""
+    for param in d:
+        if param  in paramnames:
+            continue
+        static_part += f" --{param} {d[param]}"
+        print(f" --{param} {d[param]}")
+    arglines = [argl + static_part for argl in arglines]
+    arglines = [argl.split() for argl in arglines]
+    return arglines
+
+
 
 def options(string_input,key:str = "model"):
     if key == "model":

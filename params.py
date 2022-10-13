@@ -1,6 +1,11 @@
 from typing import List
 from argparse import ArgumentTypeError
 
+USUAL_PARAMS = {
+    "depth" : (5,55,110,181,330,1497),
+    "sigma" : (4,8,12,16),
+}
+
 SCALAR_PARAMS = {
     "domain" : {"type": str, "choices" : ["four_regions","global","custom"],},
     "sigma" : {"type": int, "choices" : (4,8,12,16)},

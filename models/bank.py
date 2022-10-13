@@ -8,6 +8,7 @@ from models.index import update_model_info
 from models.variations import qcnn_architecture,unet_architecture
 from models.nets.others import QCNN,UNET,GAN
 from models.regression import RegressionModel
+from utils.parallel import get_device
 
 
 def chan_nums(modelargs):
@@ -21,6 +22,7 @@ def chan_nums(modelargs):
     return ninchans,noutchans
 def init_architecture(archargs:Namespace):
     net=CNN(**archargs.__dict__)
+    net = net.to(get_device())
     return net
 
 

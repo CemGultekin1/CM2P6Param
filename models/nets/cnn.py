@@ -3,17 +3,19 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 import numpy as np
+from utils.parallel import get_device
 class CNNLayer(nn.Module):
     def __init__(self,widthin,widthout, kernel, batchnorm,skip,nnlnr):
         super(CNNLayer,self).__init__()
+        device = get_device()
         self.skip = skip
-        self.kernel = nn.Conv2d(widthin,widthout,kernel)
+        self.kernel = nn.Conv2d(widthin,widthout,kernel).to(device)
         self.batchnorm  = None
         self.relu = None
         if batchnorm:
-            self.batchnorm = nn.BatchNorm2d(widthout)
+            self.batchnorm = nn.BatchNorm2d(widthout).to(device)
         if nnlnr:
-            self.relu = nn.ReLU(inplace = True)
+            self.relu = nn.ReLU(inplace = True).to(device)
     def subforward(self,x):
         x = self.kernel(x)
         for m in [self.batchnorm,self.relu]:
@@ -30,10 +32,7 @@ class CNNLayer(nn.Module):
 class CNN(nn.Module):
     def __init__(self,widths,kernels,batchnorm,skipconn,seed):#,**kwargs):
         super(CNN, self).__init__()
-        if torch.cuda.is_available():
-            device = "cuda:0"
-        else:
-            device = "cpu"
+        device = get_device()
         self.device = device
 
         self.skipcons = False
@@ -59,13 +58,8 @@ class CNN(nn.Module):
         softplus['softplus'] = nn.Softplus()
         self.softplus = nn.Sequential(softplus)
 
-        # initbatchnorm = OrderedDict()
-        # initbatchnorm['batchnorm'] = nn.BatchNorm2d(widths[0])
-        # self.initbatchnorm = nn.Sequential(initbatchnorm)
-
 
     def forward(self, x):
-        # x = self.initbatchnorm(x)
         x = self.conv_body(x)
         mean,precision=torch.split(x,x.shape[1]//2,dim=1)
         precision=self.softplus(precision)

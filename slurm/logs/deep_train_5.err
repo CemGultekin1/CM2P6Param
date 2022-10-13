@@ -1,9 +1,0 @@
-/ext3/miniconda3/lib/python3.8/site-packages/scipy/__init__.py:138: UserWarning: A NumPy version >=1.16.5 and <1.23.0 is required for this version of SciPy (detected version 1.23.3)
-  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion} is required for this version of "
-/ext3/miniconda3/lib/python3.8/site-packages/torch/cuda/__init__.py:52: UserWarning: CUDA initialization: Found no NVIDIA driver on your system. Please check that you have an NVIDIA GPU and installed a driver from http://www.nvidia.com/Download/index.aspx (Triggered internally at  /pytorch/c10/cuda/CUDAFunctions.cpp:100.)
-  return torch._C._cuda_getDeviceCount() > 0
-slurmstepd: error: *** JOB 25874199 ON gr018 CANCELLED AT 2022-10-12T19:33:09 ***
-/ext3/miniconda3/lib/python3.8/site-packages/scipy/__init__.py:138: UserWarning: A NumPy version >=1.16.5 and <1.23.0 is required for this version of SciPy (detected version 1.23.3)
-  warnings.warn(f"A NumPy version >={np_minversion} and <{np_maxversion} is required for this version of "
-/ext3/miniconda3/lib/python3.8/site-packages/torch/cuda/__init__.py:52: UserWarning: CUDA initialization: Found no NVIDIA driver on your system. Please check that you have an NVIDIA GPU and installed a driver from http://www.nvidia.com/Download/index.aspx (Triggered internally at  /pytorch/c10/cuda/CUDAFunctions.cpp:100.)
-  return torch._C._cuda_getDeviceCount() > 0

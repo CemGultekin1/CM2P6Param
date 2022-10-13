@@ -3,6 +3,7 @@ import torch
 from data.load import get_data
 from models.load import load_model
 import matplotlib.pyplot as plt
+from utils.arguments import options, populate_data_options
 from utils.parallel import get_device
 from utils.xarray import numpydict2dataset
 
@@ -52,57 +53,50 @@ def concat_datasets(x,y):
     return x
 
 
-
 def main():
     args = sys.argv[1:]
-    print(args)
-    return
-    sigma = 8
-    modelargs = f"--sigma 8 --depth 5 --parts 3 4 --disp 1 --domain global --normalization standard --lossfun MSE --latitude True --linsupres False --temperature True --nworkers 40  --widths  5 208 104 52 52 52 52 52 6 --kernels  3 3 2 2 2 2 2 2 --rerun False --relog False --minibatch 6".split()
-    datargs = f"--sigma 8 --depth 5 --mode eval --parts 3 4 --domain global --normalization standard --latitude True --linsupres False --temperature True --nworkers 2 --actual_minibatch 1".split()
+    multidatargs = populate_data_options(args,)
+    for datargs in multidatargs:
+        print(datargs)
+        test_generator, = get_data(datargs,half_spread = 0, torch_flag = False, data_loaders = True,groups = ('test',))
+        dataprms, _ = options(datargs,key = "data")
+        linsupres = dataprms.linsupres
+        for outputs in test_generator:
+            if linsupres:
+                fields,forcings,lsrp_res_forcings,forcing_masks = outputs
+            else:
+                fields,forcings,forcing_masks = outputs
+            print(fields)
+            return
+            net_fields,net_forcings,net_masks = preprocess(fields,forcings,masks,device)
 
+            with torch.set_grad_enabled(False):
+                mean,_ = net.forward(net_fields)
 
-    modelid,_,net,_,_,_,_,runargs=load_model(modelargs)
-
-    net.eval()
-
-    device=get_device()
-    test_generator, = get_data(datargs,half_spread = net.spread*sigma, torch_flag = False, data_loaders = True,groups = ('test',))
-
-    i=0
-    dataset = None
-    for infields,outfields,mask in test_generator:
-        print(list(infields.keys()))
-        return
-        net_fields,net_forcings,net_masks = preprocess(fields,forcings,masks,device)
-
-        with torch.set_grad_enabled(False):
-            mean,_ = net.forward(net_fields)
-
-        if dataset is None:
-            dataset = postprocessing(forcings,masks,mean,)
-            localdataset = numpydict2dataset(dataset,time = i//10)
-        else:
-            dataset_ = postprocessing(forcings,masks,mean,)
-            localdataset = numpydict2dataset(dataset_,time = i//10)
-            dataset = concat_datasets(dataset,dataset_)
-        i+=1
-        print(i)
-        n = 12
-        if i<n:
-            fig,axs = plt.subplots(1,2,figsize = (30,15))
-            localdataset.isel(time =0 ).forcings_u.plot(ax = axs[0])
-            localdataset.isel(time =0 ).mean_forcings_u.plot(ax = axs[1])
-            fig.savefig(f'snapshot_local_time_{i}_new_1.png')
-            plt.close()
-        elif i==n:
-            fulldataset = numpydict2dataset(dataset,)
-            fig,axs = plt.subplots(1,2,figsize = (30,15))
-            fulldataset.isel(time =0 ).forcings_u.plot(ax = axs[0])
-            fulldataset.isel(time =0 ).mean_forcings_u.plot(ax = axs[1])
-            fig.savefig('snapshot_global_time_0_new_1.png')
-            plt.close()
-            break
+            if dataset is None:
+                dataset = postprocessing(forcings,masks,mean,)
+                localdataset = numpydict2dataset(dataset,time = i//10)
+            else:
+                dataset_ = postprocessing(forcings,masks,mean,)
+                localdataset = numpydict2dataset(dataset_,time = i//10)
+                dataset = concat_datasets(dataset,dataset_)
+            i+=1
+            print(i)
+            n = 12
+            if i<n:
+                fig,axs = plt.subplots(1,2,figsize = (30,15))
+                localdataset.isel(time =0 ).forcings_u.plot(ax = axs[0])
+                localdataset.isel(time =0 ).mean_forcings_u.plot(ax = axs[1])
+                fig.savefig(f'snapshot_local_time_{i}_new_1.png')
+                plt.close()
+            elif i==n:
+                fulldataset = numpydict2dataset(dataset,)
+                fig,axs = plt.subplots(1,2,figsize = (30,15))
+                fulldataset.isel(time =0 ).forcings_u.plot(ax = axs[0])
+                fulldataset.isel(time =0 ).mean_forcings_u.plot(ax = axs[1])
+                fig.savefig('snapshot_global_time_0_new_1.png')
+                plt.close()
+                break
 
 
 
