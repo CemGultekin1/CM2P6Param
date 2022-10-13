@@ -236,6 +236,9 @@ class MultiDomainDataset(MultiDomain):
         else:
             for i in range(len(grouped_vars)):
                 for key in grouped_vars[i]:
-                    for key_ in  grouped_vars[i][key]:
-                        grouped_vars[i][key][key_] = torch.tensor(grouped_vars[i][key][key_],dtype = torch.float32)
+                    if isinstance(grouped_vars[i][key],dict):
+                        for key_ in  grouped_vars[i][key]:
+                            grouped_vars[i][key][key_] = torch.tensor(grouped_vars[i][key][key_],dtype = torch.float32)
+                    else:
+                        grouped_vars[i][key] = torch.tensor(grouped_vars[i][key],dtype = torch.float32)
             return grouped_vars

@@ -41,7 +41,7 @@ def load_xr_dataset(args):
     else:
         data_address = get_low_res_data_location(args)
     print('data_address',data_address)
-    ds_zarr= xr.open_zarr(data_address)
+    ds_zarr= xr.open_zarr(data_address,consolidated=False )
     ds_zarr =  preprocess_dataset(args,ds_zarr)
     return ds_zarr
 
@@ -71,6 +71,9 @@ def get_var_grouping(args)-> Tuple[Tuple[List[str],...],Tuple[List[str],...]]:
         masknames.append(forcingmasks)
     varnames.extend(masknames)
 
+    if runprms.mode != 'train':
+        varnames.append(['itime','depth'])
+
     for i in range(len(varnames)):
         varnames[i] = tuple(varnames[i])
     varnames = tuple(varnames)
@@ -84,6 +87,8 @@ def dataset_arguments(args,**kwargs_):
     scalars_dict = load_scalars(args)
     boundaries = REGIONS[prms.domain]
     kwargs = ['linsupres','parts','latitude','normalization','lsrp_span','temperature']
+    if runprms.mode == 'eval':
+        kwargs.pop(1)
     kwargs = {key:runprms.__dict__[key] for key in kwargs}
     kwargs['boundaries'] = boundaries
     kwargs['scalars_dict'] = scalars_dict
@@ -135,8 +140,11 @@ def get_data(args,torch_flag = False,data_loaders = True,**kwargs):
 
     if data_loaders:
         ns,_ = options(args,key = "run")
-        params={'batch_size':ns.minibatch,\
-            'shuffle':ns.mode == "train",\
+        minibatch = ns.minibatch
+        if ns.mode == "eval":
+            minibatch = 1
+        params={'batch_size':minibatch,\
+            'shuffle':ns.mode == "train" or ns.mode == "snapshot",\
             'num_workers':ns.num_workers,\
             'prefetch_factor':ns.prefetch_factor,\
             'persistent_workers':ns.persistent_workers,

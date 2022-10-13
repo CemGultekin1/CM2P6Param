@@ -2,7 +2,7 @@ from typing import List
 from argparse import ArgumentTypeError
 
 USUAL_PARAMS = {
-    "depth" : (5,55,110,181,330,1497),
+    "depth" : (0,5,55,110,181,330,1497),
     "sigma" : (4,8,12,16),
 }
 
@@ -61,7 +61,7 @@ RUN_PARAMS = {
     "rerun":{"type":bool,"default":False},
     "relog":{"type":bool,"default":False},
     "disp" :  {"type":int,"default":-1},
-    "mode" : {"type": str, "choices" : ["train","eval","data","scalars"],},
+    "mode" : {"type": str, "choices" : ["train","eval","data","scalars","snapshot"],},
     "lsrp_span": {"type":int,  "default": 12},
 }
 
