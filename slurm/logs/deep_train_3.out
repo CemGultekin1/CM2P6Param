@@ -13,3 +13,5 @@ Loaded the existing model
 Namespace(co2=False, depth=110.0, disp=-1, domain='global', epoch=2, latitude=False, linsupres=False, lossfun='MSE', lr=0.01, lsrp_span=12, maxepoch=100, minibatch=16, mode='train', normalization='standard', num_workers=16, parts=[2, 2], persistent_workers=False, prefetch_factor=1, relog=False, rerun=False, sigma=8, temperature=True)
 data_address /scratch/zanna/data/cm2.6/coarse_8_beneath_surface.zarr
 epochs started
+#epoch  2    val-loss:  2.463429645488137  train-loss:  2.233188080601394  lr:  0.01
+#epoch  3    val-loss:  2.421085884696559  train-loss:  2.223417456727475  lr:  0.005

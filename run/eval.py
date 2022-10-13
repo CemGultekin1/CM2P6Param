@@ -1,13 +1,11 @@
 import sys
 import torch
-from data.load import get_data,
+from data.load import get_data
 from models.load import load_model
-from utils.arguments import options
 import matplotlib.pyplot as plt
 from utils.parallel import get_device
 from utils.xarray import numpydict2dataset
-import xarray as xr
-import numpy as np
+
 def preprocess(fields,forcings,masks,device):
     def value_norms(fields):
         return {key: fields[key]['val']  for key in fields},{key: fields[key]['normalization']  for key in fields}
@@ -52,7 +50,6 @@ def concat_datasets(x,y):
             v1 = y[key][key_]
             x[key][key_] = torch.cat((v0,v1),dim = 0)
     return x
-
 
 
 

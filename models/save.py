@@ -18,6 +18,8 @@ def update_modelsdict(modelid,args):
             modelsdict = json.load(f)
     else:
         modelsdict = {}
+    if isinstance(args,list):
+        args = ' '.join(args)
     modelsdict[modelid] = args
     with open(file,'w') as f:
         json.dump(modelsdict,f,indent='\t')

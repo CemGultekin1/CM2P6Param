@@ -17,7 +17,8 @@ LSRP = os.path.join(SAVES,'lsrp')
 
 MODELS_DIR = os.path.join(SAVES,'models')
 MODEL_LOGS_DIR = os.path.join(SAVES,'logs')
-MODELS_JSON = os.path.join(SAVES,'info.json')
+MODELS_JSON = os.path.join(SAVES,'models_info.json')
+DATA_JSON = os.path.join(SAVES,'data_info.json')
 
 for dir in [MODELS_DIR,MODEL_LOGS_DIR]:
     if not os.path.exists(dir):

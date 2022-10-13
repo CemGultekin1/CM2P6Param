@@ -5,7 +5,7 @@ from models.lossfuns import MSE, heteroscedasticGaussianLoss
 import torch
 from utils.arguments import options
 from utils.parallel import get_device
-from utils.paths import model_logs_json_path, statedict_path
+from utils.paths import model_logs_json_path, modelsdict_path, statedict_path
 
 def update_statedict(state_dict_,net_,optimizer_,scheduler_,last_model = True):
     if state_dict_ is None:
@@ -35,7 +35,14 @@ def get_statedict(modelid):
         logs = {"epoch":[],"train-loss":[],"test-loss":[],"val-loss":[],"lr":[],"batchsize":[]}
     return state_dict,logs
 
-
+def load_modelsdict():
+    file = modelsdict_path()
+    if os.path.exists(file):
+        with open(file) as f:
+            modelsdict = json.load(f)
+    else:
+        modelsdict = {}
+    return modelsdict
 
 
 def load_model(args):
