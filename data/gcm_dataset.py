@@ -186,8 +186,7 @@ class MultiDomainDataset(MultiDomain):
             if isinstance(values[key],dict):
                 if not self.torch_flag:
                     values[key]['normalization'] = np.array([a,b])
-                else:
-                    values[key]['val'] = (values[key]['val'] - a)/b
+                values[key]['val'] = (values[key]['val'] - a)/b
 
         return values
 
@@ -235,4 +234,8 @@ class MultiDomainDataset(MultiDomain):
             grouped_vars = self.group_np_stack(grouped_vars)
             return self.group_to_torch(grouped_vars)
         else:
+            for i in range(len(grouped_vars)):
+                for key in grouped_vars[i]:
+                    for key_ in  grouped_vars[i][key]:
+                        grouped_vars[i][key][key_] = torch.tensor(grouped_vars[i][key][key_],dtype = torch.float32)
             return grouped_vars

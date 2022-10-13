@@ -4,11 +4,16 @@ import itertools
 from typing import List
 from params import DATA_PARAMS,MODEL_PARAMS,ARCH_PARAMS,RUN_PARAMS, SCALAR_PARAMS, TRAIN_PARAMS,USUAL_PARAMS
 def populate_data_options(args,non_static_params = ["depth","co2"],**kwargs):
-    prms,_ = options(args,key = "data")
+    prms,_ = options(args,key = "run")
     d = prms.__dict__
     def isarray(val):
         return isinstance(val,list) or isinstance(val,tuple)
     for key,val in kwargs.items():
+        if not isarray(val):
+            d[key] = val
+        else:
+            d[key] = ' '.join([str(v) for v in val])
+    for key,val in d.items():
         if not isarray(val):
             d[key] = val
         else:
@@ -31,7 +36,6 @@ def populate_data_options(args,non_static_params = ["depth","co2"],**kwargs):
         if "choices" in opts:
             prods.append(opts["choices"])
             continue
-        print(param)
         raise NotImplemented
     arglines = []
     for pargs in itertools.product(*prods):
@@ -41,7 +45,6 @@ def populate_data_options(args,non_static_params = ["depth","co2"],**kwargs):
         if param  in paramnames:
             continue
         static_part += f" --{param} {d[param]}"
-        print(f" --{param} {d[param]}")
     arglines = [argl + static_part for argl in arglines]
     arglines = [argl.split() for argl in arglines]
     return arglines

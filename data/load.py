@@ -61,10 +61,11 @@ def get_var_grouping(args)-> Tuple[Tuple[List[str],...],Tuple[List[str],...]]:
     lsrpresforcingmasks = [get_var_mask_name(f) for f in lsrp_res_forcings]
     if runprms.linsupres:
         if runprms.mode != 'train':
-            varnames.append(forcings)
-            # masknames.append(forcingmasks)
-        varnames.append(lsrp_res_forcings)
-        masknames.append(lsrpresforcingmasks)
+            varnames.append(forcings + lsrp_res_forcings)
+            masknames.append(forcingmasks + lsrpresforcingmasks)
+        else:
+            varnames.append(lsrp_res_forcings)
+            masknames.append(lsrpresforcingmasks)
     else:
         varnames.append(forcings)
         masknames.append(forcingmasks)

@@ -79,7 +79,7 @@ def cnn_train(args):
 
 
             tt+=1
-            if False:#runargs.disp > 0 and tt%runargs.disp==0:
+            if runargs.disp > 0 and tt%runargs.disp==0:
                 flushed_print('\t\t\t train-loss: ',str(np.mean(np.array(logs['train-loss'][-1]))),\
                         '\t ±',\
                         str(np.std(np.array(logs['train-loss'][-1]))))

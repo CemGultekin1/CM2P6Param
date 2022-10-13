@@ -174,6 +174,7 @@ class DividedDomain(CM2p6Dataset):
         i = i//lon
         t = i%self.ntime
         return li,lj,t
+
     def __getitem__(self,i):
         li,lj,t = self.factor_index(i)
         return dict(self.post__getitem__(li,lj,t),**dict(ilat = li,ilon = lj, itime = t,depth = self.depth))
