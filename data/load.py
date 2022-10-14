@@ -144,7 +144,7 @@ def get_data(args,torch_flag = False,data_loaders = True,**kwargs):
     if data_loaders:
         ns,_ = options(args,key = "run")
         minibatch = ns.minibatch
-        if ns.mode == "eval":
+        if ns.mode != "train":
             minibatch = 1
         params={'batch_size':minibatch,\
             'shuffle':ns.mode == "train" or ns.mode == "view",\

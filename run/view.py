@@ -80,15 +80,17 @@ def pass_other_keys(d1,d2,exceptions = ['val']):
                 continue
             d1[key][k] = d2[key][k]
     return d1
-def to_xarray(torchdict,depth,time):
+def to_xarray(torchdict,depth,time,itime):
     data_vars = {
-        key : (["time","depth","lat","lon"] ,np.stack([torchdict[key]['val'].numpy()],axis= 0 )) for key in torchdict
+        key : (["itime","depth","lat","lon"] ,np.stack([torchdict[key]['val'].numpy()],axis= 0 )) for key in torchdict
     }
+    data_vars['time'] = (["itime","depth"],time.reshape(1,1) )
     for key in torchdict:
         lat = torchdict[key]["lat"][0,:].numpy()
         lon = torchdict[key]["lon"][0,:].numpy()
         break
-    coords = dict(lat = (["lat"],lat),lon = (["lon"],lon),depth = (["depth"],depth),time = (["time"],time))
+    coords = dict(lat = (["lat"],lat),lon = (["lon"],lon),\
+        depth = (["depth"],depth.reshape([-1])), itime = (["itime"],itime.reshape([-1])))
     return xr.Dataset(data_vars = data_vars,coords = coords)
 def apply_keywise(*dicts,fun = lambda x: x):
     newdict = {}
@@ -121,19 +123,19 @@ def main():
     args = sys.argv[1:]
     
     modelid,_,net,_,_,_,_,runargs=load_model(args)
-    net.to(device)
     device = get_device()
+    net.to(device)
+    
     runargs,_ = options(args,key = "run")
     linsupres = runargs.linsupres
     assert runargs.mode == "view"
+    
     multidatargs = populate_data_options(args,non_static_params=["depth"])
     total_evs = []
     if linsupres:
         total_lsrp_evs = []
     for datargs in multidatargs:
         set_seed()
-        # ind = datargs.index('--domain') + 1
-        # datargs[ind+1] = 'custom'
         try:
             test_generator, = get_data(datargs,half_spread = net.spread, torch_flag = False, data_loaders = True,groups = ('test',))
         except GroupNotFoundError:
@@ -146,8 +148,8 @@ def main():
         nt = 0
         for fields,forcings,forcing_masks,info in test_generator:
             depth = info['depth'].numpy().reshape([-1])
-            time = info['itime'].numpy().reshape([-1])
-            
+            time = info['itime'].numpy().astype(int).reshape([-1])
+            itime = np.array([nt], dtype=int)
             flushed_print(nt,depth[0],time[0])
             time[0] = nt
 
@@ -155,7 +157,6 @@ def main():
             with torch.set_grad_enabled(False):
                 mean,_ =  net.forward(torch_fields.to(device))
                 mean = mean.to("cpu")
-                # mean = torch.randn(1,3,607, 898,dtype = torch.float32)
             if linsupres:
                 true_forcing,lsrp_res = separate_linsupres(forcings)
                 mean = match(mean,lsrp_res)
@@ -171,12 +172,12 @@ def main():
                 true_forcing = change_scale(true_forcing,denormalize=True)
             true_forcing = mask(true_forcing,forcing_masks)
             mean = mask(mean,forcing_masks)
-            mean = to_xarray(mean,depth,time)
-            true_forcing = to_xarray(true_forcing,depth,time)
+            mean = to_xarray(mean,depth,time,itime)
+            true_forcing = to_xarray(true_forcing,depth,time,itime)
 
             if linsupres:
                 lsrp_res = mask(lsrp_res,forcing_masks)
-                lsrp_res = to_xarray(lsrp_res,depth,time)
+                lsrp_res = to_xarray(lsrp_res,depth,time,itime)
                 lsrp_out = true_forcing - lsrp_res
                 mean = mean + lsrp_out
                 part_lsrp_evs = err_scale_dataset(lsrp_out,true_forcing)
