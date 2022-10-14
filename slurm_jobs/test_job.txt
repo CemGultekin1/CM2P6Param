@@ -1,1 +1,0 @@
---parts 6 9 --domain global --minibatch 32 --normalization standard --temperature True --nworkers 20

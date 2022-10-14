@@ -1,8 +1,26 @@
 import json
+import os
 from utils.arguments import options
-from models.paths import modelsdict
-from params import MODEL_PARAMS
+from params import MODEL_PARAMS, get_default
 import numpy as np
+from utils.paths import get_eval_path, get_view_path, model_logs_json_path, statedict_path
+
+
+def is_viewed(modelid):
+    return os.path.exists(get_view_path(modelid))
+
+def is_evaluated(modelid):
+    return os.path.exists(get_eval_path(modelid))
+def is_trained(modelid):
+    statedictfile,logfile = statedict_path(modelid),model_logs_json_path(modelid)
+    if not os.path.exists(statedictfile) or not os.path.exists(logfile):
+        return False
+    with open(logfile,'r') as f:
+        logs = json.load(f)
+    if logs['lr'][-1] < 1e-7 or logs['epoch'][-1] >= get_default('maxepoch') :
+        return True
+    return False
+
 def find_best_match(incargs:str,):
     def read_params(args:str):
         margs,_ = options(args.split(' ') ,key="model")

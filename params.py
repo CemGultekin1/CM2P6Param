@@ -23,7 +23,7 @@ DATA_PARAMS = {
     "parts": {"type":int, "nargs": 2, "default":(1,1)},
 }
 
-DATA_PARAMS = dict(DATA_PARAMS,**SCALAR_PARAMS)
+
 
 
 TRAIN_PARAMS = {
@@ -61,15 +61,20 @@ RUN_PARAMS = {
     "rerun":{"type":bool,"default":False},
     "relog":{"type":bool,"default":False},
     "disp" :  {"type":int,"default":-1},
-    "mode" : {"type": str, "choices" : ["train","eval","data","scalars","snapshot"],},
+    "mode" : {"type": str, "choices" : ["train","eval","data","scalars","view"],},
     "sanity": {"type":bool, "default":False},
     "lsrp_span": {"type":int,  "default": 12},
 }
 
 
+
+PARAMS = dict(TRAIN_PARAMS,**DATA_PARAMS,**RUN_PARAMS,**ARCH_PARAMS,**SCALAR_PARAMS)
+
+DATA_PARAMS = dict(DATA_PARAMS,**SCALAR_PARAMS)
 TRAIN_PARAMS = dict(TRAIN_PARAMS,**DATA_PARAMS)
 MODEL_PARAMS = dict(TRAIN_PARAMS,**ARCH_PARAMS)
 RUN_PARAMS = dict(TRAIN_PARAMS,**RUN_PARAMS)
+
 
 
 
@@ -86,15 +91,43 @@ def str2bool(v):
 
 
 
-for d in (DATA_PARAMS,ARCH_PARAMS,RUN_PARAMS,SCALAR_PARAMS,TRAIN_PARAMS):
+for d in (DATA_PARAMS,ARCH_PARAMS,RUN_PARAMS,SCALAR_PARAMS,TRAIN_PARAMS,PARAMS):
     for key in d:
         if "choices" in d[key]:
             d[key]["default"] = d[key]["choices"][0]
         if d[key]["type"]==bool:
             d[key]["dest"] =key
             d[key]["type"] = str2bool
-        # if "type" in d[key]:
-        #     if d[key]["type"] == bool :
-        #         d[key].pop("type")
-        #         d[key]["action"] = "store_true"
-        #         d[key]["dest"] = key
+
+def repr(tpl):
+    if tpl is None:
+        return ""
+    if isinstance(tpl,tuple):
+        return " ".join([str(x) for x  in tpl])
+    else:
+        return str(tpl)
+
+def defaulting_dict(d:dict,key:str,**kwargs):
+    return d.get(key,get_default(key,**kwargs))
+
+def get_default(key,instr = False):
+    if key not in PARAMS:
+        return_val = None
+    else:
+        return_val = PARAMS[key]["default"]
+    if instr:
+        return repr(return_val)
+    else:
+        return return_val
+
+
+def replace_param(args,param,newval):
+    if not isinstance(newval,str):
+        newval = repr(newval)
+    param_ = f'--{param}'
+    if param_ in args:
+        args[args.index(param_)+1] = newval
+    else:
+        args.append(param_)
+        args.append(newval)
+    return args

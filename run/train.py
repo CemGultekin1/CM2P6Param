@@ -131,7 +131,7 @@ def cnn_train(args):
         if np.amin(logs['val-loss']) == logs['val-loss'][-1]:
             state_dict = update_statedict(state_dict,net,optimizer,scheduler,last_model = False)
         save_statedict(modelid,state_dict,logs)
-        if logs['lr'][-1]<1e-8:
+        if logs['lr'][-1]<1e-7:
             break
 
 

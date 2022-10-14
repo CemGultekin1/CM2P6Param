@@ -3,11 +3,15 @@ cg3306 = '/scratch/cg3306/climate'
 cm2p6 = '/scratch/zanna/data/cm2.6'
 repo_name = 'CM2P6Param'
 REPO = os.path.join(cg3306,repo_name)
-SLURM = os.path.join(REPO,'slurm_jobs')
-LOGS = os.path.join(REPO,'slurm_logs')
+SLURM = os.path.join(REPO,'jobs')
+
 MODELIDS_JSON = os.path.join(REPO,'modelids.json')
 BACKUP_MODELIDS_JSON = os.path.join(REPO,'backup_modelids.json')
 SAVES = os.path.join(REPO,'saves')
+
+SLURM_LOGS = os.path.join(SAVES,'slurm_logs')
+EVALS = os.path.join(SAVES,'evals')
+VIEWS = os.path.join(SAVES,'views')
 
 SCALARS_JSON = os.path.join(SAVES,'scalars.json')
 LSRP = os.path.join(SAVES,'lsrp')
@@ -15,21 +19,25 @@ LSRP = os.path.join(SAVES,'lsrp')
 
 
 
-MODELS_DIR = os.path.join(SAVES,'models')
-MODEL_LOGS_DIR = os.path.join(SAVES,'logs')
+MODELS = os.path.join(SAVES,'models')
+TRAINING_LOGS = os.path.join(SAVES,'training_logs')
 MODELS_JSON = os.path.join(SAVES,'models_info.json')
 DATA_JSON = os.path.join(SAVES,'data_info.json')
 
-for dir in [MODELS_DIR,MODEL_LOGS_DIR]:
+for dir in [MODELS,TRAINING_LOGS,SAVES,EVALS,VIEWS,SLURM_LOGS]:
     if not os.path.exists(dir):
         os.makedirs(dir)
 
+def get_view_path(modelid):
+    return os.path.join(VIEWS,modelid + '.nc')
+def get_eval_path(modelid):
+    return os.path.join(EVALS,modelid + '.nc')
 def modelsdict_path():
     return MODELS_JSON
 def statedict_path(modelid):
-    return os.path.join(MODELS_DIR,f"{modelid}.pth")
+    return os.path.join(MODELS,f"{modelid}.pth")
 def model_logs_json_path(modelid):
-    return os.path.join(MODEL_LOGS_DIR,f"{modelid}.json")
+    return os.path.join(TRAINING_LOGS,f"{modelid}.json")
 
 def search_compressed_lsrp_paths(sigma:int,):
     fns = os.listdir(LSRP)
