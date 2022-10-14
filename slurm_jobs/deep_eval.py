@@ -22,14 +22,16 @@ def constant_nparam_model(sigma):
     return widths,kernels
 
 def python_args():
-    parts = [2,2]
+    parts = [1,1]
     def givearg(sigma,latitude,linsupres,depth):
         st =  f"--sigma {sigma} --depth {depth} --disp 1 --parts {' '.join([str(p) for p in parts])} --domain global --normalization standard --lossfun MSE --latitude {latitude} --linsupres {linsupres} --temperature True --num_workers {NCPU*2}"
         widths = [3,128,64,32,32,32,32,32,6]
         widths,kernels = constant_nparam_model(sigma)
         widthin = 3 # temperature by default
+        
         if latitude:
             widthin+=2
+
         widths[0] = widthin
         widths[-1] = 6
 
@@ -47,7 +49,7 @@ def python_args():
     lines = []
     for args in itertools.product(*prods):
         lines.append(givearg(*args))
-
+    njobs = len(lines)
     for i,line in enumerate(lines):
         flag,i = scalars_exist(line.split())
         if not flag:
@@ -59,13 +61,14 @@ def python_args():
     path = os.path.join(root,argsfile)
     with open(path,'w') as f:
         f.write(lines)
-def slurm():
+    return njobs
+def slurm(njobs):
     slurmfile =  os.path.join(SLURM,DEPTHJOB + '.s')
     out = os.path.join(LOGS,DEPTHJOB+ '_%a_%A.out')
     err = os.path.join(LOGS,DEPTHJOB+ '_%a_%A.err')
     create_slurm_job(slurmfile,\
         python_file = "run/eval.py",
-        time = "1:00:00",array = "1-12",\
+        time = "1:00:00",array = f"1-{njobs}",\
         mem = "30GB",job_name = DEPTHJOB,\
         output = out,error = err,\
         cpus_per_task = str(NCPU),
@@ -75,8 +78,8 @@ def slurm():
 
 
 def main():
-    python_args()
-    slurm()
+    njobs = python_args()
+    slurm(njobs)
 
 if __name__=='__main__':
     main()

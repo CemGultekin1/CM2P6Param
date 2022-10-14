@@ -63,7 +63,9 @@ class CM2p6Dataset:
         return self.ds.depth.values
     def set_time_constraint(self,t0,t1):
         nt = len(self.ds.time)
-        t0,t1 = int(nt*t0),int(nt*t1)
+        t0,t1 = np.floor(nt*t0),np.ceil(nt*t1)
+        t0 = int(np.maximum(t0,0))
+        t1 = int(np.minimum(t1,len(self.ds.time)))
         self.ds = self.ds.isel(time = slice(t0,t1))
     def ntimes(self,):
         return len(self.ds.time)

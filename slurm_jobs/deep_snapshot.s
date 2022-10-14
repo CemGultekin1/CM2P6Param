@@ -1,10 +1,10 @@
 #!/bin/bash
-#SBATCH --time=1:00:00
-#SBATCH --array=1-12
+#SBATCH --time=30:00
+#SBATCH --array=1-24
 #SBATCH --mem=30GB
-#SBATCH --job-name=deep_snap
-#SBATCH --output=/scratch/cg3306/climate/CM2P6Param/slurm_logs/deep_snap_%a_%A.out
-#SBATCH --error=/scratch/cg3306/climate/CM2P6Param/slurm_logs/deep_snap_%a_%A.err
+#SBATCH --job-name=snapshot
+#SBATCH --output=/scratch/cg3306/climate/CM2P6Param/slurm_logs/snapshot_%a_%A.out
+#SBATCH --error=/scratch/cg3306/climate/CM2P6Param/slurm_logs/snapshot_%a_%A.err
 #SBATCH --cpus-per-task=8
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1

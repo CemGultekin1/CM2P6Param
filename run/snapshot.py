@@ -8,7 +8,6 @@ from models.load import load_model
 import matplotlib.pyplot as plt
 from utils.arguments import options, populate_data_options
 from utils.parallel import get_device
-from utils.xarray import numpydict2dataset
 import numpy as np
 import xarray as xr
 
@@ -49,9 +48,6 @@ def match(outputs,forcings,):
     for i,(out,key) in enumerate(zip(outputs,keys)):
         outputdict[key] = {}
         outputdict[key]['val'] = out
-        # outputdict[key]['lat'] = forcings[key]['lat']
-        # outputdict[key]['lon'] = forcings[key]['lon']
-        # outputdict[key]['normalization'] = forcings[key]['normalization']
     outputdict = pass_other_keys(outputdict,forcings)
     return outputdict
 

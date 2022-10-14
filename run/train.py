@@ -47,6 +47,14 @@ def preprocess(infields,outfields,mask,device,linsupres = False,return_true_forc
         infields = infields.to(device)
         forcing =forcing.to(device)
         return infields,forcing,mask
+def prob_outputs(outputs,outfields,mask):
+    if isinstance(outputs,tuple):
+        mean,_ = outputs
+    out = mean.detach().to("cpu")
+    m = mask.detach().to("cpu")
+    return {'out-absval': torch.mean(torch.abs(out[m>0.5])).item(),
+            'true-absval': torch.mean(torch.abs(outfields[m>0.5])).item()}
+
 
 def cnn_train(args):
     modelid,state_dict,net,criterion,optimizer,scheduler,logs,runargs=load_model(args)
@@ -76,6 +84,8 @@ def cnn_train(args):
             loss.backward()
             optimizer.step()
             timer.end('model')
+            if runargs.sanity:
+                flushed_print(prob_outputs(outputs,outfields,mask))
 
 
             tt+=1
@@ -83,11 +93,12 @@ def cnn_train(args):
                 flushed_print('\t\t\t train-loss: ',str(np.mean(np.array(logs['train-loss'][-1]))),\
                         '\t ±',\
                         str(np.std(np.array(logs['train-loss'][-1]))))
-                flushed_print(timer)
+                # flushed_print(timer)
             timer.start('data')
 
         timer.reset()
-
+        # if runargs.sanity:
+        #     continue
         with torch.set_grad_enabled(False):
             net.eval()
             val_loss=0.

@@ -56,12 +56,13 @@ ARCH_PARAMS = {
 RUN_PARAMS = {
     "num_workers" : {"type": int, "default" : 0},
     "prefetch_factor" : {"type": int, "default": 1},
-    "maxepoch" : {"type": int, "default" : 100},
+    "maxepoch" : {"type": int, "default" : 500},
     "persistent_workers" : {"type":bool,"default":False},
     "rerun":{"type":bool,"default":False},
     "relog":{"type":bool,"default":False},
     "disp" :  {"type":int,"default":-1},
     "mode" : {"type": str, "choices" : ["train","eval","data","scalars","snapshot"],},
+    "sanity": {"type":bool, "default":False},
     "lsrp_span": {"type":int,  "default": 12},
 }
 

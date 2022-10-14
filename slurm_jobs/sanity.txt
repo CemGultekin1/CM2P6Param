@@ -1,0 +1,1 @@
+--sigma 8 --depth 5 --disp 1 --parts 1 1 --domain global --normalization standard --lossfun MSE --latitude False --linsupres False --temperature True --num_workers 24  --widths  3 208 104 52 52 52 52 52 6 --kernels  3 3 2 2 2 2 2 2 --rerun True --relog True --sanity True --minibatch 1

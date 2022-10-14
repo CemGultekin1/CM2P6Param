@@ -36,6 +36,56 @@ class CNN(nn.Module):
         self.device = device
 
         self.skipcons = False
+        spread = 0
+        for i in range(len(kernels)):
+            spread+=kernels[i]-1
+        self.spread = spread//2
+
+        torch.manual_seed(seed)
+        self.nlayers = len(kernels)
+        self.layerinds = []
+        self.nn_layers = nn.ModuleList()
+        self.skipconn = skipconn
+        def add_layer(widthin,widthout,kernel,batchnorm,skipconn,nnlnr):
+            lyr = []
+            lyr.append(len(self.nn_layers))
+            self.nn_layers.append(nn.Conv2d(widthin,widthout,kernel).to(device))
+            if batchnorm:
+                lyr.append(len(self.nn_layers))
+                self.nn_layers.append(nn.BatchNorm2d(widthout).to(device))
+            if nnlnr:
+                lyr.append(len(self.nn_layers))
+                self.nn_layers.append(nn.ReLU(inplace = True).to(device))
+            self.layerinds.append(lyr)
+            
+        def add_softplus():
+            self.layerinds.append([len(self.nn_layers)])
+            self.nn_layers.append(nn.Softplus())
+            
+        lastlayer = lambda i: i != len(kernels) -1
+        for i in range(len(kernels)):
+            add_layer(widths[i],widths[i+1],kernels[i],batchnorm[i],skipconn[i],lastlayer(i))
+        add_softplus()
+
+    def forward_one_layer(self,x,i):
+        for j in self.layerinds[i]:
+            x = self.nn_layers[j](x)
+        return x
+    def forward(self, x):
+        for i in range(self.nlayers):
+            x = self.forward_one_layer(x,i)
+        mean,precision=torch.split(x,x.shape[1]//2,dim=1)
+        precision=self.nn_layers[-1](precision)
+        return mean,precision
+
+
+class DeprecatedCNN(nn.Module):
+    def __init__(self,widths,kernels,batchnorm,skipconn,seed):#,**kwargs):
+        super(CNN, self).__init__()
+        device = get_device()
+        self.device = device
+
+        self.skipcons = False
         layers = OrderedDict()
         spread = 0
         for i in range(len(kernels)):
@@ -64,8 +114,6 @@ class CNN(nn.Module):
         mean,precision=torch.split(x,x.shape[1]//2,dim=1)
         precision=self.softplus(precision)
         return mean,precision
-
-
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters())
 

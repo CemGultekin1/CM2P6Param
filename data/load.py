@@ -42,6 +42,8 @@ def load_xr_dataset(args):
         data_address = get_low_res_data_location(args)
     print('data_address',data_address)
     ds_zarr= xr.open_zarr(data_address,consolidated=False )
+    if runargs.sanity:
+        ds_zarr = ds_zarr.isel(time = slice(0,1))
     ds_zarr =  preprocess_dataset(args,ds_zarr)
     return ds_zarr
 
@@ -81,9 +83,10 @@ def get_var_grouping(args)-> Tuple[Tuple[List[str],...],Tuple[List[str],...]]:
 
 def dataset_arguments(args,**kwargs_):
     ds_zarr = load_xr_dataset(args)
+
     prms,_=options(args,key = "data")
     runprms,_=options(args,key = "run")
-
+    
     scalars_dict = load_scalars(args)
     boundaries = REGIONS[prms.domain]
     kwargs = ['linsupres','parts','latitude','normalization','lsrp_span','temperature']

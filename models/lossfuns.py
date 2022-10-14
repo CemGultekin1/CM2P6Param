@@ -29,7 +29,7 @@ def logLoss(output, target,mask,eps=1e-5):
 def mask_decorator(func,):
     @functools.wraps(func)
     def _wrap(output,target,premask):
-        mask = premask>0
+        mask = premask>0.5
         if isinstance(output,tuple):
             mean, prec =output
             mean = mean[mask]

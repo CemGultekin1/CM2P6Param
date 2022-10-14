@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --time=36:00:00
-#SBATCH --array=1-12
+#SBATCH --array=1-24
 #SBATCH --mem=120GB
 #SBATCH --job-name=deep_train
 #SBATCH --output=/scratch/cg3306/climate/CM2P6Param/slurm_logs/deep_train_%a_%A.out
