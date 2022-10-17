@@ -27,6 +27,8 @@ def main():
         if not os.path.exists(snfile):
             continue
         sn = xr.open_dataset(snfile)
+        for key in 'Su Sv ST'.split():
+            sn[f"{key}_r2"] = 1 - sn[f"{key}_mse"]/(sn[f"{key}_sc2"] + 1e-5)
         depthvals = sn.depth.values
         targetfolder = os.path.join(target,modelid)
         if not os.path.exists(targetfolder):
@@ -35,9 +37,11 @@ def main():
             s = sn.isel(depth = i).isel(lon = slice(0,-1))
             depthval = depthvals[i]
             title_ = f"{title}\ntest-depth: {depthval}"
-            names = list(s.data_vars)
-            names = np.unique([n.split('_')[0] for n in names])
+            names = "Su Sv ST".split()
+            unames = np.unique([n.split('_')[0] for n in list(s.data_vars)])
+            names = [n for n in names if n in unames]
             ftypes = ['r2','mse','sc2']
+            
             nrows = len(names)
             ncols = 3
             _names = np.empty((nrows,ncols),dtype = object)

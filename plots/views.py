@@ -1,6 +1,8 @@
 import itertools
 import os
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
 from utils.paths import SLURM, VIEW_PLOTS, VIEWS
 import xarray as xr
 from utils.arguments import options
@@ -17,7 +19,14 @@ def main():
     lines = ['lsrp'] + lines
     title_inc = ['depth','latitude','linsupres']
     title_nam = ['train-depth','latitude','lsrp']
-    pkwargs = {'projection': ccrs.PlateCarree()}
+    subplotkwargs = dict()
+        # projection =  ccrs.PlateCarree()
+    # )
+    plotkwargs = dict()
+        # cbar_kwargs = {'shrink':0.6},
+    # )
+    ans = 'u v T'.split()
+    ans = ans  + [f"S{a}" for a in ans] + [f"S{a}_true" for a in ans]
     for line in lines:
         if line == 'lsrp':
             modelid = 'lsrp'
@@ -41,7 +50,7 @@ def main():
             depthval = depthvals[idepth]
             title_ = f"{title}\ntest-depth: {depthval},    time: {timeval}"
             names = list(s.data_vars)
-            names = np.array([n for n in names if 'time' not in n])
+            names = np.array([n for n in names if n in ans])
             names = names.reshape([3,3]).T
             names = names[:,[2,0,1]]
             targetfile = os.path.join(targetfolder,f'snapshot_{i}.png')
@@ -49,28 +58,28 @@ def main():
                 return xr.where(x==0,np.nan,x)
             nrow = 3
             ncol = 4
-            plt.figure(figsize = (60,30))
-            # ax = plt.axes(projection=ccrs.PlateCarree())
-            # fig,axs = plt.subplots(3,4,figsize = (60,30))
+            plt.figure(figsize = (60,20))
+            
             for ir,ic in itertools.product(range(nrow),range(ncol - 1)):
 
-                ax = plt.subplot(nrow,ncol,ir*ncol + ic + 1, **pkwargs)
-                ax.set_global()
-                ax.coastlines()
-                replace_zero_with_nan(s[names[ir,ic]]).plot(ax = ax)
+                ax = plt.subplot(nrow,ncol,ir*ncol + ic + 1,**subplotkwargs)
+
+                replace_zero_with_nan(\
+                    s[names[ir,ic]]).plot(ax = ax,**plotkwargs)
+                # ax.set_global()
+                # ax.coastlines()
+                
                 ax.set_title(names[ir,ic],fontsize=24)
-                # axs[ir,ic].set_title(names[ir,ic],fontsize=24)
 
             for ir,ic in itertools.product(range(nrow),range(ncol -1 ,ncol)):
                 err = s[names[ir,1]] - s[names[ir,2]]
-                ax = plt.subplot(nrow,ncol,ir*ncol + ic + 1,**pkwargs)
-                ax.set_global()
-                ax.coastlines()
-                replace_zero_with_nan(err).plot(ax = ax)
-                ax.set_title(names[ir,0]+'_err',fontsize=24)
+                ax = plt.subplot(nrow,ncol,ir*ncol + ic + 1,**subplotkwargs)
+                replace_zero_with_nan(err).plot(ax = ax,**plotkwargs)
+                # ax.set_global()
+                # ax.coastlines()
+                
+                ax.set_title(names[ir,1]+'_err',fontsize=24)
 
-                # replace_zero_with_nan(err).plot(ax = axs[ir,ic],**pkwargs)
-                # axs[ir,ic].set_title(names[ir,0]+'_err',fontsize=24)
             print(title_)
             plt.suptitle(title_,fontsize=24)
             plt.savefig(targetfile)

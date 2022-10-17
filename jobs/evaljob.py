@@ -39,8 +39,8 @@ def generate_eval_tasks():
     for i,args in enumerate(argslist):
         args = args.split()
         _,modelid = options(args,key = "model")
-        if not is_evaluated(modelid):
-            jobnums.append(str(i))
+        if not is_evaluated(modelid) and is_trained(modelid):
+            jobnums.append(str(i+1))
     jobarray = ','.join(jobnums)
     slurmfile =  os.path.join(SLURM,JOBNAME + '.s')
     out = os.path.join(SLURM_LOGS,JOBNAME+ '_%a_%A.out')

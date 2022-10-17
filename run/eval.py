@@ -169,8 +169,6 @@ def main():
                 evs = evs + part_evs
                 if linsupres:
                     lsrp_evs = lsrp_evs + part_lsrp_evs
-            print(evs)
-            print(lsrp_evs)
             nt+=1
             if nt>=nt_limit:
                 break
