@@ -7,30 +7,19 @@ from models.load import load_model
 import matplotlib.pyplot as plt
 from utils.arguments import options, populate_data_options
 from utils.parallel import get_device
-from utils.xarray import numpydict2dataset
+from utils.paths import EVALS
 import numpy as np
 import xarray as xr
 
-def change_scale(*dicts,normalize = False,denormalize = False):
-    dicts = list(dicts)
-    groups = [list(d.keys()) for d in dicts]
-    cdict = dicts[0]
-    for d in dicts[1:]:
-        cdict = dict(cdict,**d)
-    valuesdict = {}
-    for key,val in cdict.items():
+def change_scale(d0,normalize = False,denormalize = False):
+    for key,val in d0.items():
         f = val['val']
         n = val['normalization']
-        valuesdict[key] = {}
         if normalize:
-            valuesdict[key]['val'] = (f - n[:,0].reshape([-1,1,1]))/n[:,1].reshape([-1,1,1])
+            d0[key]['val'] = (f - n[:,0].reshape([-1,1,1]))/n[:,1].reshape([-1,1,1])
         elif denormalize:
-            valuesdict[key]['val'] = f*n[:,1].reshape([-1,1,1]) + n[:,0].reshape([-1,1,1])
-    valuesdict = pass_other_keys(valuesdict,cdict)
-    newdicts = []
-    for g in groups:
-        newdicts.append({key:valuesdict[key] for key in g})
-    return tuple(newdicts)
+            d0[key]['val'] = f*n[:,1].reshape([-1,1,1]) + n[:,0].reshape([-1,1,1])
+    return d0
 
 def torch_stack(*dicts):
     dicts = list(dicts)
@@ -57,7 +46,6 @@ def match(outputs,forcings,):
     keys = list(forcings.keys())
     outputdict = {}
     for i,(out,key) in enumerate(zip(outputs,keys)):
-        n = forcings[key]['normalization']
         outputdict[key] = {}
         outputdict[key]['val'] = out
     outputdict = pass_other_keys(outputdict,forcings)
@@ -91,6 +79,7 @@ def pass_other_keys(d1,d2,exceptions = ['val']):
                 continue
             d1[key][k] = d2[key][k]
     return d1
+
 def to_xarray(torchdict,depth):
     data_vars = {
         key : (["depth","lat","lon"] ,torchdict[key]['val'].numpy()) for key in torchdict
@@ -101,21 +90,13 @@ def to_xarray(torchdict,depth):
         break
     coords = dict(lat = (["lat"],lat),lon = (["lon"],lon),depth = (["depth"],depth))
     return xr.Dataset(data_vars = data_vars,coords = coords)
-def apply_keywise(*dicts,fun = lambda x: x):
-    newdict = {}
-    dicts = list(dicts)
-    for key in dicts[0]:
-        newdict[key] = {}
-        vecs = [dicts[i][key]['val'] for i in range(len(dicts))]
-        newdict[key]['val'] = fun(vecs)
-    return pass_other_keys(newdict,dicts[0],exceptions = ['val'])
 
 def err_scale_dataset(mean,truef):
     err = np.square(truef - mean)
     sc2 = np.square(truef)
     names = list(err.data_vars)
     for name in names:
-        err = err.rename({name : name+'_err'})
+        err = err.rename({name : name+'_mse'})
         sc2 = sc2.rename({name : name+'_sc2'})
     return xr.merge([err,sc2])
 
@@ -157,17 +138,21 @@ def main():
             if linsupres:
                 true_forcing,lsrp_res = separate_linsupres(forcings)
                 mean = match(mean,lsrp_res)
-                mean,true_forcing,lsrp_res, = change_scale(mean,true_forcing,lsrp_res, denormalize=True)
+                mean = change_scale(mean,denormalize=True)
+                true_forcing = change_scale(true_forcing,denormalize=True)
+                lsrp_res = change_scale(lsrp_res,denormalize=True)
                 lsrp_res = override_names(lsrp_res,true_forcing)
                 mean = override_names(mean,true_forcing)
             else:
                 true_forcing = forcings
                 mean = match(mean,true_forcing)
-                mean,true_forcing, = change_scale(mean,true_forcing,denormalize=True)
+                mean = change_scale(mean,denormalize=True)
+                true_forcing = change_scale(true_forcing,denormalize=True)
             true_forcing = mask(true_forcing,forcing_masks)
             mean = mask(mean,forcing_masks)
-            mean = to_xarray(mean,depth)
-            true_forcing = to_xarray(true_forcing,depth)
+            mean = to_xarray(mean,depth,)
+            true_forcing = to_xarray(true_forcing,depth,)
+
             if linsupres:
                 lsrp_res = mask(lsrp_res,forcing_masks)
                 lsrp_res = to_xarray(lsrp_res,depth)
@@ -184,6 +169,8 @@ def main():
                 evs = evs + part_evs
                 if linsupres:
                     lsrp_evs = lsrp_evs + part_lsrp_evs
+            print(evs)
+            print(lsrp_evs)
             nt+=1
             if nt>=nt_limit:
                 break
@@ -192,12 +179,11 @@ def main():
             total_lsrp_evs.append(lsrp_evs/nt)
         
     evs = xr.merge(total_evs)
-    root = '/scratch/cg3306/climate/CM2P6Param/saves/evals/'
-    fileame = os.path.join(root,modelid+'.nc')
+    fileame = os.path.join(EVALS,modelid+'.nc')
     evs.to_netcdf(fileame,mode = 'w')
     if linsupres:
         lsrp_evs = xr.merge(total_lsrp_evs)
-        fileame = os.path.join(root,'lsrp.nc')
+        fileame = os.path.join(EVALS,'lsrp.nc')
         lsrp_evs.to_netcdf(fileame,mode = 'w')
 
 

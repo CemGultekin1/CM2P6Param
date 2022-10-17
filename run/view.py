@@ -22,16 +22,9 @@ def change_scale(d0,normalize = False,denormalize = False):
             d0[key]['val'] = f*n[:,1].reshape([-1,1,1]) + n[:,0].reshape([-1,1,1])
     return d0
 
-def torch_stack(*dicts):
-    dicts = list(dicts)
-    groups = [list(d.keys()) for d in dicts]
-    cdict = dicts[0]
-    for d in dicts[1:]:
-        cdict = dict(cdict,**d)
-    newdicts = []
-    for g in groups:
-        newdicts.append(torch.stack([cdict[key]['val'] for key in g],dim = 1))
-    return tuple(newdicts)
+def torch_stack(cdict):
+    torchtensor = torch.stack([cdict[key]['val'] for key in cdict],dim= 1)
+    return torchtensor
 
 def mask(outputs,masks):
     for key in outputs:
@@ -92,14 +85,6 @@ def to_xarray(torchdict,depth,time,itime):
     coords = dict(lat = (["lat"],lat),lon = (["lon"],lon),\
         depth = (["depth"],depth.reshape([-1])), itime = (["itime"],itime.reshape([-1])))
     return xr.Dataset(data_vars = data_vars,coords = coords)
-def apply_keywise(*dicts,fun = lambda x: x):
-    newdict = {}
-    dicts = list(dicts)
-    for key in dicts[0]:
-        newdict[key] = {}
-        vecs = [dicts[i][key]['val'] for i in range(len(dicts))]
-        newdict[key]['val'] = fun(vecs)
-    return pass_other_keys(newdict,dicts[0],exceptions = ['val'])
 
 def err_scale_dataset(mean,truef):
     err = mean
@@ -108,8 +93,16 @@ def err_scale_dataset(mean,truef):
     names = list(err.data_vars)
     for name in names:
         err = err.rename({name : name})
-        sc2 = sc2.rename({name : name+'_true'})
+        if name != 'time':
+            sc2 = sc2.rename({name : name+'_true'})
     return xr.merge([err,sc2])
+
+def ifnotnone_merge(evs,part_evs):
+    if evs is None:
+        evs = part_evs
+    else:
+        evs = xr.merge([evs,part_evs])
+    return evs
 
 def main():
     def set_seed():
@@ -138,25 +131,28 @@ def main():
         set_seed()
         try:
             test_generator, = get_data(datargs,half_spread = net.spread, torch_flag = False, data_loaders = True,groups = ('test',))
+            # test_generator2, = get_data(datargs,half_spread = net.spread, torch_flag = True, data_loaders = True,groups = ('test',))
         except GroupNotFoundError:
             print('data not found!')
             test_generator = None
         if test_generator is None:
             continue
         evs = None
+        lsrp_evs =None
         nt_limit = 8
         nt = 0
-        for fields,forcings,forcing_masks,info in test_generator:
+
+        for fields,forcings,field_masks,forcing_masks,info in test_generator:
             depth = info['depth'].numpy().reshape([-1])
             time = info['itime'].numpy().astype(int).reshape([-1])
             itime = np.array([nt], dtype=int)
             flushed_print(nt,depth[0],time[0])
-            time[0] = nt
-
-            torch_fields, = torch_stack(fields)
+            # time[0] = nt
+            torch_fields = torch_stack(fields)
             with torch.set_grad_enabled(False):
                 mean,_ =  net.forward(torch_fields.to(device))
                 mean = mean.to("cpu")
+                # mean = torch.randn(1,3,309-10,458-10)
             if linsupres:
                 true_forcing,lsrp_res = separate_linsupres(forcings)
                 mean = match(mean,lsrp_res)
@@ -170,34 +166,36 @@ def main():
                 mean = match(mean,true_forcing)
                 mean = change_scale(mean,denormalize=True)
                 true_forcing = change_scale(true_forcing,denormalize=True)
+
+            fields = change_scale(fields,denormalize=True)
+            fields = mask(fields,field_masks)
+            fields = to_xarray(fields,depth,time,itime).isel(lon = slice(0,-1))
+
             true_forcing = mask(true_forcing,forcing_masks)
             mean = mask(mean,forcing_masks)
-            mean = to_xarray(mean,depth,time,itime)
-            true_forcing = to_xarray(true_forcing,depth,time,itime)
+            mean = to_xarray(mean,depth,time,itime).isel(lon = slice(0,-1))
+            true_forcing = to_xarray(true_forcing,depth,time,itime).isel(lon = slice(0,-1))
 
             if linsupres:
                 lsrp_res = mask(lsrp_res,forcing_masks)
-                lsrp_res = to_xarray(lsrp_res,depth,time,itime)
+                lsrp_res = to_xarray(lsrp_res,depth,time,itime).isel(lon = slice(0,-1))
                 lsrp_out = true_forcing - lsrp_res
                 mean = mean + lsrp_out
+                lsrp_out['time'] = true_forcing['time']
+
                 part_lsrp_evs = err_scale_dataset(lsrp_out,true_forcing)
             part_evs = err_scale_dataset(mean,true_forcing)
-
-            if evs is None:
-                evs = part_evs
-                if linsupres:
-                    lsrp_evs = part_lsrp_evs
-            else:
-                evs = xr.merge([evs,part_evs])
-                if linsupres:
-                    lsrp_evs = xr.merge([lsrp_evs,part_lsrp_evs])
+            part_evs = xr.merge([part_evs,fields],fill_value = np.nan)
+            evs = ifnotnone_merge(evs,part_evs)
+            if linsupres:
+                part_lsrp_evs = xr.merge([part_lsrp_evs,fields],fill_value = np.nan)
+                lsrp_evs = ifnotnone_merge(lsrp_evs,part_lsrp_evs)
             nt+=1
             if nt>=nt_limit:
                 break
-        total_evs.append(evs/nt)
+        total_evs.append(evs)
         if linsupres:
-            total_lsrp_evs.append(lsrp_evs/nt)
-        
+            total_lsrp_evs.append(lsrp_evs)
     evs = xr.merge(total_evs)
     fileame = get_view_path(modelid)
     evs.to_netcdf(fileame,mode = 'w')

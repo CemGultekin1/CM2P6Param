@@ -170,7 +170,12 @@ class MultiDomainDataset(MultiDomain):
     def group_np_stack(self,vargroups):
         return tuple([self._np_stack(vars) for vars in vargroups])
     def _np_stack(self,vals:Dict[str,Dict[str,np.array]]):
-        v = [val['val'] for val in vals.values()]
+        v = []
+        for val in vals.values():
+            if isinstance(val,dict):
+                v.append(val['val'])
+            else:
+                v.append(val)
         return np.stack(v,axis =0)
     def group_to_torch(self,vargroups):
         return tuple([self._to_torch(vars) for vars in vargroups])

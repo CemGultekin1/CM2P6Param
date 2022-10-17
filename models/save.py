@@ -1,6 +1,8 @@
 import os
 import torch
 import json
+from models.load import load_modelsdict
+from models.search import is_trained
 from utils.paths import model_logs_json_path, modelsdict_path, statedict_path
 
 def save_statedict(modelid,statedict,logs):
@@ -10,6 +12,17 @@ def save_statedict(modelid,statedict,logs):
     if logs is not None:
         with open(logfile,'w') as f:
             json.dump(logs,f)
+
+def only_fully_trained_modelsdict():
+    md = load_modelsdict()
+    md = {key: val for key,val in md.items() if is_trained(key)}
+    overwrite_modelsdict(md)
+    
+
+def overwrite_modelsdict(md):
+    file = modelsdict_path()
+    with open(file,'w') as f:
+        json.dump(md,f,indent='\t')
 
 def update_modelsdict(modelid,args):
     file = modelsdict_path()

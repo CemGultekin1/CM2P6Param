@@ -1,7 +1,7 @@
-import itertools
 import os
 from models.load import load_modelsdict
 from models.save import update_modelsdict
+from models.search import is_trained
 from utils.arguments import options
 from utils.paths import MODELS, SLURM, model_logs_json_path, statedict_path
 
@@ -19,7 +19,20 @@ def read_job_txts():
         lines.extend(read_lines(fn))
     return lines
     
-
+def add_trained_models():
+    from jobs.trainjob import TRAINJOB
+    argsfile = TRAINJOB + '.txt'
+    path = os.path.join(SLURM,argsfile)
+    with open(path,'r') as f:
+        lines = f.readlines()
+    modelsdict = load_modelsdict()
+    for i in range(len(lines)):
+        _,modelid = options(lines[i].split(),key = "model")
+        flag = is_trained(modelid)
+        if flag and modelid not in modelsdict:
+            update_modelsdict(modelid,lines[i])
+            # print(modelid,'\t',lines[i])
+    
     
 
 
@@ -47,7 +60,7 @@ def delete_untrained_model_dirs():
 
     
 def main():
-    delete_untrained_model_dirs()
+    add_trained_models()
 
 
 if __name__ == '__main__':

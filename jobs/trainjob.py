@@ -63,7 +63,11 @@ def generate_training_tasks():
         args = fix_minibatch(args)
         argslist[i] = ' '.join(args)
     njobs = len(argslist)
-    istrained = [check_training_task(argslist[i].split()) for i in range(njobs)]
+    istrained = []
+    for i in range(njobs):
+        flag = check_training_task(argslist[i].split())
+        print(flag,argslist[i])
+        istrained.append(flag)
     jobarray = ','.join([str(i) for i in range(njobs) if not istrained[i]])
     njobs = len(argslist)
     lines = '\n'.join(argslist)

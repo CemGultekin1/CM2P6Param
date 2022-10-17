@@ -15,7 +15,9 @@ VIEWS = os.path.join(SAVES,'views')
 
 SCALARS_JSON = os.path.join(SAVES,'scalars.json')
 LSRP = os.path.join(SAVES,'lsrp')
-
+PLOTS = os.path.join(SAVES,'plots')
+VIEW_PLOTS = os.path.join(PLOTS,'views')
+R2_PLOTS = os.path.join(PLOTS,'r2')
 
 
 

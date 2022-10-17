@@ -1,5 +1,6 @@
 import json
 import os
+from models.load import load_modelsdict
 from utils.arguments import options
 from params import MODEL_PARAMS, get_default
 import numpy as np
@@ -23,14 +24,17 @@ def is_trained(modelid):
 
 def find_best_match(incargs:str,):
     def read_params(args:str):
-        margs,_ = options(args.split(' ') ,key="model")
+        listargs = args.split()
+        listargs = [a for a in listargs if a != '']
+        margs,_ = options(listargs,key="model")
         vals = {}
-        listargs = args.split(' ')
+        margsdict = margs.__dict__
         for i,x in enumerate(listargs):
             if '--' in x:
                 x = x.replace('--','')
-                val = margs.__getattribute__(x)
-                vals[x] = val
+                if x in margsdict:
+                    val = margs.__getattribute__(x)
+                    vals[x] = val
         return vals
     def compare_strct_prms(prm,inc,):
         flag = True
@@ -44,14 +48,14 @@ def find_best_match(incargs:str,):
     def compare_float_prms(prm,inc,):
         distance = 0
         for key in MODEL_PARAMS:
-            if MODEL_PARAMS[key]["type"] != float:
+            default_el = MODEL_PARAMS[key]["default"]
+            if not (isinstance(default_el,float) or isinstance(default_el,int)):
                 continue
             if key in inc:
                 distance += abs(inc[key]-prm[key])
         return distance
     inc = read_params(incargs)
-    with open(modelsdict) as f:
-        models = json.load(f)
+    models = load_modelsdict()
     mids = []
     for mid,args in models.items():
         prms = read_params(args)
@@ -64,6 +68,23 @@ def find_best_match(incargs:str,):
         args = models[mid]
         prms = read_params(args)
         distances.append(compare_float_prms(prms,inc))
+    print(distances)
     i = np.argmin(distances)
     mid = mids[i]
     return models[mid],mid
+
+def main():
+    requests = [
+        '--sigma 8 --latitude False --linsupres False --depth 5 --parts 1 1',
+        '--sigma 8 --latitude True --linsupres False --depth 5 --parts 1 1',
+        '--sigma 8 --latitude True --linsupres True --depth 5 --parts 1 1',
+    ]
+    for arg in requests:
+        modelarg,mid = find_best_match(arg)
+        print(arg)
+        print(f'\t{modelarg}')
+        print(f'\t\t{mid}')
+
+
+if __name__ == '__main__':
+    main()

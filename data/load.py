@@ -58,20 +58,26 @@ def get_var_grouping(args)-> Tuple[Tuple[List[str],...],Tuple[List[str],...]]:
     if runprms.latitude:
         fields.extend(LATITUDE_NAMES)
     varnames = [fields]
-    masknames = []
+    forcingmask_names = []
+   
+    fieldmasks = [get_var_mask_name(f) for f in fields]
+    fieldmask_names = [fieldmasks]
+
     forcingmasks = [get_var_mask_name(f) for f in forcings]
     lsrpresforcingmasks = [get_var_mask_name(f) for f in lsrp_res_forcings]
     if runprms.linsupres:
         if runprms.mode != 'train':
             varnames.append(forcings + lsrp_res_forcings)
-            masknames.append(forcingmasks + lsrpresforcingmasks)
+            forcingmask_names.append(forcingmasks + lsrpresforcingmasks)
         else:
             varnames.append(lsrp_res_forcings)
-            masknames.append(lsrpresforcingmasks)
+            forcingmask_names.append(lsrpresforcingmasks)
     else:
         varnames.append(forcings)
-        masknames.append(forcingmasks)
-    varnames.extend(masknames)
+        forcingmask_names.append(forcingmasks)
+    if runprms.mode == 'view':
+        varnames.extend(fieldmask_names)
+    varnames.extend(forcingmask_names)
 
     if runprms.mode != 'train':
         varnames.append(['itime','depth'])

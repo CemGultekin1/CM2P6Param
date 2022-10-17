@@ -10,7 +10,7 @@ from utils.paths import SLURM, SLURM_LOGS
 JOBNAME = 'viewjob'
 root = SLURM
 
-NCPU = 8
+NCPU = 2
 
 
 def generate_eval_tasks():
@@ -33,20 +33,19 @@ def generate_eval_tasks():
     for i,args in enumerate(argslist):
         args = args.split()
         _,modelid = options(args,key = "model")
-        if not is_viewed(modelid) and is_trained(modelid):
-            jobnums.append(str(i))
+        if is_trained(modelid) and not is_viewed(modelid):
+            jobnums.append(str(i+1))
     jobarray = ','.join(jobnums)
     slurmfile =  os.path.join(SLURM,JOBNAME + '.s')
     out = os.path.join(SLURM_LOGS,JOBNAME+ '_%a_%A.out')
     err = os.path.join(SLURM_LOGS,JOBNAME+ '_%a_%A.err')
     create_slurm_job(slurmfile,\
         python_file = 'run/view.py',
-        time = "1:00:00",array = jobarray,\
-        mem = "30GB",job_name = JOBNAME,\
+        time = "30:00",array = jobarray,\
+        mem = "10GB",job_name = JOBNAME,\
         output = out,error = err,\
         cpus_per_task = str(NCPU),
         nodes = "1",
-        gres="gpu:1",
         ntasks_per_node = "1")
 
 
