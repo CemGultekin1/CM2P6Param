@@ -223,6 +223,7 @@ class MultiDomainDataset(MultiDomain):
     #     return values
     def __getitem__(self,i):
         outs = super().__getitem__(i)
+        # print('outs[fields][u].lon.values',outs['fields']['u'].lon.values)
         location = {key: outs.pop(key) for key in ['ilat','ilon','itime','idom','depth']}
         values = self.outs2numpydict_latlon(outs)
         values = dict(values,**location)

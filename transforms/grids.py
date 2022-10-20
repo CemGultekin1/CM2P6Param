@@ -56,30 +56,42 @@ def expand_longitude(ulon,lonmin,lonmax,expand):
 
 def bound_grid(lat,lon,latmin,latmax,lonmin,lonmax,expand):
 
-    I = np.where(lon>lonmin)[0]
+    I = np.where(lon>=lonmin)[0]
     ilon0 = I[0] - expand
 
-    I = np.where(lon<lonmax)[0]
+    I = np.where(lon<=lonmax)[0]
     ilon1 = I[-1] + expand
 
-    lon0,lon1 = lon[[ilon0,ilon1]]
+    def get_slice_extremes(lon,ilon0,ilon1):
+        if ilon0 > 0 :
+            lon0 = lon[ilon0] - (lon[ilon0] -lon[ilon0-1] )/2
+        else:
+            lon0 = lon[ilon0] - (lon[ilon0+1] -lon[ilon0] )/2
 
+        if ilon1 < len(lon)-1:
+            lon1 = lon[ilon1] + (lon[ilon1+1] -lon[ilon1] )/2
+        else:
+            lon1 = lon[ilon1] + (lon[ilon1] -lon[ilon1-1] )/2
+        return lon0,lon1
+    lon0,lon1 = get_slice_extremes(lon,ilon0,ilon1)
 
-    I = np.where(lat>latmin)[0]
+    I = np.where(lat>=latmin)[0]
     if len(I)>0:
         ilat0 = np.maximum(I[0] - expand,0)
     else:
         ilat0 = 0
 
-    I = np.where(lat<latmax)[0]
+    I = np.where(lat<=latmax)[0]
 
     if len(I)>0:
         ilat1 = np.minimum(I[-1] + expand,len(lat)-1)
     else:
         ilat1 = len(lat)-1
 
-    lat0 = lat[ilat0]
-    lat1 = lat[ilat1]
+    lat0,lat1 = get_slice_extremes(lat,ilat0,ilat1)
+    
+    
+
 
     lat = lat[ilat0:ilat1+1]
     lon = lon[ilon0:ilon1+1]

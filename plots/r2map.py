@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from utils.paths import SLURM, R2_PLOTS, EVALS
 import xarray as xr
 from utils.arguments import options
+from utils.slurm import flushed_print
 import numpy as np
 
 def main():
@@ -15,26 +16,30 @@ def main():
     file1.close()
     lines = ['lsrp'] + lines
     title_inc = ['latitude','linsupres','depth']
-    title_nam = ['latitude','lsrp','train-depth']
+    title_name = ['latitude','lsrp','train-depth']
     for line in lines:
         if line == 'lsrp':
             modelid = 'lsrp'
             title = 'LSRP'
         else:
             modelargs,modelid = options(line.split(),key = "model")
-            title = ',   '.join([f"{name}: {int(modelargs.__getattribute__(key))}" for key,name in zip(title_inc,title_nam)])
+            vals = [modelargs.__getattribute__(key) for key in title_inc]
+            vals = [int(val) if isinstance(val,float) else val for val in vals]
+            title = ',   '.join([f"{name}: {val}" for name,val in zip(title_name,vals)])
         snfile = os.path.join(root,modelid + '.nc')
         if not os.path.exists(snfile):
             continue
         sn = xr.open_dataset(snfile)
         for key in 'Su Sv ST'.split():
-            sn[f"{key}_r2"] = 1 - sn[f"{key}_mse"]/(sn[f"{key}_sc2"] + 1e-5)
+            sn[f"{key}_r2"] = 1 - sn[f"{key}_mse"]/sn[f"{key}_sc2"]
         depthvals = sn.depth.values
         targetfolder = os.path.join(target,modelid)
         if not os.path.exists(targetfolder):
             os.makedirs(targetfolder)
         for i in range(len(depthvals)):
-            s = sn.isel(depth = i).isel(lon = slice(0,-1))
+            s = sn.isel(depth = i)#.isel(lon = slice(0,-1))
+            if np.any(np.isnan(s.lon.values)):
+                s = s.isel(lon = slice(0,-1))
             depthval = depthvals[i]
             title_ = f"{title}\ntest-depth: {depthval}"
             names = "Su Sv ST".split()
@@ -55,14 +60,20 @@ def main():
                 return xr.where(x==0,np.nan,x)
             fig,axs = plt.subplots(nrows,ncols,figsize = (50,30))
             for ir,ic in itertools.product(range(nrows),range(ncols)):
-                if ic==0:
-                    s[_names[ir,ic]] = 1-s[_names[ir,ic]]
-                replace_zero_with_nan(s[_names[ir,ic]]).plot(ax = axs[ir,ic])
-                axs[ir,ic].set_title(_names[ir,ic],fontsize=24)
-
-            print(title_)
+                if 'r2' in _names[ir,ic]:
+                    pkwargs = dict(vmin = 0,vmax = 1)
+                    var = s[_names[ir,ic]]
+                    subtitle = _names[ir,ic]
+                else:
+                    pkwargs = dict()
+                    var = replace_zero_with_nan(s[_names[ir,ic]])
+                    var = np.log10(var)
+                    subtitle = f"log10({_names[ir,ic]})"
+                var.plot(ax = axs[ir,ic],**pkwargs)
+                axs[ir,ic].set_title(subtitle,fontsize=24)
             fig.suptitle(title_,fontsize=24)
             fig.savefig(targetfile)
+            flushed_print(title_,'\n\t',targetfile)
             plt.close()
             if i==len(depthvals)-1:
                 break

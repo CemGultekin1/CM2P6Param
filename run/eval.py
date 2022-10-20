@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from utils.arguments import options, populate_data_options
 from utils.parallel import get_device
 from utils.paths import EVALS
+from utils.slurm import flushed_print
 import numpy as np
 import xarray as xr
 
@@ -129,7 +130,7 @@ def main():
         for fields,forcings,forcing_masks,info in test_generator:
             depth = info['depth'].numpy().reshape([-1])
             if nt == 0:
-                print(depth[0])
+                flushed_print(depth[0])
 
             torch_fields, = torch_stack(fields)
             with torch.set_grad_enabled(False):

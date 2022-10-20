@@ -24,6 +24,7 @@ class CM2p6Dataset:
         self.sigma = sigma
         self.half_spread = half_spread
         self.global_hres_coords = [None]*4
+        self.wetmask_flag = kwargs.get('wetmask',False)
         def flatten_tuple_list(l_):
             varnames = list(ds.data_vars)
             l = []
@@ -31,10 +32,6 @@ class CM2p6Dataset:
                 if n in varnames:
                     l.append(n)
             return l
-        varnames = kwargs.get('var_grouping')
-        self.field_names = flatten_tuple_list(varnames[0])
-        self.forcing_names = flatten_tuple_list(varnames[1])
-
         if boundaries is None:
             boundaries = (-90,90,-180,180)
         if coarse_grain_needed:
@@ -55,6 +52,9 @@ class CM2p6Dataset:
                 return  xr.DataArray(data = ulon).coarsen(dim_0 = sigma,boundary = "trim").mean().values
             self.global_lres_coords = coarsen(ulon),coarsen(ulat)
         else:
+            varnames = kwargs.get('var_grouping')
+            self.field_names = flatten_tuple_list(varnames[0])
+            self.forcing_names = flatten_tuple_list(varnames[1])
             self.global_lres_coords = self.ds.lat.values,larger_longitude_grid(self.ds.lon.values)
         self.preboundaries = boundaries
 
@@ -96,7 +96,9 @@ class CM2p6Dataset:
     def coarse_graining_spread(self,):
         if not self.coarse_grain_needed:
             return 0
-        return self.sigma*5
+        if self.wetmask_flag:
+            return 0
+        return self.sigma*3
 
 
 class SingleDomain(CM2p6Dataset):
@@ -113,6 +115,7 @@ class SingleDomain(CM2p6Dataset):
         self.coarse_grain = None
         self.initiated = False
         self.all_land = None
+        
 
     @property
     def shape(self,):
@@ -155,7 +158,8 @@ class SingleDomain(CM2p6Dataset):
             latlon = self.local_hres_coords[:2]
         else:
             latlon = self.local_hres_coords[2:]
-        return fix_grid(u,latlon)
+        fu = fix_grid(u,latlon)
+        return fu
 
     def get_hres(self,i,fillna = False):
         ds = self.ds.isel(time = i)
@@ -183,29 +187,46 @@ class SingleDomain(CM2p6Dataset):
     def build_wet_mask(self,u,T):
         def coarsen_hres_mask(u):
             mask = no_nan_input_mask(u,self.coarse_graining_spread)
+            # vals = mask.values[::self.sigma,::self.sigma]
+            # mask = xr.DataArray(
+            #     data = vals,
+            #     dims = ["lat","lon"],
+            #     coords = dict(
+            #         lat =mask.lat.values[::self.sigma],
+            #         lon =mask.lon.values[::self.sigma],
+            #     )
+            # )
             return mask.coarsen(lat = self.sigma,lon = self.sigma,boundary = "trim").mean()
         umask = coarsen_hres_mask(u)
         tmask = coarsen_hres_mask(T).interp(lat = umask.lat.values,lon = umask.lon.values)
-        mask = umask + tmask
-        mask = xr.where(mask==0,1,0)
+        mask = (umask + tmask)/2
+        
         return mask
 
     def init_coarse_graining(self,):
         u,_,T=self.get_hres(0)
         u,T = self.fix_grid(u,Tgrid = False),self.fix_grid(T,Tgrid = True)
-        cgu = coarse_graining_2d_generator(u,self.sigma)
-        cgt = coarse_graining_2d_generator(T,self.sigma)
+        cgu = coarse_graining_2d_generator(u,self.sigma,wetmask = self.wetmask_flag)
+        cgt = coarse_graining_2d_generator(T,self.sigma,wetmask = self.wetmask_flag)
         self.coarse_grain =  (cgu,cgt)
+
+
         self.wet_mask = self.build_wet_mask(u,T)
-        self.forcing_mask = self.build_forcing_mask()
+
+       
+        
+        
+        self.forcing_mask = self.wet_mask # self.build_forcing_mask()
+
+
         self.all_land = np.mean(self.forcing_mask.values) > 1 - 1e-2
 
     def init_coarse_masks(self,):
         u = self.ds.isel(time = 0).u
         u = self.fix_grid(u)
         self.wet_mask = xr.where(no_nan_input_mask(u,0) == 0 ,1,0)
-        mask = no_nan_input_mask(u,self.half_spread)
-        self.forcing_mask = xr.where(mask==0,1,0)
+        mask = no_nan_input_mask(u,self.half_spread + 1)
+        self.forcing_mask = self.wet_mask# xr.where(mask==0,1,0)
         self.all_land = np.mean(self.forcing_mask.values) > 1 - 1e-2
 
     @property
@@ -221,23 +242,27 @@ class SingleDomain(CM2p6Dataset):
             f[i]  = xr.DataArray(data =np.ones(self.shape)*np.nan, dims = ["lat","lon"], coords = dict( lat =lat, lon= lon ),name = key)
         F = xr.merge(f)
         return U,F
-
     def hres2lres(self,i):
         if not self.initiated:
             self.init_coarse_graining()
             self.initiated = True
+
         if self.all_land:
             U,F = self.nan_map
             return dict(fields = U, forcings = F)
         u,v,T = self.get_grid_fixed_hres(i,fillna = True)
+
         F,U = subgrid_forcing(u,v,T,*self.coarse_grain)
 
-        M0 = self.wet_mask.sel(**self.final_boundaries) == 1
-        M1 = self.forcing_mask.sel(**self.final_boundaries) == 1
+        
 
-        F = xr.where(M1, F.sel(**self.final_boundaries), np.nan)
-        U = xr.where(M0, U.sel(**self.final_boundaries), np.nan)
-        return dict(fields = U,forcings = F)
+
+        M0 = self.wet_mask.sel(**self.final_boundaries) #== 1
+        M1 = self.forcing_mask.sel(**self.final_boundaries)# == 1
+
+        F =  F.sel(**self.final_boundaries) #xr.where(M1 , F.sel(**self.final_boundaries), np.nan)
+        U = U.sel(**self.final_boundaries) #xr.where(M0 , U.sel(**self.final_boundaries), np.nan)
+        return dict(fields = U,forcings = F, field_wetmask = M0,forcing_wetmask = M1)
 
     def lres2lres(self,i):
         if not self.initiated:

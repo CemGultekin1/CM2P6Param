@@ -15,11 +15,13 @@ def no_nan_input_mask(u,span,codition:Callable = lambda x:  np.isnan(x))->xr.Dat
     shp = mask.shape
     sp = span
     shpp = np.array(shp) - 2*sp
-    torchmask = torch.from_numpy(mask.reshape([1,1,shp[-2],shp[-1]])).type(torch.float)
-    pool = nn.MaxPool2d(2*sp + 1,stride = 1)
+    torchmask = torch.from_numpy(mask.reshape([1,1,shp[-2],shp[-1]])).type(torch.float32)
+    # pool = nn.MaxPool2d(2*sp + 1,stride = 1)
+    pool = nn.Conv2d(1,1,2*sp+1,bias = False)
+    pool.weight.data = torch.ones(1,1,2*sp+1,2*sp+1).type(torch.float32)/((2*sp+1)**2)
     with torch.no_grad():
         poolmask = pool(torchmask).numpy().reshape(*shpp)
-    mask = 1 - mask*0
+    mask = np.ones(shp,dtype = float)
     mask[sp:-sp,sp:-sp] = poolmask
     mask = xr.DataArray(
         data = mask,

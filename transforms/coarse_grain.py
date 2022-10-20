@@ -1,8 +1,7 @@
 import xarray as xr
 import numpy as np
 import gcm_filters
-
-
+from scipy.ndimage import gaussian_filter
 
 def get_gcm_filter(sigma):
     filter_scale = sigma/2*np.sqrt(12)
@@ -15,12 +14,31 @@ def get_gcm_filter(sigma):
     }
     return gcm_filters.Filter(**specs,)
 
-def coarse_graining_2d_generator(ugrid,sigma,):
+def get_scipy_filter(sigma):
+    class filter:
+        def apply(self,x:xr.DataArray,**kwargs):
+            gx = gaussian_filter(x.values,sigma = sigma,mode= 'constant')
+            return xr.DataArray(
+                data = gx,
+                dims = ["lat","lon"],
+                coords = dict(
+                    lon = x.lon.values,lat = x.lat.values
+                )
+            )
+
+    return filter()
+
+
+
+
+
+
+def coarse_graining_2d_generator(ugrid:xr.DataArray,sigma,wetmask :bool= False):
     '''
     given a 2d rectangular grid :ugrid: and coarse-graining factor :sigma:
     it returns a Callable that coarse-grains
     '''
-    gaussian = get_gcm_filter(sigma)
+    gaussian = get_scipy_filter(sigma)#get_gcm_filter(sigma)
     def _gaussian_apply(xx:xr.Dataset,):
         x = xx.copy()
         x = x.load().compute()
@@ -29,7 +47,7 @@ def coarse_graining_2d_generator(ugrid,sigma,):
         y = y.assign_coords(lon = x.lon,lat = x.lat)
         return y
 
-    def area2d(grid:xr.Dataset):
+    def area2d(grid:xr.DataArray,wetmask:bool):
         lat = grid.lat.values
         lon = grid.lon.values
         dlat = lat[1:] - lat[:-1]
@@ -37,16 +55,25 @@ def coarse_graining_2d_generator(ugrid,sigma,):
         area = dlat.reshape([-1,1])@dlon.reshape([1,-1])
         area = np.concatenate([area,area[-1:]],axis = 0)
         area = np.concatenate([area,area[:,-1:]],axis = 1)
-        dA = xr.DataArray(
-            data=area,
-            dims=["lat", "lon"],
-            coords=dict(
-            lon = lon, lat = lat,),
-        )
+        if not wetmask:
+            dA = xr.DataArray(
+                data=area,
+                dims=["lat", "lon"],
+                coords=dict(
+                lon = lon, lat = lat,),
+            )
+        else:
+            wetmask = xr.where(grid != grid, 0, 1)
+            dA = xr.DataArray(
+                data=area*wetmask.values,
+                dims=["lat", "lon"],
+                coords=dict(
+                lon = lon, lat = lat,),
+            )
         dAbar = _gaussian_apply(dA,)
         return dA,dAbar
 
-    dA,dAbar = area2d(ugrid)
+    dA,dAbar = area2d(ugrid,wetmask)
 
     def weighted_gaussian(x:xr.DataArray):
         x = _gaussian_apply(dA*x,)/dAbar
@@ -64,9 +91,7 @@ def coarse_graining_1d_generator(grid,sigma):
     lat,lon = grid.lat.values,grid.lon.values
     coarsen_specs = dict(boundary = "trim")
 
-    clat = grid.lat.coarsen(lat = sigma,**coarsen_specs).mean()
-    clon = grid.lon.coarsen(lon = sigma,**coarsen_specs).mean()
-
+  
     area_lat = area1d(lat)
     area_lon = area1d(lon)
 
