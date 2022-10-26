@@ -3,13 +3,29 @@
 
 
 
-from data.gcm_forcing import SingleDomain
+
 
 
 def main(): 
+    args = '--sigma 4 --depth 5 --minibatch 1 --prefetch_factor 1 --num_workers 1'.split()
+    from data.load import get_data
+    from params import SCALAR_PARAMS
+    normalizations = SCALAR_PARAMS["normalization"]["choices"]
+
+    generator,= get_data(args,half_spread = 0, torch_flag = False, data_loaders = True,groups = ('train',))
+    tot_scalars = {norm : {} for norm in normalizations}
+    time_limit = 64
+    for fields,forcings,locations in generator:
+        for f in [fields,forcings]:
+            for key in f:
+                print(key,f[key]['val'].shape)
+        print(locations)
+        break
+    return
     datargs = '--sigma 4'.split()
     from data.load import load_xr_dataset
     ds = load_xr_dataset(datargs)
+    from data.gcm_forcing import SingleDomain
     sdm = SingleDomain(ds,4,half_spread = 5,var_grouping = [('u v T'.split()),('Su Sv ST lsrp_res_Su lsrp_res_Sv lsrp_res_ST'.split())])
     UF = sdm[0]
     print(UF)

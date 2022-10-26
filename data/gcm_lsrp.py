@@ -122,10 +122,7 @@ class DividedDomain(CM2p6Dataset):
     cgs : Dict[Tuple[int,int],SingleDomain]
     def __init__(self,*args,parts = (1,1),**kwargs):
         super().__init__(*args,**kwargs)
-        if self.coarse_grain_needed:
-            lat,lon,_,_ = self.global_hres_coords
-        else:
-            lat,lon= self.global_lres_coords
+        lat,lon= self.global_lres_coords
         bds = divide2equals(lat,lon,parts[0],parts[1],*self.preboundaries)
         self.parts = parts
         self.cgs = {}

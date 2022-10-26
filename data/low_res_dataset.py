@@ -1,13 +1,13 @@
 import copy
 from typing import Dict, List
 import torch
-from data.gcm_forcing import CM2p6Dataset
+from data.low_res import CM2p6Dataset
 from data.geography import frequency_encoded_latitude
 import numpy as np
 from data.vars import get_var_mask_name
 import xarray as xr
 from data.gcm_lsrp import DividedDomain
-
+from utils.xarray import tonumpydict
 def determine_ndoms(*args,**kwargs):
     arglens = [1]
     for i in range(len(args)):
@@ -107,7 +107,9 @@ class MultiDomain(CM2p6Dataset):
         return sum([len(dom) for dom in self.domain_datasets])
     def __getitem__(self,i):
         idom  = i%self.ndoms
-        return dict(self.domain_datasets[idom][i//self.ndoms], **dict(idom= idom))
+        ds = self.domain_datasets[idom][i//self.ndoms]
+        ds['idom'] = idom
+        return ds
 
 
 class MultiDomainDataset(MultiDomain):
@@ -127,13 +129,13 @@ class MultiDomainDataset(MultiDomain):
     def sslice(self,):
         return slice(self.half_spread,-self.half_spread)
 
-    def outs2numpydict_latlon(self,outs,):
-        vald = {}
-        for key,val in outs.items():
-            for varname,vals in val.data_vars.items():
-                # name = f"{key}_{varname}"
-                vald[varname] = dict( val = vals.values,lat = vals.lat.values.reshape([-1]) ,lon = vals.lon.values.reshape([-1]) )
-        return vald
+    # def outs2numpydict_latlon(self,outs,):
+    #     vald = {}
+    #     for key,val in outs.items():
+    #         for varname,vals in val.data_vars.items():
+    #             # name = f"{key}_{varname}"
+    #             vald[varname] = dict( val = vals.values,lat = vals.lat.values.reshape([-1]) ,lon = vals.lon.values.reshape([-1]) )
+    #     return vald
 
     def shapeshift(self,values):
         for name in values.keys():
@@ -213,19 +215,11 @@ class MultiDomainDataset(MultiDomain):
             v[v!=v] = 0
             values[key] = v
         return values
-    # def remove_temperature(self,values:Dict[str,np.array]):
-    #     rmkeys = []
-    #     for key in values:
-    #         if 'T' in key:
-    #             rmkeys.append(key)
-    #     for key in rmkeys:
-    #         values.pop(key)
-    #     return values
     def __getitem__(self,i):
         outs = super().__getitem__(i)
-        # print('outs[fields][u].lon.values',outs['fields']['u'].lon.values)
-        location = {key: outs.pop(key) for key in ['ilat','ilon','itime','idom','depth']}
-        values = self.outs2numpydict_latlon(outs)
+        location = {key: outs[key].values for key in ['ilat','ilon','itime','idom','depth']}
+        # values = self.outs2numpydict_latlon(outs)
+        values = tonumpydict(outs)
         values = dict(values,**location)
 
         if self.latitude:

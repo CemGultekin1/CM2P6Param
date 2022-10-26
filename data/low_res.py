@@ -1,14 +1,8 @@
-import itertools
-from typing import Callable, Tuple
+from typing import Tuple
 from utils.xarray import concat, no_nan_input_mask
 import xarray as xr
 import numpy as np
-
-from transforms.coarse_grain import coarse_graining_2d_generator
-
-
 from transforms.grids import bound_grid, fix_grid, larger_longitude_grid, lose_tgrid, make_divisible_by_grid, trim_grid_nan_boundaries, ugrid2tgrid
-from transforms.subgrid_forcing import subgrid_forcing
 
 
 class CM2p6Dataset:
@@ -58,7 +52,6 @@ class CM2p6Dataset:
     @property
     def lres_spread(self,):
         return self.half_spread
-
 
     def locate(self,*args,lat = True,):
         clat,clon = self.global_lres_coords
@@ -119,7 +112,7 @@ class SingleDomain(CM2p6Dataset):
         return ds
     def get_grid_fixed_lres(self,i,fields):
         ds = self.get_dataset(i)
-        print(fields,list(ds.data_vars))
+
         U = concat(**{field : self.fix_grid(ds[field]) for field in fields})
         return  U
 
@@ -132,7 +125,7 @@ class SingleDomain(CM2p6Dataset):
             return xr.where(no_nan_input_mask(u,0) == 0 ,1,0)
         
         cmask = None
-        for key in "u v T".split():
+        for key in self.field_names:
             mask = get_mask(key)
             if cmask is None:
                 cmask = mask
@@ -140,8 +133,12 @@ class SingleDomain(CM2p6Dataset):
                 cmask = cmask + mask
         self.wet_mask =  xr.where(cmask == 0 ,0,1)
         forcing_mask = no_nan_input_mask(self.wet_mask,self.half_spread,lambda x: x==1,same_size = True)
-        self.forcing_mask = xr.where(forcing_mask>0,1,0)
-        self.forcing_mask =  xr.where(self.forcing_mask == 0, 1,0)
+
+        for key in  self.forcing_names:
+            mask = get_mask(key,)
+            forcing_mask = forcing_mask+mask
+
+        self.forcing_mask = xr.where(forcing_mask==0,1,0)
         self.wet_mask = xr.where(self.wet_mask==0,1,0)
         self.all_land = np.mean(self.forcing_mask.values) > 1 - 1e-2
 
@@ -173,5 +170,70 @@ class SingleDomain(CM2p6Dataset):
         M0 = self.wet_mask.sel(**self.final_boundaries) == 1
         F = xr.where(M1, F.sel(**self.final_boundaries), np.nan)
         U = xr.where(M0, U.sel(**self.final_boundaries), np.nan)
-        return dict(fields = U,forcings = F)
+        return xr.merge([U,F])
 
+
+
+
+class DividedDomain(CM2p6Dataset):
+    cgs : Dict[Tuple[int,int],SingleDomain]
+    def __init__(self,*args,parts = (1,1),**kwargs):
+        super().__init__(*args,**kwargs)
+        lat,lon= self.global_lres_coords
+        bds = divide2equals(lat,lon,parts[0],parts[1],*self.preboundaries)
+        self.parts = parts
+        self.cgs = {}
+        self.linsupres = kwargs.pop("linsupres",False)
+        kwargs.pop('boundaries')
+        constructor = SingleDomain
+        for i,j in self.iterate_over_parts():
+            self.cgs[(i,j)] = constructor(self.ds,self.sigma,boundaries=bds[(i,j)],**kwargs)
+    def set_time_constraint(self, t0, t1):
+        super().set_time_constraint(t0, t1)
+        for i,j in self.iterate_over_parts():
+            self.cgs[(i,j)].set_time_constraint(t0,t1)
+    @property
+    def ntime(self,):
+        return super().__len__()
+    def set_half_spread(self,spread):
+        for i,j in self.iterate_over_parts():
+            self.cgs[(i,j)].set_half_spread(spread)
+    def post__getitem__(self,i,j,t)-> Dict[str,xr.Dataset]:
+        return self.cgs[(i,j)][t]
+    def iterate_over_parts(self,):
+        for i,j in itertools.product(range(self.parts[0]),range(self.parts[1])):
+            yield i,j
+    @property
+    def shapes(self,):
+        shapes = np.empty((self.parts[0],self.parts[1],2),dtype = int)
+        for i,j, in self.iterate_over_parts():
+            shapes[i,j,:] = self.cgs[(i,j)].shape
+        return shapes
+    def get_max_shape(self,):
+        lat,lon = 0,0
+        shp = self.shapes
+        for i,j in self.iterate_over_parts():
+            lat_,lon_ = shp[i,j,:]
+            lat = np.maximum(lat_,lat)
+            lon = np.maximum(lon_,lon)
+        return lat,lon
+    def factor_index(self,i):
+        lat,lon = self.parts
+        li = i%lat
+        i = i//lat
+        lj = i%lon
+        i = i//lon
+        t = i%self.ntime
+        return li,lj,t
+
+    def __getitem__(self,i):
+        li,lj,t = self.factor_index(i)
+        ds = self.post__getitem__(li,lj,t)
+        ds['ilat'] = li
+        ds['ilon'] = lj
+        ds['itime'] = t
+        ds['depth'] = self.depth
+        return ds#dict(,**dict(ilat = li,ilon = lj, itime = t,depth = self.depth))
+    def __len__(self,):
+        lon,lat = self.parts
+        return super().__len__()*lon*lat

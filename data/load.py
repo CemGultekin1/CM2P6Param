@@ -1,11 +1,11 @@
 import os
 from typing import List, Tuple
 from data.exceptions import RequestDoesntExist
-from data.gcm_dataset import MultiDomainDataset
+from data.low_res_dataset import MultiDomainDataset
 from data.generate import  ProjectedHighResCm2p6
 from data.paths import get_high_res_data_location, get_high_res_grid_location, get_low_res_data_location
 import copy
-from data.vars import FIELD_NAMES, FORCING_NAMES, LATITUDE_NAMES, LSRP_NAMES, get_var_mask_name, rename
+from data.vars import FIELD_NAMES, FORCING_NAMES, LATITUDE_NAMES, LSRP_RES_NAMES, get_var_mask_name, rename
 from utils.paths import SCALARS_JSON
 import xarray as xr
 from data.coords import  DEPTHS, REGIONS, TIMES
@@ -60,7 +60,7 @@ def load_xr_dataset(args):
 def get_var_grouping(args)-> Tuple[Tuple[List[str],...],Tuple[List[str],...]]:
     runprms,_=options(args,key = "run")
     fields,forcings = FIELD_NAMES.copy(),FORCING_NAMES.copy()
-    lsrp_forcings = LSRP_NAMES.copy()
+    lsrp_forcings = LSRP_RES_NAMES.copy()
     if not runprms.temperature:
         fields = fields[:2]
         forcings = forcings[:2]
