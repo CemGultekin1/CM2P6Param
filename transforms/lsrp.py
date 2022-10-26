@@ -35,9 +35,6 @@ def single_component(f,k,i,j,field='lat'):
 
 def lat_spec_weights(filters,lati,span):
     _,nlon = len(filters.clat),len(filters.clon)
-
-
-
     rfield = 2*span + 1
     def fun(latii,**kwargs):
         wlat = np.zeros((rfield,rfield))

@@ -2,6 +2,7 @@ import os
 cg3306 = '/scratch/cg3306/climate'
 cm2p6 = '/scratch/zanna/data/cm2.6'
 repo_name = 'CM2P6Param'
+GRID_INFO = os.path.join(cm2p6,'Grid_Files/ocean_grid.nc')
 REPO = os.path.join(cg3306,repo_name)
 SLURM = os.path.join(REPO,'jobs')
 
@@ -25,6 +26,7 @@ MODELS = os.path.join(SAVES,'models')
 TRAINING_LOGS = os.path.join(SAVES,'training_logs')
 MODELS_JSON = os.path.join(SAVES,'models_info.json')
 DATA_JSON = os.path.join(SAVES,'data_info.json')
+
 
 for dir in [MODELS,TRAINING_LOGS,SAVES,EVALS,VIEWS,SLURM_LOGS]:
     if not os.path.exists(dir):

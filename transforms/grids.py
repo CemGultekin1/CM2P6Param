@@ -2,6 +2,209 @@ import itertools
 import numpy as np
 import xarray as xr
 
+EARTH_RADIUS = 6.371*1e6 # in meters
+
+def trim_expanded_longitude(sfd,expansion = 5):
+    # lonslice = longitudinal_nan_cut_values(sfd)
+    lonslice = slice(expansion,-expansion)
+    # print('lonslice:\t',lonslice)
+    sfd = sfd.isel(ulon = lonslice,tlon = lonslice,)
+    uflag,uslice = assert_periodic_sufficiency(sfd.ulon.values)
+    tflag,tslice = assert_periodic_sufficiency(sfd.tlon.values)
+    assert uflag
+    assert tflag
+    sfd = sfd.isel(ulon = uslice,tlon = tslice)
+    ulon = sfd.ulon.values
+    tlon = sfd.tlon.values
+    def normalize(lon):
+        return (lon + 180)%360 - 180
+    pulon = normalize(ulon)
+    ptlon = normalize(tlon)
+    ulon0 = np.argmin(np.abs(pulon  + 180))
+    tlon0 = np.argmin(np.abs(ptlon + 180))
+    ilon0 = np.minimum(ulon0,tlon0).astype(int)
+    sfd = sfd.roll({"ulon": -ilon0},roll_coords = True)
+    sfd = sfd.roll({"tlon": -ilon0},roll_coords = True)
+    sfd["ulon"] = normalize(sfd["ulon"].values)
+    sfd["tlon"] = normalize(sfd["tlon"].values)
+    return sfd
+
+def assert_periodic_sufficiency(lon,):
+    M = int(1e5)
+    lon0 = int((lon[0] + 360)*M)
+    lon1 = int(lon[-1]*M)
+    sufficiency = lon0 <= lon1
+    if not sufficiency:
+        return False, None
+    plon = (lon*M).astype(int)
+    p0 = plon[0] + int(360*M)
+    I = np.where(p0 <= plon )[0]
+    assert p0 > plon[I[0]-1]
+    return True,slice(0,I[0]-1)
+    
+def longitudinal_nan_cut_values(sfd):
+    def lon_cut(var):
+        val = var.values
+        i = 0
+        while np.all(np.isnan(val[:,i])):
+            i+=1
+        i0 =i 
+
+        i = val.shape[1]-1
+        while np.all(np.isnan(val[:,i])):
+            i-=1
+        i1 = i - val.shape[1]
+        return i0,i1
+    lon0,lon1 = -1,1
+    for key in sfd.data_vars:
+        i0,i1 = lon_cut(sfd[key])
+        lon0 = np.maximum(i0,lon0)
+        lon1 = np.minimum(i1,lon1)
+    lonslice = slice(lon0,lon1)
+    return lonslice
+
+
+
+def forward_difference(x:xr.DataArray,grid:xr.Dataset,field):
+    dx = x.diff(field)/grid[f"d{field}"]
+    f0 = x[field][0]
+    dx = dx.pad({field : (1,0)},constant_values = np.nan)
+    dxf = dx[field].values
+    dxf[0] = f0
+    dx[field] = dxf
+    return dx
+
+def ugrid2tgrid(u:xr.DataArray,v:xr.DataArray,ugrid:xr.Dataset,tgrid:xr.Dataset):
+    uval = u.values
+    vval = v.values
+    dlat = ugrid.dlat.values
+    dlon = ugrid.dlon.values
+
+    udlat = uval*dlat
+
+    vdlon = vval*dlon
+    udlat = (udlat[:,1:] + udlat[:,:-1])/(2*dlat[:,1:])
+    vdlon = (vdlon[:,1:] + vdlon[:,:-1])/(dlon[:,1:]+dlon[:,:-1])
+    udlat = np.concatenate([np.zeros((udlat.shape[0],1)),udlat],axis =1)
+    vdlon = np.concatenate([np.zeros((vdlon.shape[0],1)),vdlon],axis =1)
+    # print(udlat.shape,tgrid.lat.shape,tgrid.lon.shape)
+    ut = xr.DataArray(
+        data = udlat,
+        dims = ['lat','lon'],
+        coords = dict(
+            lat = tgrid.lat.values,
+            lon = tgrid.lon.values,
+        )
+    )
+
+    vt = xr.DataArray(
+        data = vdlon,
+        dims = ['lat','lon'],
+        coords = dict(
+            lat = tgrid.lat.values,
+            lon = tgrid.lon.values,
+        )
+    )
+    return ut,vt
+
+
+
+def get_separated_grid_vars(grid:xr.Dataset,prefix = "u"):
+    lon = grid[f"{prefix}lon"].values
+    radlon = lon/180*np.pi
+    lat = grid[f"{prefix}lat"].values
+    radlat = lat/180*np.pi
+    dlat = radlat[1:] - radlat[:-1]
+    dlon = radlon[1:] - radlon[:-1]
+    dlat = np.concatenate([dlat,dlat[-1:]])
+    dlon = np.concatenate([dlon,dlon[-1:]])
+    area_y =  np.cos(radlat)*dlat
+    area_x = dlon 
+    
+
+    area_x = xr.DataArray(
+        data = area_x,
+        dims = [f"{prefix}lon"],
+        coords = {
+            f"{prefix}lon" : lon
+        },
+        name = 'area_lon',
+    )
+    area_y = xr.DataArray(
+        data = area_y,
+        dims = [f"{prefix}lat"],
+        coords = {
+            f"{prefix}lat" : lat
+        },
+        name = 'area_lat',
+    )
+   
+    return xr.merge([area_x,area_y])
+
+
+
+def get_grid_vars(grid:xr.Dataset):
+    lon = grid.lon.values
+    radlon = lon/180*np.pi
+    lat = grid.lat.values
+    radlat = lat/180*np.pi
+    dlat = radlat[1:] - radlat[:-1]
+    dlon = radlon[1:] - radlon[:-1]
+    dlat = np.concatenate([dlat,dlat[-1:]])
+    dlon = np.concatenate([dlon,dlon[-1:]])
+    dx =  EARTH_RADIUS*np.cos(radlat).reshape([-1,1])@dlon.reshape([1,-1])
+    dy = EARTH_RADIUS*dlat.reshape([-1,1])@np.ones((1,len(lon)))
+
+    dx = xr.DataArray(
+        data = dx,
+        dims = ["lat","lon"],
+        coords = dict(
+            lat = lat,lon = lon
+        ),
+        name = 'dlon',
+    )
+    dy = xr.DataArray(
+        data = dy,
+        dims = ["lat","lon"],
+        coords = dict(
+            lat = lat,lon = lon
+        ),
+        name = 'dlat',
+    )
+    area = dx*dy
+    area.name = 'area'
+    wetmask = xr.where(np.isnan(grid), 0,1)
+    wetmask.name = 'wetmask'
+   
+    return xr.merge([dx,dy,area,wetmask])
+
+
+def logitudinal_expansion(u:xr.DataArray,expansion,prefix = ''):
+    slon = f"{prefix}lon"
+    slat = f"{prefix}lat"
+
+    lon =u[slon].values
+    uval = u.values
+    
+    lon0 = lon[:expansion] + 360
+    lon1 = lon[-expansion:]- 360
+
+    u0 = uval[:,:expansion]
+    u1 = uval[:,-expansion:]
+
+
+    newlon = np.concatenate([lon1,lon,lon0])
+    newuval = np.concatenate([u1,uval,u0],axis = 1)
+    return xr.DataArray(
+        data = newuval,
+        dims = [slat,slon],
+        coords = {
+            slat : u[slat].values,
+            slon : newlon,
+        }
+    )
+
+
 
 
 def trim_grid_nan_boundaries(u:np.ndarray,lon = True,lat = True):
@@ -30,15 +233,15 @@ def trim_grid_nan_boundaries(u:np.ndarray,lon = True,lat = True):
     return latslice,lonslice
 
 
-def ugrid2tgrid(ulat,ulon):
-    dulon = ulon[1:] - ulon[:-1]
-    dulon = np.append(dulon,dulon[-1])
-    dulat = ulat[1:] - ulat[:-1]
-    dulat = np.append(dulat,dulat[-1])
+# def ugrid2tgrid(ulat,ulon):
+#     dulon = ulon[1:] - ulon[:-1]
+#     dulon = np.append(dulon,dulon[-1])
+#     dulat = ulat[1:] - ulat[:-1]
+#     dulat = np.append(dulat,dulat[-1])
 
-    tlon = ulon - dulon/2
-    tlat = ulat - dulat/2
-    return tlat,tlon
+#     tlon = ulon - dulon/2
+#     tlat = ulat - dulat/2
+#     return tlat,tlon
 
 def assign_tgrid(ds):
     ulat,ulon = ds.ulat.values,ds.ulon.values

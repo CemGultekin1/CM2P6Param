@@ -3,7 +3,7 @@ import xarray as xr
 import torch
 import numpy as np
 import torch.nn as nn
-def no_nan_input_mask(u,span,codition:Callable = lambda x:  np.isnan(x))->xr.DataArray:
+def no_nan_input_mask(u,span,codition:Callable = lambda x:  np.isnan(x),same_size = False)->xr.DataArray:
     '''
     0 for values with a value that satsifies the condition in the its inputs
     1 for no such value in its input
@@ -21,14 +21,21 @@ def no_nan_input_mask(u,span,codition:Callable = lambda x:  np.isnan(x))->xr.Dat
     pool.weight.data = torch.ones(1,1,2*sp+1,2*sp+1).type(torch.float32)/((2*sp+1)**2)
     with torch.no_grad():
         poolmask = pool(torchmask).numpy().reshape(*shpp)
-    mask = np.ones(shp,dtype = float)
-    mask[sp:-sp,sp:-sp] = poolmask
+    if same_size:
+        mask = np.ones(shp,dtype = float)
+        mask[sp:-sp,sp:-sp] = poolmask
+        lat = u.lat.values
+        lon = u.lon.values
+    else:
+        mask = poolmask
+        lat = u.lat.values[sp:-sp]
+        lon = u.lon.values[sp:-sp]
     mask = xr.DataArray(
         data = mask,
         dims = ["lat","lon"],
         coords = dict(
-            lat = (["lat"],u.lat.values),
-            lon = (["lon"],u.lon.values)
+            lat = (["lat"],lat),
+            lon = (["lon"],lon)
         )
     )
     return mask

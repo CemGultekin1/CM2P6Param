@@ -2,21 +2,19 @@ import os
 from typing import List, Tuple
 from data.exceptions import RequestDoesntExist
 from data.gcm_dataset import MultiDomainDataset
-from data.paths import get_high_res_data_location, get_low_res_data_location
+from data.generate import HighResCm2p6, ProjectedHighResCm2p6
+from data.paths import get_high_res_data_location, get_high_res_grid_location, get_low_res_data_location
 import copy
 from data.vars import FIELD_NAMES, FORCING_NAMES, LATITUDE_NAMES, LSRP_RES_NAMES, get_var_mask_name, rename
 from utils.paths import SCALARS_JSON
 import xarray as xr
-from data.coords import  REGIONS, TIMES
+from data.coords import  DEPTHS, REGIONS, TIMES
 from utils.arguments import options
 import numpy as np
 import json
 import torch
 
-depthvals=np.array([0.,5.03355 , 55.853249,  110.096153, 181.312454,  330.007751,1497.56189 ])
-sigmavals=np.array([4,8,12,16])
-domainvals = ["four_regions","global"]
-normalizationvals =  ["standard","absolute"]
+
 
 
 def load_scalars(args,):
@@ -33,6 +31,17 @@ def load_scalars(args,):
 
     print('scalars are not found!')
     return None
+def load_grid(ds:xr.Dataset,):
+    grid_loc = xr.open_dataset(get_high_res_grid_location())
+    # import matplotlib.pyplot as plt
+    # grid_loc.area_u.plot()
+    # plt.savefig('area_u.png')
+
+    passkeys = ['xu_ocean','yu_ocean','xt_ocean','yt_ocean']#,'area_t',]
+    for key in passkeys:
+        ds[key] = grid_loc[key]
+    return ds
+
 
 def load_xr_dataset(args):
     runargs,_ = options(args,'run')
@@ -40,8 +49,9 @@ def load_xr_dataset(args):
         data_address = get_high_res_data_location(args)
     else:
         data_address = get_low_res_data_location(args)
-    print('data_address',data_address)
     ds_zarr= xr.open_zarr(data_address,consolidated=False )
+    if runargs.mode == 'data':  
+        ds_zarr = load_grid(ds_zarr)
     if runargs.sanity:
         ds_zarr = ds_zarr.isel(time = slice(0,1))
     ds_zarr =  preprocess_dataset(args,ds_zarr)
@@ -129,12 +139,16 @@ class Dataset(torch.utils.data.Dataset):
         outs =  self.mdm[i]
         return self.mdm.outs2numpydict(outs)
 
-def load_dataset(args,**kwargs)->MultiDomainDataset:
+def load_lowres_dataset(args,**kwargs)->List[MultiDomainDataset]:
     _args,_kwargs = dataset_arguments(args,**kwargs)
     ds = MultiDomainDataset(*_args, **_kwargs)
     dsets = populate_dataset(ds,**kwargs)
     return dsets
 
+def load_highres_dataset(args,**kwargs)->ProjectedHighResCm2p6:
+    _args,_kwargs = dataset_arguments(args,**kwargs)
+    ds = ProjectedHighResCm2p6(*_args, **_kwargs)
+    return ds
 
 class TorchDatasetWrap(torch.utils.data.Dataset):
     def __init__(self,mdm):
@@ -145,10 +159,13 @@ class TorchDatasetWrap(torch.utils.data.Dataset):
         return self.mdm[i]
 
 def get_data(args,torch_flag = False,data_loaders = True,**kwargs):
-    dsets = load_dataset(args,torch_flag = torch_flag,**kwargs)
+    ns,_ = options(args,key = "run")
+    if ns.mode != "data":
+        dsets = load_lowres_dataset(args,torch_flag = torch_flag,**kwargs)
+    else:
+        dsets = load_highres_dataset(args,torch_flag = torch_flag,**kwargs)
 
     if data_loaders:
-        ns,_ = options(args,key = "run")
         minibatch = ns.minibatch
         if ns.mode != "train":
             minibatch = 1
@@ -173,20 +190,26 @@ def populate_dataset(dataset:MultiDomainDataset,groups = ("train","validation"),
 
 
 def preprocess_dataset(args,ds:xr.Dataset):
-    prms,_ = options(args,key = "data")
+    prms,_ = options(args,key = "run")
     ds = rename(ds)
     coord_names = list(ds.coords.keys())
-
-    if prms.depth > 0:
+    if prms.depth > 1e-3:
         if 'depth' not in coord_names:
             raise RequestDoesntExist
-        depthvals_=ds.coords['depth'].values
-        ind = np.argmin(np.abs(depthvals_ - prms.depth ))
-        ds = ds.isel(depth = ind)
-        if int(ds.depth.values) != int(prms.depth):
-            raise RequestDoesntExist
+        if prms.mode == 'data':
+            depthvals_=ds.coords['depth'].values
+            inds = [np.argmin(np.abs(depthvals_ - d )) for d in DEPTHS if d>1e-3]
+            ds = ds.isel(depth = inds)
+        else:
+            depthvals_=ds.coords['depth'].values
+            ind = np.argmin(np.abs(depthvals_ - prms.depth ))
+            ds = ds.isel(depth = ind)
+            if int(ds.depth.values) != int(prms.depth):
+                raise RequestDoesntExist
     else:
-        ds = ds.expand_dims(dim = {"depth" : [0]},axis=0).isel(depth = 0)
+        ds = ds.expand_dims(dim = {"depth" : [0]},axis=0)
+        if prms.mode != 'data':
+            ds = ds.isel(depth = 0)
     return ds
 
 def physical_domains(domain:str,):

@@ -1,3 +1,4 @@
+from transforms.grids import get_grid_vars, get_separated_grid_vars
 import xarray as xr
 import numpy as np
 import gcm_filters
@@ -17,7 +18,7 @@ def get_gcm_filter(sigma):
 def get_scipy_filter(sigma):
     class filter:
         def apply(self,x:xr.DataArray,**kwargs):
-            gx = gaussian_filter(x.values,sigma = sigma,mode= 'constant')
+            gx = gaussian_filter(x.values,sigma = sigma,mode= 'constant',cval = np.nan)
             return xr.DataArray(
                 data = gx,
                 dims = ["lat","lon"],
@@ -25,21 +26,22 @@ def get_scipy_filter(sigma):
                     lon = x.lon.values,lat = x.lat.values
                 )
             )
-
     return filter()
 
+def get_1d_scipy_filter(sigma):
+    class filter:
+        def apply(self,x:np.ndarray):
+            return gaussian_filter(x,sigma = sigma,mode= 'constant',cval = 0)
+    return filter()
 
-
-
-
-
-def coarse_graining_2d_generator(ugrid:xr.DataArray,sigma,wetmask :bool= False):
+def coarse_graining_2d_generator(gridvar:xr.DataArray,sigma,wetmask :bool= False):
     '''
     given a 2d rectangular grid :ugrid: and coarse-graining factor :sigma:
     it returns a Callable that coarse-grains
     '''
-    gaussian = get_scipy_filter(sigma)#get_gcm_filter(sigma)
-    def _gaussian_apply(xx:xr.Dataset,):
+    ugrid = get_grid_vars(gridvar)
+    gaussian = get_scipy_filter(sigma)
+    def _gaussian_apply(xx:xr.Dataset):
         x = xx.copy()
         x = x.load().compute()
         y = x.assign_coords(lat = np.arange(len(x.lat)),lon = np.arange(len(x.lon)))
@@ -48,86 +50,51 @@ def coarse_graining_2d_generator(ugrid:xr.DataArray,sigma,wetmask :bool= False):
         return y
 
     def area2d(grid:xr.DataArray,wetmask:bool):
-        lat = grid.lat.values
-        lon = grid.lon.values
-        dlat = lat[1:] - lat[:-1]
-        dlon = lon[1:] - lon[:-1]
-        area = dlat.reshape([-1,1])@dlon.reshape([1,-1])
-        area = np.concatenate([area,area[-1:]],axis = 0)
-        area = np.concatenate([area,area[:,-1:]],axis = 1)
         if not wetmask:
-            dA = xr.DataArray(
-                data=area,
-                dims=["lat", "lon"],
-                coords=dict(
-                lon = lon, lat = lat,),
-            )
+            dA = grid.area
         else:
-            wetmask = xr.where(grid != grid, 0, 1)
-            dA = xr.DataArray(
-                data=area*wetmask.values,
-                dims=["lat", "lon"],
-                coords=dict(
-                lon = lon, lat = lat,),
-            )
+            dA = grid.area*grid.wetmask.values
+             
         dAbar = _gaussian_apply(dA,)
         return dA,dAbar
 
     dA,dAbar = area2d(ugrid,wetmask)
 
+
     def weighted_gaussian(x:xr.DataArray):
-        x = _gaussian_apply(dA*x,)/dAbar
+        x = _gaussian_apply(dA*x)/dAbar
         x = x.coarsen(lat=sigma,lon=sigma,boundary="trim").mean()
         return x
     return weighted_gaussian
 
 
-def coarse_graining_1d_generator(grid,sigma):
-    def area1d(lat):
-        dlat = lat[1:] - lat[:-1]
-        area_lat = np.concatenate([dlat,dlat[-1:]],axis = 0)
-        return area_lat
+def coarse_graining_1d_generator(gridvar,sigma,prefix ="u"):
+    grid = get_separated_grid_vars(gridvar,prefix = prefix)
+    gaussian = get_1d_scipy_filter(sigma)
+    area_lat = grid.area_lat.values
+    area_lon = grid.area_lon.values
 
-    lat,lon = grid.lat.values,grid.lon.values
-    coarsen_specs = dict(boundary = "trim")
+    slat = f"{prefix}lat"
+    slon = f"{prefix}lon"
 
-  
-    area_lat = area1d(lat)
-    area_lon = area1d(lon)
+    carea_lat = gaussian.apply(area_lat)
+    carea_lon = gaussian.apply(area_lon)
 
-    ny,nx = len(area_lat),len(area_lon)
-
-    area_lat = xr.DataArray(data = area_lat.reshape([-1,1]),\
-        dims=["lat","lon"],\
-            coords = dict(lat = np.arange(ny),lon = np.arange(1)))
-
-    area_lon = xr.DataArray(data = area_lon.reshape([1,-1]),\
-        dims=["lat","lon"],\
-            coords = dict(lon = np.arange(nx),\
-                lat = np.arange(1)))
-
-    gaussian = get_gcm_filter(sigma)
-
-    carea_lat = gaussian.apply(area_lat,dims=["lat","lon"])
-    carea_lon = gaussian.apply(area_lon,dims=["lat","lon"])
-
-
-    area = dict(lat = (area_lat,carea_lat),lon = (area_lon,carea_lon))
+    coarsen_specs = {"boundary":"trim"}
+    area = {slat : (area_lat,carea_lat), slon : (area_lon,carea_lon)}
 
     def coarse_grain1d(data,lat = False,lon = False):
         assert lat + lon == 1
-        latvec =data.lat.values
-        lonvec = data.lon.values
-
-        coords = dict(lat = [["lat"],data.lat],lon = [["lon"],data.lon])
+        
+        coords = {slat : [[slat],data[slat]],slon : [[slon],data[slon]]}
         if not lat:
-            field1 = "lon"
-            field2 = "lat"
-            axis = 0
+            field1 = slon
+            field2 = slat
+            # axis = 0
         else:
-            field1 = "lat"
-            field2 = "lon"
-            axis = 1
+            field1 = slat
+            field2 = slon
+            # axis = 1
         coords[field1][1] = coords[field1][1].coarsen({field1:sigma},**coarsen_specs).mean()
         for key in coords:
             coords[key][1] = coords[key][1].values
@@ -135,22 +102,24 @@ def coarse_graining_1d_generator(grid,sigma):
         harea,larea = area[field1]
 
         n2 = len(data[field2])
-        n1 = len(data[field1])
-        data[field1] = np.arange(n1)
         xhats = []
         for i in range(n2):
-            datai = data.isel({field2 : [i]})
-            datai[field2] = harea[field2]
-            xhat = gaussian.apply(datai*harea,dims=["lat","lon"])/larea
+            datai = data.isel({field2 : i}).values
+            xhat = gaussian.apply(datai*harea,)/larea
+            xhat = xr.DataArray(
+                data = xhat,
+                dims = [field1],
+                coords = {
+                    field1 : np.arange(len(xhat))
+                }
+            )
             cxhat = xhat.coarsen({field1 : sigma},**coarsen_specs).mean()
             xhats.append(np.squeeze(cxhat.values))
         xhats = np.stack(xhats,axis = 0)
-        data["lat"] = latvec
-        data["lon"] = lonvec
         if lat:
             xhats = xhats.transpose()
         xhats = xr.DataArray(data = xhats,\
-                dims=["lat","lon"],\
-                    coords = coords)
+                dims=[slat,slon],\
+                coords = coords)
         return xhats
     return coarse_grain1d

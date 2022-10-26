@@ -1,6 +1,7 @@
 import os
 
 from utils.arguments import options
+from utils.paths import GRID_INFO
 root = "/scratch/zanna/data/cm2.6"
 
 
@@ -18,6 +19,8 @@ def get_filename(sigma,depth,co2,):
     path = os.path.join(root,filename)
     return path
 
+def get_high_res_grid_location():
+    return GRID_INFO
 def get_high_res_data_location(args):
     prms,_ = options(args,key = "data")
     return get_filename(1,prms.depth,prms.co2)
