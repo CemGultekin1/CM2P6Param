@@ -1,6 +1,6 @@
 import itertools
 from typing import Dict, Tuple
-from data.vars import LSRP_RES_NAMES
+from data.vars import LSRP_NAMES
 from transforms.lsrp import get_projection_weights
 from utils.xarray import no_nan_input_mask
 import xarray as xr
@@ -14,7 +14,7 @@ class LSRSingleDomain(SingleDomain):
         super().__init__(*args,**kwargs)
         proj_weights = get_projection_weights(self.sigma)
         self.proj_weights = (proj_weights.proj_lat.values,proj_weights.proj_lon.values)
-        self.lsrp_forcing_names = LSRP_RES_NAMES.copy()
+        self.lsrp_forcing_names = LSRP_NAMES.copy()
 
     def hres_projection(self,*args):
         args = list(args)

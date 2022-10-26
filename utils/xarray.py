@@ -3,6 +3,37 @@ import xarray as xr
 import torch
 import numpy as np
 import torch.nn as nn
+from datetime import datetime
+
+def tonumpydict(x:xr.Dataset):
+    vars = list(x.data_vars)
+    data_vars = {}
+    for var in vars:
+        data_vars[var] = (list(x[var].dims),x[var].values)
+
+    coords = {}
+    for c in list(x.coords):
+        coords[c] = x[c].values
+        if c == 'time':
+            coords[c] = str(coords[c][0])
+    return data_vars,coords
+def fromnumpydict(data_vars,coords):
+    for key in data_vars:
+        batchnum = data_vars[key][1].shape[0]
+        break
+    for i in range(batchnum):
+        data_vars_ = {}
+        coords_ = {}
+        for key in data_vars:
+            data_vars_[key] = ([t[i] for t in data_vars[key][0]],data_vars[key][1][i].numpy())
+        for key in coords:
+            if key != 'time':
+                coords_[key] = coords[key][i].numpy()
+            else:
+                coords_[key] =  np.array([coords[key][i]])#datetime.fromisoformat(coords[key][i])])
+        ds = xr.Dataset(data_vars = data_vars_,coords = coords_)
+        return ds
+
 def no_nan_input_mask(u,span,codition:Callable = lambda x:  np.isnan(x),same_size = False)->xr.DataArray:
     '''
     0 for values with a value that satsifies the condition in the its inputs
@@ -16,7 +47,6 @@ def no_nan_input_mask(u,span,codition:Callable = lambda x:  np.isnan(x),same_siz
     sp = span
     shpp = np.array(shp) - 2*sp
     torchmask = torch.from_numpy(mask.reshape([1,1,shp[-2],shp[-1]])).type(torch.float32)
-    # pool = nn.MaxPool2d(2*sp + 1,stride = 1)
     pool = nn.Conv2d(1,1,2*sp+1,bias = False)
     pool.weight.data = torch.ones(1,1,2*sp+1,2*sp+1).type(torch.float32)/((2*sp+1)**2)
     with torch.no_grad():

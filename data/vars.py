@@ -3,6 +3,7 @@
 
 FIELD_NAMES = 'u v T'.split()
 FORCING_NAMES = 'Su Sv ST'.split()
+LSRP_NAMES = [f'lsrp_{f}' for f in FORCING_NAMES]
 LSRP_RES_NAMES = [f'lsrp_res_{f}' for f in FORCING_NAMES]
 LATITUDE_NAMES = ['abs_lat','sign_lat']
 

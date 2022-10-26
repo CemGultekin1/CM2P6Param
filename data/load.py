@@ -2,10 +2,10 @@ import os
 from typing import List, Tuple
 from data.exceptions import RequestDoesntExist
 from data.gcm_dataset import MultiDomainDataset
-from data.generate import HighResCm2p6, ProjectedHighResCm2p6
+from data.generate import  ProjectedHighResCm2p6
 from data.paths import get_high_res_data_location, get_high_res_grid_location, get_low_res_data_location
 import copy
-from data.vars import FIELD_NAMES, FORCING_NAMES, LATITUDE_NAMES, LSRP_RES_NAMES, get_var_mask_name, rename
+from data.vars import FIELD_NAMES, FORCING_NAMES, LATITUDE_NAMES, LSRP_NAMES, get_var_mask_name, rename
 from utils.paths import SCALARS_JSON
 import xarray as xr
 from data.coords import  DEPTHS, REGIONS, TIMES
@@ -60,11 +60,11 @@ def load_xr_dataset(args):
 def get_var_grouping(args)-> Tuple[Tuple[List[str],...],Tuple[List[str],...]]:
     runprms,_=options(args,key = "run")
     fields,forcings = FIELD_NAMES.copy(),FORCING_NAMES.copy()
-    lsrp_res_forcings = LSRP_RES_NAMES.copy()
+    lsrp_forcings = LSRP_NAMES.copy()
     if not runprms.temperature:
         fields = fields[:2]
         forcings = forcings[:2]
-        lsrp_res_forcings = lsrp_res_forcings[:2]
+        lsrp_forcings = lsrp_forcings[:2]
     if runprms.latitude:
         fields.extend(LATITUDE_NAMES)
     varnames = [fields]
@@ -74,14 +74,14 @@ def get_var_grouping(args)-> Tuple[Tuple[List[str],...],Tuple[List[str],...]]:
     fieldmask_names = [fieldmasks]
 
     forcingmasks = [get_var_mask_name(f) for f in forcings]
-    lsrpresforcingmasks = [get_var_mask_name(f) for f in lsrp_res_forcings]
+    lsrpforcingmasks = [get_var_mask_name(f) for f in lsrp_forcings]
     if runprms.linsupres:
         if runprms.mode != 'train':
-            varnames.append(forcings + lsrp_res_forcings)
-            forcingmask_names.append(forcingmasks + lsrpresforcingmasks)
+            varnames.append(forcings + lsrp_forcings)
+            forcingmask_names.append(forcingmasks + lsrpforcingmasks)
         else:
-            varnames.append(lsrp_res_forcings)
-            forcingmask_names.append(lsrpresforcingmasks)
+            varnames.append(lsrp_forcings)
+            forcingmask_names.append(lsrpforcingmasks)
     else:
         varnames.append(forcings)
         forcingmask_names.append(forcingmasks)
@@ -148,7 +148,7 @@ def load_lowres_dataset(args,**kwargs)->List[MultiDomainDataset]:
 def load_highres_dataset(args,**kwargs)->ProjectedHighResCm2p6:
     _args,_kwargs = dataset_arguments(args,**kwargs)
     ds = ProjectedHighResCm2p6(*_args, **_kwargs)
-    return ds
+    return (ds,)
 
 class TorchDatasetWrap(torch.utils.data.Dataset):
     def __init__(self,mdm):
@@ -207,7 +207,7 @@ def preprocess_dataset(args,ds:xr.Dataset):
             if int(ds.depth.values) != int(prms.depth):
                 raise RequestDoesntExist
     else:
-        ds = ds.expand_dims(dim = {"depth" : [0]},axis=0)
+        # ds = ds.expand_dims(dim = {"depth" : [0]},axis=0)
         if prms.mode != 'data':
             ds = ds.isel(depth = 0)
     return ds

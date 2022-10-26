@@ -1,36 +1,55 @@
-import itertools
 import os
 import sys
-import torch
 from data.paths import get_filename
 from data.load import get_data
-from run.train import Timer
 from utils.arguments import options
 from utils.slurm import flushed_print
 import numpy as np
-from utils.xarray import concat, unpad
+from utils.xarray import concat, fromnumpydict, unpad
 import xarray as xr
 
 import shutil
 
 
-def save_separate_depths():
+def run():
     datargs = sys.argv[1:]
     generator,= get_data(datargs,half_spread = 0, torch_flag = False, data_loaders = True,groups = ('all',))
     datargs,_ = options(datargs,key = "data")
-    depth = datargs.depth
 
-    timer = Timer()
-    timer.start('data')
-    for fields,forcings,masks,locations in generator:
-        i = locations['itime'][0].item()
+
+    filename = get_filename(datargs.sigma,datargs.depth >1e-3,False)
+    dst = None
+    initflag = False
+    for data_vars,coords in generator:
+        ds = fromnumpydict(data_vars,coords)
+        flushed_print(ds.time.values[0],ds.depth.values)
+        if dst is not None:
+            if ds.time.values[0] != dst.time.values[0]:
+                chk = {k:len(dst[k]) for k in list(dst.coords)}
+                dst = dst.chunk(chunks=chk)
+                # dst['time'] = np.array(dst['time'].values,dtype = object)
+                if not initflag:
+                    dst.to_zarr(filename,mode='w')
+                    initflag = True
+                else:
+                    dst.to_zarr(filename,mode='a',append_dim = 'time')
+                dst = None
+        if dst is None:
+            dst = ds
+        else:
+            dst = xr.merge([dst,ds])
+
+    return
+    for _ in range(3):
+        return
+        # for key in data_vars:
+        #     print([[k,v] for k,v in key.items()])
+        # print([type(key) for key in data_vars])
+        # return
         fields = dict(fields,**forcings)
         fields,masks = unpad(fields),unpad(masks)
         fields = concat(fields,masks)
-        if depth > 0:
-            time = 3 + 5*i + 180
-        else:
-            time = i + 1 + 180
+        
         fields = fields.expand_dims(dim = {"time": [time]},axis=0)
         fields = fields.expand_dims(dim = {"depth": [depth]},axis=1)
         fields = fields.isel(depth = 0)
@@ -114,4 +133,4 @@ def concat_zarrs():
 
 
 if __name__=='__main__':
-    concat_zarrs()
+    run()

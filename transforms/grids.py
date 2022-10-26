@@ -4,6 +4,15 @@ import xarray as xr
 
 EARTH_RADIUS = 6.371*1e6 # in meters
 
+def lose_tgrid(ds):
+    vrns = list(ds.data_vars)
+    data_vars = {vrn: (
+        ['lat','lon'],ds[vrn].values
+    ) for vrn in vrns}
+    coords = {'lat':ds['ulat'].values,'lon':ds['ulon'].values}
+    return xr.Dataset(data_vars=data_vars,coords = coords)
+
+
 def trim_expanded_longitude(sfd,expansion = 5):
     # lonslice = longitudinal_nan_cut_values(sfd)
     lonslice = slice(expansion,-expansion)
@@ -315,7 +324,11 @@ def fix_grid(u,target_grid):
     return fix_longitude(u,lon)
 
 def fix_latitude(u,target_grid):
-    return u.sel(lat = slice(*target_grid[[0,-1]]))
+    dims = list(u.dims)
+    dims = [d for d in dims if "lat" in d]
+    assert len(dims) == 1
+    lat_name = dims[0]
+    return u.sel(**{lat_name: slice(*target_grid[[0,-1]])})
 
 def larger_longitude_grid(ulon):
     m = int(1e5)
@@ -327,9 +340,13 @@ def larger_longitude_grid(ulon):
     ulon = np.concatenate([ulon - 360,ulon,ulon+360])
     return ulon
 
-def fix_longitude(u,target_grid,):
-    u = normalize_longitude(u)
-    grid = u.lon.values
+def fix_longitude(u,target_grid):
+    dims = list(u.dims)
+    dims = [d for d in dims if "lon" in d]
+    assert len(dims) == 1
+    lon_name = dims[0]
+    u = normalize_longitude(u,lon_name)
+    grid = u[lon_name].values
     larger_grid = np.concatenate([grid - 360,grid,grid + 360])
     def locate(*locs):
         ilocs = []
@@ -340,13 +357,13 @@ def fix_longitude(u,target_grid,):
     ilon0,ilon1,ilon0_,ilon1_ = locate(*target_grid[[0,-1]],*grid[[0,-1]])
     dilon0 = np.maximum(ilon0_ - ilon0,0)
     dilon1 = np.maximum(ilon1 - ilon1_,0)
-    u = u.pad(lon = (dilon0,dilon1),mode="wrap").compute()
+    u = u.pad(**{lon_name :(dilon0,dilon1),"mode":"wrap"}).compute()
 
     ilon0__ = ilon0_-dilon0
     ilon1__ = ilon1_+dilon1+1
     new_grid = larger_grid[ilon0__:ilon1__]
-    u = u.assign_coords(lon = new_grid)
-    u = u.isel(lon = slice(ilon0 - ilon0__,ilon1 - ilon0__ + 1))
+    u = u.assign_coords(**{lon_name: new_grid})
+    u = u.isel(**{lon_name:slice(ilon0 - ilon0__,ilon1 - ilon0__ + 1)})
     return u
 
 def longitude_overlaps(u:xr.DataArray,):
@@ -381,12 +398,12 @@ def longitude_overlaps(u:xr.DataArray,):
     return output_u
 
 
-def normalize_longitude(u:xr.DataArray,):
+def normalize_longitude(u:xr.DataArray,lon_name):
     u = longitude_overlaps(u)
-    u = u.assign_coords({"lon": ((u["lon"] + 180) %360)-180})
-    lon = u["lon"].values
+    u = u.assign_coords({lon_name: ((u[lon_name] + 180) %360)-180})
+    lon = u[lon_name].values
     ilon0 = np.argmin(np.abs(lon + 180))
-    u = u.roll({"lon": -ilon0},roll_coords = True)
+    u = u.roll({lon_name: -ilon0},roll_coords = True)
     return u
 
 def make_divisible_by_grid(ds,sigma,*boundary):

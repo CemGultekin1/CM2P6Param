@@ -1,6 +1,7 @@
 from typing import Callable
 from transforms.coarse_grain_inversion import coarse_grain_inversion_weights
 from utils.paths import coarse_graining_projection_weights_path
+from utils.xarray import tonumpydict
 import xarray as xr
 from transforms.coarse_grain import coarse_graining_2d_generator
 from transforms.grids import logitudinal_expansion, trim_expanded_longitude
@@ -27,23 +28,23 @@ class HighResCm2p6:
         return int(self.sigma*6)
     
     @property
-    @staticmethod
-    def coarse_graining_crop():
+    def coarse_graining_crop(self,):
         return 5
 
     def get_hres(self,i,fillna = False):
         di = i%len(self.ds.depth)
         ti = i//len(self.ds.depth)
         ds = self.ds.isel(time = ti,depth = di)
+        # .isel(ulon = slice(1000,1800),ulat = slice(1000,1600),tlon = slice(1000,1800),tlat = slice(1000,1600))
         if fillna:
             ds = ds.fillna(0)
         u,v,T = ds.u,ds.v,ds.T
         u = u.rename(ulat = "lat",ulon = "lon")
         v = v.rename(ulat = "lat",ulon = "lon")
         T = T.rename(tlat = "lat",tlon = "lon")
-        return u.load(),v.load(),T.load()
+        return ds.time.values,ds.depth.values,u.load(),v.load(),T.load()
     def init_coarse_graining(self,i):
-        u,v,T=self.get_hres(i)
+        time,depth,u,v,T=self.get_hres(i)
 
         u = logitudinal_expansion(u,self.coarse_graining_half_spread)
         v = logitudinal_expansion(v,self.coarse_graining_half_spread)
@@ -53,23 +54,24 @@ class HighResCm2p6:
         cgt = coarse_graining_2d_generator(T,self.sigma,wetmask = True)
 
         self.coarse_grain =  (cgu,cgt)
-        return u,v,T
+        return time,depth,u,v,T
     def hres2lres(self,i):
         if not self.initiated:
-            u,v,T = self.init_coarse_graining(i)
+            time,depth,u,v,T = self.init_coarse_graining(i)
             self.initiated = True
         else:
-            u,v,T = self.get_hres(i,)
+            time,depth,u,v,T = self.get_hres(i,)
             u = logitudinal_expansion(u,self.coarse_graining_half_spread)
             v = logitudinal_expansion(v,self.coarse_graining_half_spread)
             T = logitudinal_expansion(T,self.coarse_graining_half_spread)
         sfds = subgrid_forcing(u,v,T,*self.coarse_grain)
         sfds = trim_expanded_longitude(sfds,expansion = self.coarse_graining_crop)
-        sfds = sfds.expand_dims(dim = {"time": [self.ds.time.values[i]]},axis=0)
-        sfds = sfds.expand_dims(dim = {"depth": [self.depth]},axis=1)
+        sfds = sfds.expand_dims(dim = {"time": [time]},axis=0)
+        sfds = sfds.expand_dims(dim = {"depth": [depth]},axis=1)
         return sfds
     def __getitem__(self,i):
-        return self.hres2lres(i)
+        ds = self.hres2lres(i)
+        return tonumpydict(ds)
 
 
 
@@ -86,10 +88,10 @@ class ProjectedHighResCm2p6(HighResCm2p6):
         return super().init_coarse_graining(i)
     def hres2lres(self,i):
         if not self.initiated:
-            u,v,T = self.init_coarse_graining(i)
+            time,depth,u,v,T = self.init_coarse_graining(i)
             self.initiated = True
         else:
-            u,v,T = self.get_hres(i,)
+            time,depth,u,v,T = self.get_hres(i,)
             u = logitudinal_expansion(u,self.coarse_graining_half_spread)
             v = logitudinal_expansion(v,self.coarse_graining_half_spread)
             T = logitudinal_expansion(T,self.coarse_graining_half_spread)
@@ -103,14 +105,14 @@ class ProjectedHighResCm2p6(HighResCm2p6):
             )
         )
         sfds = trim_expanded_longitude(sfds,expansion = self.coarse_graining_crop)
-        sfds = sfds.expand_dims(dim = {"time": [self.ds.time.values[i]]},axis=0)
-        sfds = sfds.expand_dims(dim = {"depth": [self.depth]},axis=1)
+        sfds = sfds.expand_dims(dim = {"time": [str(time)]},axis=0)
+        sfds = sfds.expand_dims(dim = {"depth": [depth]},axis=1)
         return sfds
 
     def save_projections(self,):
         ti = 0
         di = 0
-        ds = self.ds.isel(time = ti,depth = di)
+        ds = self.ds
         ds = ds.fillna(0)
         u,v,T = ds.u,ds.v,ds.T
         u,v,T = u.load(),v.load(),T.load()

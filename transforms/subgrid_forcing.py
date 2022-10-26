@@ -14,28 +14,28 @@ def hreslres(u,v,T,coarse_grain_u,coarse_grain_t,projections = None):
     ugrid,tgrid = get_grid_vars(u),get_grid_vars(T)
     u_t,v_t = ugrid2tgrid(u,v,ugrid,tgrid)
     if projections is not None:
-        import matplotlib.pyplot as plt
-        def plotsave(u_t,u_t1,name):
-            fig,axs = plt.subplots(1,2,figsize = (25,10))
-            u_t.plot(ax = axs[0])
-            u_t1.plot(ax = axs[1])
-            fig.savefig(f'{name}.png')
-            plt.close()
-        u_t1 = coarse_grain_projection(u_t,projections,prefix = 't')
-        v_t1 = coarse_grain_projection(v_t,projections,prefix = 't')
-        T1 = coarse_grain_projection(T,projections,prefix = 't')
-        u1 = coarse_grain_projection(u,projections,prefix = 'u')
-        v1 = coarse_grain_projection(v,projections,prefix = 'u')
-        plotsave(u,u1,'u')
-        plotsave(v,v1,'v')
-        plotsave(T,T1,'T')
-        plotsave(u_t,u_t1,'u_t')
-        plotsave(v_t,v_t1,'v_t')
-        u_t = u_t1
-        v_t = v_t1
-        T = T1
-        u = u1
-        v = v1
+        # import matplotlib.pyplot as plt
+        # def plotsave(u_t,u_t1,name):
+        #     fig,axs = plt.subplots(1,2,figsize = (25,10))
+        #     u_t.plot(ax = axs[0])
+        #     u_t1.plot(ax = axs[1])
+        #     fig.savefig(f'{name}.png')
+        #     plt.close()
+        u_t = coarse_grain_projection(u_t,projections,prefix = 't')
+        v_t = coarse_grain_projection(v_t,projections,prefix = 't')
+        T = coarse_grain_projection(T,projections,prefix = 't')
+        u = coarse_grain_projection(u,projections,prefix = 'u')
+        v = coarse_grain_projection(v,projections,prefix = 'u')
+        # plotsave(u,u1,'u')
+        # plotsave(v,v1,'v')
+        # plotsave(T,T1,'T')
+        # plotsave(u_t,u_t1,'u_t')
+        # plotsave(v_t,v_t1,'v_t')
+        # u_t = u_t1
+        # v_t = v_t1
+        # T = T1
+        # u = u1
+        # v = v1
         
 
     uvars = dict(u=u,v=v)
