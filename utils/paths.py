@@ -2,7 +2,7 @@ import os
 cg3306 = '/scratch/cg3306/climate'
 cm2p6 = '/scratch/zanna/data/cm2.6'
 repo_name = 'CM2P6Param'
-GRID_INFO = os.path.join(cm2p6,'Grid_Files/ocean_grid.nc')
+GRID_INFO = os.path.join(cm2p6,'GFDL_CM2_6_grid.nc')
 REPO = os.path.join(cg3306,repo_name)
 SLURM = os.path.join(REPO,'jobs')
 

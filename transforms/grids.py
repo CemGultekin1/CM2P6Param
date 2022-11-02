@@ -127,8 +127,8 @@ def get_separated_grid_vars(grid:xr.Dataset,prefix = "u"):
     dlon = radlon[1:] - radlon[:-1]
     dlat = np.concatenate([dlat,dlat[-1:]])
     dlon = np.concatenate([dlon,dlon[-1:]])
-    area_y =  np.cos(radlat)*dlat
-    area_x = dlon 
+    area_y =  dlat
+    area_x = np.cos(radlat)*dlon 
     
 
     area_x = xr.DataArray(
@@ -152,40 +152,35 @@ def get_separated_grid_vars(grid:xr.Dataset,prefix = "u"):
 
 
 
-def get_grid_vars(grid:xr.Dataset):
-    lon = grid.lon.values
-    radlon = lon/180*np.pi
-    lat = grid.lat.values
-    radlat = lat/180*np.pi
-    dlat = radlat[1:] - radlat[:-1]
-    dlon = radlon[1:] - radlon[:-1]
-    dlat = np.concatenate([dlat,dlat[-1:]])
-    dlon = np.concatenate([dlon,dlon[-1:]])
-    dx =  EARTH_RADIUS*np.cos(radlat).reshape([-1,1])@dlon.reshape([1,-1])
-    dy = EARTH_RADIUS*dlat.reshape([-1,1])@np.ones((1,len(lon)))
-
-    dx = xr.DataArray(
-        data = dx,
-        dims = ["lat","lon"],
-        coords = dict(
-            lat = lat,lon = lon
-        ),
-        name = 'dlon',
-    )
-    dy = xr.DataArray(
-        data = dy,
-        dims = ["lat","lon"],
-        coords = dict(
-            lat = lat,lon = lon
-        ),
-        name = 'dlat',
-    )
-    area = dx*dy
-    area.name = 'area'
-    wetmask = xr.where(np.isnan(grid), 0,1)
-    wetmask.name = 'wetmask'
-   
-    return xr.merge([dx,dy,area,wetmask])
+def get_grid_vars(grid:xr.Dataset,):
+    vars = []
+    for prefix,wetvar in zip('u t'.split(),'u T'.split()):
+        dlon = f"dx{prefix}"
+        dlat = f"dy{prefix}"
+        name_lon = f"{prefix}lon"
+        name_lat = f"{prefix}lat"
+        kwargs = dict(
+            coords = dict(
+                lat = grid[name_lat].values,lon = grid[name_lon].values
+            ),
+        )
+        dx = xr.DataArray(
+            data = grid[dlon].values,
+            **kwargs,name = 'dx'
+        )
+        dy = xr.DataArray(
+            data = grid[dlat].values,
+            **kwargs,name = 'dy'
+        )
+        area = dx*dy
+        area.name = 'area'
+        wetmask = xr.DataArray(
+            data = xr.where(np.isnan(grid[wetvar]), 0,1).values,
+            **kwargs,name = 'wetmask'
+        )
+        var1 =  xr.merge([dx,dy,area,wetmask])
+        vars.append(var1)
+    return vars
 
 
 def logitudinal_expansion(u:xr.DataArray,expansion,prefix = ''):
@@ -213,6 +208,35 @@ def logitudinal_expansion(u:xr.DataArray,expansion,prefix = ''):
         }
     )
 
+def logitudinal_expansion_dataset(ds:xr.Dataset,expansion,prefix = ''):
+    names = list(ds.data_vars)
+    data_vars = []
+    for name in names:
+        u = ds[name]
+        slon = f"{prefix}lon"
+        slat = f"{prefix}lat"
+        lon =u[slon].values
+        uval = u.values
+        
+        lon0 = lon[:expansion] + 360
+        lon1 = lon[-expansion:]- 360
+
+        u0 = uval[:,:expansion]
+        u1 = uval[:,-expansion:]
+
+
+        newlon = np.concatenate([lon1,lon,lon0])
+        newuval = np.concatenate([u1,uval,u0],axis = 1)
+        data_vars.append(xr.DataArray(
+            data = newuval,
+            dims = [slat,slon],
+            coords = {
+                slat : u[slat].values,
+                slon : newlon,
+            },
+            name = name
+        ))
+    return xr.merge(data_vars)
 
 
 

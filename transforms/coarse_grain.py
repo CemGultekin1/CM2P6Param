@@ -34,12 +34,11 @@ def get_1d_scipy_filter(sigma):
             return gaussian_filter(x,sigma = sigma,mode= 'constant',cval = 0)
     return filter()
 
-def coarse_graining_2d_generator(gridvar:xr.DataArray,sigma,wetmask :bool= False):
+def coarse_graining_2d_generator(grid:xr.Dataset,sigma,wetmask :bool= False):
     '''
     given a 2d rectangular grid :ugrid: and coarse-graining factor :sigma:
     it returns a Callable that coarse-grains
     '''
-    ugrid = get_grid_vars(gridvar)
     gaussian = get_scipy_filter(sigma)
     def _gaussian_apply(xx:xr.Dataset):
         x = xx.copy()
@@ -49,7 +48,7 @@ def coarse_graining_2d_generator(gridvar:xr.DataArray,sigma,wetmask :bool= False
         y = y.assign_coords(lon = x.lon,lat = x.lat)
         return y
 
-    def area2d(grid:xr.DataArray,wetmask:bool):
+    def area2d(wetmask:bool):
         if not wetmask:
             dA = grid.area
         else:
@@ -58,7 +57,7 @@ def coarse_graining_2d_generator(gridvar:xr.DataArray,sigma,wetmask :bool= False
         dAbar = _gaussian_apply(dA,)
         return dA,dAbar
 
-    dA,dAbar = area2d(ugrid,wetmask)
+    dA,dAbar = area2d(wetmask)
 
 
     def weighted_gaussian(x:xr.DataArray):
@@ -68,20 +67,22 @@ def coarse_graining_2d_generator(gridvar:xr.DataArray,sigma,wetmask :bool= False
     return weighted_gaussian
 
 
-def coarse_graining_1d_generator(gridvar,sigma,prefix ="u"):
-    grid = get_separated_grid_vars(gridvar,prefix = prefix)
+def coarse_graining_1d_generator(grid,sigma,prefix ="u"):
+    # grid = get_separated_grid_vars(gridvar,prefix = prefix)
     gaussian = get_1d_scipy_filter(sigma)
-    area_lat = grid.area_lat.values
-    area_lon = grid.area_lon.values
-
     slat = f"{prefix}lat"
     slon = f"{prefix}lon"
 
-    carea_lat = gaussian.apply(area_lat)
-    carea_lon = gaussian.apply(area_lon)
+    dy = grid.dy.mean(dim = ['lon']).values.reshape([-1,])
+    dx = grid.dx.mean(dim = ['lat']).values.reshape([-1,])
+
+    
+
+    cdy = gaussian.apply(dy)
+    cdx = gaussian.apply(dx)
 
     coarsen_specs = {"boundary":"trim"}
-    area = {slat : (area_lat,carea_lat), slon : (area_lon,carea_lon)}
+    area = {slat : (dy,cdy), slon : (dx,cdx)}
 
     def coarse_grain1d(data,lat = False,lon = False):
         assert lat + lon == 1

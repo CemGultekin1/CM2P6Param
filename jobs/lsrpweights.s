@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --time=10:00
+#SBATCH --time=5:00:00
 #SBATCH --array=1
 #SBATCH --mem=8GB
 #SBATCH --job-name=lsrpweights

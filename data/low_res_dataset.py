@@ -1,12 +1,11 @@
 import copy
-from typing import Dict, List
+from typing import Dict, List, Tuple
 import torch
-from data.low_res import CM2p6Dataset
+from data.low_res import CM2p6Dataset,DividedDomain
 from data.geography import frequency_encoded_latitude
 import numpy as np
 from data.vars import get_var_mask_name
 import xarray as xr
-from data.gcm_lsrp import DividedDomain
 from utils.xarray import tonumpydict
 def determine_ndoms(*args,**kwargs):
     arglens = [1]
@@ -64,15 +63,6 @@ class MultiDomain(CM2p6Dataset):
             lon = np.maximum(lon_,lon)
         return lat,lon
 
-
-    def outs2numpydict(self,outs):
-        vald = {}
-        for key,val in outs.items():
-            for varname,vals in val.data_vars.items():
-                name = f"{key}_{varname}"
-                vald[name] = (vals.values,vals.lat.values,vals.lon.values)
-        return vald
-
     def time2index(self,t):
         a = 0
         for nlon,nlat in self.parts:
@@ -108,7 +98,7 @@ class MultiDomain(CM2p6Dataset):
     def __getitem__(self,i):
         idom  = i%self.ndoms
         ds = self.domain_datasets[idom][i//self.ndoms]
-        ds['idom'] = idom
+        ds = ds.assign_coords(**{'domain_id':np.array(idom)})
         return ds
 
 
@@ -129,87 +119,89 @@ class MultiDomainDataset(MultiDomain):
     def sslice(self,):
         return slice(self.half_spread,-self.half_spread)
 
-    # def outs2numpydict_latlon(self,outs,):
-    #     vald = {}
-    #     for key,val in outs.items():
-    #         for varname,vals in val.data_vars.items():
-    #             # name = f"{key}_{varname}"
-    #             vald[varname] = dict( val = vals.values,lat = vals.lat.values.reshape([-1]) ,lon = vals.lon.values.reshape([-1]) )
-    #     return vald
-
-    def shapeshift(self,values):
-        for name in values.keys():
-            if not isinstance(values[name],dict):
+    def pad(self,data_vars:dict,coords:dict):
+        for name in data_vars.keys():
+            dims,vals = data_vars[name]
+            if 'lat' not in dims or 'lon' not in dims:
                 continue
-            pad = self.max_shape - np.array(values[name]['val'].shape)
+            
+            pad = self.max_shape - np.array(vals.shape)
             if name in self.forcing_names and self.half_spread>0:
-                values[name]['val'] = values[name]['val'][self.sslice,self.sslice]
-                values[name]['lon'] = values[name]['lon'][self.sslice]
-                values[name]['lat'] = values[name]['lat'][self.sslice]
-            values[name]['val'] = np.pad(values[name]['val'],pad_width = ((0,pad[0]),(0,pad[1])),constant_values = np.nan)
-            values[name]['lon'] = np.pad(values[name]['lon'],pad_width = ((0,pad[1]),),constant_values = np.nan)
-            values[name]['lat'] = np.pad(values[name]['lat'],pad_width = ((0,pad[0]),),constant_values = np.nan)
+                vals =  vals[self.sslice,self.sslice]
+            vals = np.pad(vals,pad_width = ((0,pad[0]),(0,pad[1])),constant_values = np.nan)
+            data_vars[name] = (dims,vals)
+        lat = coords['lat']
+        pad = self.max_shape[0] - len(lat)
+        coords['lat_pad'] = pad
+        lat = np.pad(lat,pad_width = ((0,pad),),constant_values = 0)
+        coords['lat'] = lat
 
-        return values
+        lon = coords['lon']
+        pad = self.max_shape[1] - len(lon)
+        coords['lon_pad'] = pad
+        lon = np.pad(lon,pad_width = ((0,pad),),constant_values = 0)
+        coords['lon'] = lon
 
-    def add_lat_features(self,vals,):
-        key0 = self.var_grouping[0][0]
-        lats = vals[key0]['lat']
-        lons = vals[key0]['lon']
+
+        return data_vars,coords
+
+    def add_lat_features(self,data_vars,coords):
+        lats = coords['lat']
+        lons = coords['lon']
         abslat,signlat = self.get_lat_features(lats)
-        vals['abs_lat'] = dict(val = abslat.reshape([-1,1]) @ np.ones((1,len(lons))),lat = lats,lon = lons)
-        vals['sign_lat'] = dict(val = signlat.reshape([-1,1]) @ np.ones((1,len(lons))),lat = lats,lon = lons)
-        return vals
-    def group_variables(self,values):
+        data_vars['abs_lat'] = (['lat','lon'], abslat.reshape([-1,1]) @ np.ones((1,len(lons))))
+        data_vars['sign_lat'] = (['lat','lon'],signlat.reshape([-1,1]) @ np.ones((1,len(lons))))
+        return data_vars
+    def group_variables(self,data_vars):
         groups = []
         for vargroup in self.var_grouping:
             valdict = {}
             for varname in vargroup:
-                valdict[varname] = values[varname]
+                valdict[varname] = data_vars[varname]
+                nvarname = f"{varname}_normalization"
+                if nvarname in data_vars:
+                    valdict[nvarname] = data_vars[nvarname]
+
             groups.append(valdict)
         return tuple(groups)
 
     def group_np_stack(self,vargroups):
         return tuple([self._np_stack(vars) for vars in vargroups])
-    def _np_stack(self,vals:Dict[str,Dict[str,np.array]]):
+    def _np_stack(self,vals:Dict[str,Tuple[List[str],np.ndarray]]):
         v = []
-        for val in vals.values():
-            if isinstance(val,dict):
-                v.append(val['val'])
-            else:
-                v.append(val)
+        for _,val in vals.values():
+            v.append(val)
         return np.stack(v,axis =0)
     def group_to_torch(self,vargroups):
         return tuple([self._to_torch(vars) for vars in vargroups])
     def _to_torch(self,vals:np.array,type = torch.float32):
         return torch.from_numpy(vals).type(type)
-    def normalize(self,values):
-        keys_list = tuple(values.keys())
+    def normalize(self,data_vars,coords):
+        keys_list = tuple(data_vars.keys())
         for key in keys_list:
             a,b = 0,1
             if self.scalars_dict is not None:
                 if key in self.scalars_dict:
                     a,b = self.scalars_dict[key]
-            if isinstance(values[key],dict):
-                if not self.torch_flag:
-                    values[key]['normalization'] = np.array([a,b])
-                values[key]['val'] = (values[key]['val'] - a)/b
+            if not self.torch_flag:
+                coords['normalization'] = ['mean','std']
+                data_vars[f"{key}_normalization"] =(['normalization'],np.array([a,b]))
+            dims,vals = data_vars[key]
+            vals = (vals - a)/b
+            data_vars[key] = (dims,vals)
 
-        return values
+        return data_vars,coords
 
-    def mask(self,values):
-        keys_list = tuple(values.keys())
+    def mask(self,data_vars):
+        keys_list = tuple(data_vars.keys())
         for key in keys_list:
-            if not isinstance(values[key],dict):
-                continue
-            f = values[key]['val']
+            dims,f = data_vars[key]
             mask = f==f
-            values[key]['val'][~mask] = 0
+            f[~mask] = 0
             varmask = get_var_mask_name(key)
-            values[varmask] = {key_:val for key_,val in values[key].items()}
-            values[varmask]['val'] = mask
-            values[varmask]['normalization'] = np.array([0,1])
-        return values
+            data_vars[varmask] = (dims,mask)
+            data_vars[f"{varmask}_normalization"] = (['normalization'],np.array([0,1]))
+        return data_vars
     def fillna(self,values):
         for key,v in values.items():
             v[v!=v] = 0
@@ -217,28 +209,23 @@ class MultiDomainDataset(MultiDomain):
         return values
     def __getitem__(self,i):
         outs = super().__getitem__(i)
-        location = {key: outs[key].values for key in ['ilat','ilon','itime','idom','depth']}
+        # location = {key: outs[key].values for key in ['ilat','ilon','itime','idom','depth']}
         # values = self.outs2numpydict_latlon(outs)
-        values = tonumpydict(outs)
-        values = dict(values,**location)
+        data_vars,coords = tonumpydict(outs)
+        # values = dict(values,**location)
 
         if self.latitude:
-            values = self.add_lat_features(values)
+            data_vars = self.add_lat_features(data_vars,coords)
 
-        values = self.normalize(values)
-        values = self.shapeshift(values)
-        values = self.mask(values)
-        grouped_vars = self.group_variables(values)
+        data_vars,coords = self.normalize(data_vars,coords)
+        data_vars,coords = self.pad(data_vars,coords)
+        data_vars = self.mask(data_vars)
+        grouped_vars = self.group_variables(data_vars)
 
         if self.torch_flag:
             grouped_vars = self.group_np_stack(grouped_vars)
             return self.group_to_torch(grouped_vars)
         else:
-            for i in range(len(grouped_vars)):
-                for key in grouped_vars[i]:
-                    if isinstance(grouped_vars[i][key],dict):
-                        for key_ in  grouped_vars[i][key]:
-                            grouped_vars[i][key][key_] = torch.tensor(grouped_vars[i][key][key_],dtype = torch.float32)
-                    else:
-                        grouped_vars[i][key] = torch.tensor(grouped_vars[i][key],dtype = torch.float32)
-            return grouped_vars
+            grouped_vars = list(grouped_vars)
+            grouped_vars.append(coords)
+            return tuple(grouped_vars)

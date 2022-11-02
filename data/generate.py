@@ -4,7 +4,7 @@ from utils.paths import coarse_graining_projection_weights_path
 from utils.xarray import tonumpydict
 import xarray as xr
 from transforms.coarse_grain import coarse_graining_2d_generator
-from transforms.grids import logitudinal_expansion, trim_expanded_longitude
+from transforms.grids import get_grid_vars, logitudinal_expansion, logitudinal_expansion_dataset, trim_expanded_longitude
 from transforms.subgrid_forcing import subgrid_forcing
 
 class HighResCm2p6:
@@ -35,23 +35,31 @@ class HighResCm2p6:
         di = i%len(self.ds.depth)
         ti = i//len(self.ds.depth)
         ds = self.ds.isel(time = ti,depth = di)
-        # .isel(ulon = slice(1000,1800),ulat = slice(1000,1600),tlon = slice(1000,1800),tlat = slice(1000,1600))
+        # ds = ds.isel(ulon = slice(1000,1800),ulat = slice(1000,1600),tlon = slice(1000,1800),tlat = slice(1000,1600))
+        
         if fillna:
             ds = ds.fillna(0)
         u,v,T = ds.u,ds.v,ds.T
+        ugrid,tgrid = get_grid_vars(ds)
         u = u.rename(ulat = "lat",ulon = "lon")
         v = v.rename(ulat = "lat",ulon = "lon")
         T = T.rename(tlat = "lat",tlon = "lon")
-        return ds.time.values,ds.depth.values,u.load(),v.load(),T.load()
+        return ds.time.values,ds.depth.values,u.load(),v.load(),T.load(),ugrid,tgrid
+    def get_gridvars(self,):
+        return None,None
     def init_coarse_graining(self,i):
-        time,depth,u,v,T=self.get_hres(i)
+        time,depth,u,v,T,ugrid,tgrid=self.get_hres(i)
 
         u = logitudinal_expansion(u,self.coarse_graining_half_spread)
         v = logitudinal_expansion(v,self.coarse_graining_half_spread)
         T = logitudinal_expansion(T,self.coarse_graining_half_spread)
-     
-        cgu = coarse_graining_2d_generator(u,self.sigma,wetmask = True)
-        cgt = coarse_graining_2d_generator(T,self.sigma,wetmask = True)
+        print(ugrid)
+        print(tgrid)
+        ugrid = logitudinal_expansion_dataset(ugrid,self.coarse_graining_half_spread)
+        tgrid = logitudinal_expansion_dataset(tgrid,self.coarse_graining_half_spread)
+
+        cgu = coarse_graining_2d_generator(ugrid,self.sigma,wetmask = True)
+        cgt = coarse_graining_2d_generator(tgrid,self.sigma,wetmask = True)
 
         self.coarse_grain =  (cgu,cgt)
         return time,depth,u,v,T
@@ -110,20 +118,20 @@ class ProjectedHighResCm2p6(HighResCm2p6):
         return sfds
 
     def save_projections(self,):
-        ti = 0
-        di = 0
-        ds = self.ds
-        ds = ds.fillna(0)
-        u,v,T = ds.u,ds.v,ds.T
-        u,v,T = u.load(),v.load(),T.load()
+        # ti = 0
+        # di = 0
+        # ds = self.ds
+        # ds = ds.fillna(0)
+        # u,v,T = ds.u,ds.v,ds.T
+        # u,v,T = u.load(),v.load(),T.load()
+        _,_,_,_,_,ugrid,tgrid = self.get_hres(0,fillna = True)
+
+        ugrid = logitudinal_expansion_dataset(ugrid,self.coarse_graining_half_spread)
+        tgrid = logitudinal_expansion_dataset(tgrid,self.coarse_graining_half_spread)
+        # T = logitudinal_expansion(T,self.coarse_graining_half_spread)
+        # u = logitudinal_expansion(u,self.coarse_graining_half_spread)
         
-        T = logitudinal_expansion(T,self.coarse_graining_half_spread,prefix='t')
-        u = logitudinal_expansion(u,self.coarse_graining_half_spread,prefix='u')
-        data_vars = {
-            'u':u,
-            'T':T
-        }
-        utgrid = xr.Dataset(data_vars)
-        projections = coarse_grain_inversion_weights(utgrid,self.sigma)
+        projections = coarse_grain_inversion_weights(ugrid,tgrid,self.sigma)
         print(coarse_graining_projection_weights_path(self.sigma))
+        print(projections)
         projections.to_netcdf(coarse_graining_projection_weights_path(self.sigma),mode = 'w')

@@ -8,32 +8,34 @@ import numpy as np
 
 
 
-def coarse_grain_inversion_weights(ds,sigma,):
-    # args = f'--sigma {sigma} --mode data'.split()
-    # ds = load_xr_dataset(args)
-    # ds = ds.fillna(0)
+def coarse_grain_inversion_weights(ugrid,tgrid,sigma,):
+    
     data_vars = {}
     coords = {}
-    for ut_grid in "u t".split():
-        lon = f"{ut_grid}lon"
-        lat = f"{ut_grid}lat"
+    grids = dict(u = ugrid,t = tgrid)
+    for ut in "u t".split():
+        lon = f"{ut}lon"
+        lat = f"{ut}lat"
         clat = f"c{lat}"
         clon = f"c{lon}"
         # selkwargs = {lon:slice(-180,-170),lat:slice(-30,30)}
         # ds = ds.sel(**selkwargs)
-        cg1 = coarse_graining_1d_generator(ds,sigma,prefix = ut_grid)
-        ny,nx = len(ds[lat]),len(ds[lon])
+        ds = grids[ut]
+        cg1 = coarse_graining_1d_generator(ds,sigma,prefix = ut)
+        lat_values = ds.lat.values
+        lon_values = ds.lon.values
+        ny,nx = len(lat_values),len(lon_values)
 
         x = xr.DataArray(data = np.eye(ny),\
                 dims=[lat,lon],\
-                coords = {lat : ds[lat].values,\
-                    lon : ds[lat].values})
+                coords = {lat : lat_values,\
+                    lon : lat_values})
 
         xlat = cg1(x,lat = True)
         x = xr.DataArray(data = np.eye(nx),\
                 dims=[lat,lon],\
-                coords = {lat : ds[lon].values,\
-                    lon : ds[lon].values})
+                coords = {lat : lon_values,\
+                    lon : lon_values})
         xlon = cg1(x,lon = True)
 
 
@@ -51,28 +53,25 @@ def coarse_grain_inversion_weights(ds,sigma,):
         lonproj = vh
 
         data_vars_ = {
-            f'{ut_grid}_forward_lat' :  ([clat,lat],yhats),
-            f'{ut_grid}_inv_lat' :  ([clat,lat],pseudoinv_lat),
-            f'{ut_grid}_forward_lon' : ([clon,lon],xhats),
-            f'{ut_grid}_inv_lon' :  ([clon,lon],pseudoinv_lon),
-            f'{ut_grid}_proj_lat' : ([clat,lat],latproj),
-            f'{ut_grid}_proj_lon' : ([clon,lon],lonproj),
+            f'{ut}_forward_lat' :  ([clat,lat],yhats),
+            f'{ut}_inv_lat' :  ([clat,lat],pseudoinv_lat),
+            f'{ut}_forward_lon' : ([clon,lon],xhats),
+            f'{ut}_inv_lon' :  ([clon,lon],pseudoinv_lon),
+            f'{ut}_proj_lat' : ([clat,lat],latproj),
+            f'{ut}_proj_lon' : ([clon,lon],lonproj),
         }
         coords_ = {
             clat : clatv,
-            lat : ds[lat].values,
+            lat : lat_values,
             clon : clonv,
-            lon : ds[lon].values
+            lon : lon_values
         }
         data_vars = dict(data_vars,**data_vars_)
         coords = dict(coords,**coords_)
-    # dims = list(coords.keys()) 
-
     filters = xr.Dataset(
         data_vars = data_vars,
         coords = coords,
     )
-    # filters.to_netcdf(path = inverse_coarse_graining_weights_path(sigma))
     return filters
 def coarse_grain_projection(u,filters,prefix = 'u'):
     plat = f'{prefix}_proj_lat'

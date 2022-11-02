@@ -37,7 +37,7 @@ def load_grid(ds:xr.Dataset,):
     # grid_loc.area_u.plot()
     # plt.savefig('area_u.png')
 
-    passkeys = ['xu_ocean','yu_ocean','xt_ocean','yt_ocean']#,'area_t',]
+    passkeys = ['xu_ocean','yu_ocean','xt_ocean','yt_ocean','dxu','dyu','dxt','dyt']#,'area_t',]
     for key in passkeys:
         ds[key] = grid_loc[key]
     return ds
@@ -207,9 +207,9 @@ def preprocess_dataset(args,ds:xr.Dataset):
             if int(ds.depth.values) != int(prms.depth):
                 raise RequestDoesntExist
     else:
-        # ds = ds.expand_dims(dim = {"depth" : [0]},axis=0)
-        if prms.mode != 'data':
-            ds = ds.isel(depth = 0)
+        ds['depth'] = [0]
+        # if prms.mode != 'data':
+        #     ds = ds.isel(depth = 0)
     return ds
 
 def physical_domains(domain:str,):

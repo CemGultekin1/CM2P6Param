@@ -1,8 +1,9 @@
-from typing import Tuple
+import itertools
+from typing import Dict, Tuple
 from utils.xarray import concat, no_nan_input_mask
 import xarray as xr
 import numpy as np
-from transforms.grids import bound_grid, fix_grid, larger_longitude_grid, lose_tgrid, make_divisible_by_grid, trim_grid_nan_boundaries, ugrid2tgrid
+from transforms.grids import bound_grid, divide2equals, fix_grid, larger_longitude_grid, lose_tgrid, make_divisible_by_grid, trim_grid_nan_boundaries, ugrid2tgrid
 
 
 class CM2p6Dataset:
@@ -229,11 +230,15 @@ class DividedDomain(CM2p6Dataset):
     def __getitem__(self,i):
         li,lj,t = self.factor_index(i)
         ds = self.post__getitem__(li,lj,t)
-        ds['ilat'] = li
-        ds['ilon'] = lj
-        ds['itime'] = t
-        ds['depth'] = self.depth
-        return ds#dict(,**dict(ilat = li,ilon = lj, itime = t,depth = self.depth))
+        aco = {
+            'part_lat' : np.array([li]),
+            'part_lon' : np.array([lj]),
+            'time' : self.ds.isel(time = t).time.values.reshape([1]),
+            'time_index' : np.array([t]),
+            'depth' : self.depth
+        }
+        ds = ds.assign_coords(**aco)
+        return ds
     def __len__(self,):
         lon,lat = self.parts
         return super().__len__()*lon*lat
