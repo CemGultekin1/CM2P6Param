@@ -1,6 +1,7 @@
 from typing import Callable
 from transforms.coarse_grain_inversion import coarse_grain_inversion_weights
 from utils.paths import coarse_graining_projection_weights_path
+from utils.slurm import flushed_print
 from utils.xarray import tonumpydict
 import xarray as xr
 from transforms.coarse_grain import coarse_graining_2d_generator
@@ -53,29 +54,40 @@ class HighResCm2p6:
         u = logitudinal_expansion(u,self.coarse_graining_half_spread)
         v = logitudinal_expansion(v,self.coarse_graining_half_spread)
         T = logitudinal_expansion(T,self.coarse_graining_half_spread)
-        print(ugrid)
-        print(tgrid)
+
         ugrid = logitudinal_expansion_dataset(ugrid,self.coarse_graining_half_spread)
         tgrid = logitudinal_expansion_dataset(tgrid,self.coarse_graining_half_spread)
 
         cgu = coarse_graining_2d_generator(ugrid,self.sigma,wetmask = True)
         cgt = coarse_graining_2d_generator(tgrid,self.sigma,wetmask = True)
 
+
+        dry_cgu = coarse_graining_2d_generator(ugrid,self.sigma,wetmask = False)
+        dry_cgt = coarse_graining_2d_generator(tgrid,self.sigma,wetmask = False)
+
         self.coarse_grain =  (cgu,cgt)
-        return time,depth,u,v,T
+        self.dry_coarse_grain =  (dry_cgu,dry_cgt)
+        return time,depth,u,v,T,ugrid,tgrid
+    def subgrid_forcing(self,u,v,T):
+        sfds = subgrid_forcing(u,v,T,*self.coarse_grain)
+        sfds = trim_expanded_longitude(sfds,expansion = self.coarse_graining_crop)
+        return sfds
     def hres2lres(self,i):
         if not self.initiated:
-            time,depth,u,v,T = self.init_coarse_graining(i)
-            self.initiated = True
+            time,depth,u,v,T = self.init_coarse_graining(i)            
         else:
             time,depth,u,v,T = self.get_hres(i,)
             u = logitudinal_expansion(u,self.coarse_graining_half_spread)
             v = logitudinal_expansion(v,self.coarse_graining_half_spread)
             T = logitudinal_expansion(T,self.coarse_graining_half_spread)
+        
+
         sfds = subgrid_forcing(u,v,T,*self.coarse_grain)
         sfds = trim_expanded_longitude(sfds,expansion = self.coarse_graining_crop)
+
         sfds = sfds.expand_dims(dim = {"time": [time]},axis=0)
         sfds = sfds.expand_dims(dim = {"depth": [depth]},axis=1)
+        sfds.to_netcdf('forcings.nc')
         return sfds
     def __getitem__(self,i):
         ds = self.hres2lres(i)
@@ -96,15 +108,59 @@ class ProjectedHighResCm2p6(HighResCm2p6):
         return super().init_coarse_graining(i)
     def hres2lres(self,i):
         if not self.initiated:
-            time,depth,u,v,T = self.init_coarse_graining(i)
-            self.initiated = True
+            time,depth,u,v,T,ugrid,tgrid = self.init_coarse_graining(i)
         else:
-            time,depth,u,v,T = self.get_hres(i,)
+            flushed_print('time,depth,u,v,T,ugrid,tgrid = self.get_hres(i,)')
+            time,depth,u,v,T,ugrid,tgrid = self.get_hres(i,)
+            flushed_print('u = logitudinal_expansion(u,self.coarse_graining_half_spread)')
             u = logitudinal_expansion(u,self.coarse_graining_half_spread)
             v = logitudinal_expansion(v,self.coarse_graining_half_spread)
             T = logitudinal_expansion(T,self.coarse_graining_half_spread)
-        sfds = subgrid_forcing(u,v,T,*self.coarse_grain)
-        psfds = subgrid_forcing(u,v,T,*self.coarse_grain,projections = self.projections)
+            flushed_print('ugrid = logitudinal_expansion_dataset(ugrid,self.coarse_graining_half_spread)')
+            ugrid = logitudinal_expansion_dataset(ugrid,self.coarse_graining_half_spread)
+            tgrid = logitudinal_expansion_dataset(tgrid,self.coarse_graining_half_spread)
+        if not self.initiated:
+            import numpy as np
+            def replace_values(u):
+                uv = u.values.copy()
+                randentry = np.random.randn(*uv.shape)
+
+                uv[uv==uv] = 0
+                uv[uv!=uv] = randentry[uv!=uv]
+                
+                dims = u.dims
+                coords = u.coords
+                return xr.DataArray(
+                    data = uv,
+                    dims = dims,
+                    coords = coords,
+                    name = u.name
+                )
+            
+            u1,v1,T1 = replace_values(u),replace_values(v),replace_values(T)
+
+            sfds1 = subgrid_forcing(u1,v1,T1,ugrid,tgrid,*self.dry_coarse_grain)
+            sfds1 = trim_expanded_longitude(sfds1,expansion = self.coarse_graining_crop)
+            ugridmask = sfds1.u*0
+            tgridmask = sfds1.T*0
+            for name in list(sfds1.data_vars):
+                vals = sfds1[name]
+                print(name,np.any(np.isnan(vals.values)))
+                vals = xr.where((np.abs(vals) + np.isnan(vals))>0,1,0)
+                if 'u' in vals.dims[0]:
+                    ugridmask = ugridmask + vals
+                else:
+                    tgridmask = tgridmask + vals
+            ugridmask = xr.where( (ugridmask>0)  + np.isnan(ugridmask),1,0)
+            tgridmask = xr.where( (tgridmask>0)  + np.isnan(tgridmask),1,0)
+            ugridmask.name = 'ugrid_wetmask'
+            tgridmask.name = 'tgrid_wetmask'
+            wetmasks = xr.merge([ugridmask,tgridmask])
+            self.wetmasks = wetmasks
+            self.initiated = True
+
+        sfds = subgrid_forcing(u,v,T,ugrid,tgrid,*self.coarse_grain)
+        psfds = subgrid_forcing(u,v,T,ugrid,tgrid,*self.coarse_grain,projections = self.projections)
         psfds_vars = {f"lsrp_{key}":val for key,val in psfds.data_vars.items()}
 
         sfds = xr.Dataset(
@@ -113,23 +169,19 @@ class ProjectedHighResCm2p6(HighResCm2p6):
             )
         )
         sfds = trim_expanded_longitude(sfds,expansion = self.coarse_graining_crop)
+        
         sfds = sfds.expand_dims(dim = {"time": [str(time)]},axis=0)
         sfds = sfds.expand_dims(dim = {"depth": [depth]},axis=1)
+        sfds = xr.merge([sfds,self.wetmasks])
+        sfds.to_netcdf('subgrid_forcings.nc',mode = 'w')
+        raise Exception
         return sfds
 
     def save_projections(self,):
-        # ti = 0
-        # di = 0
-        # ds = self.ds
-        # ds = ds.fillna(0)
-        # u,v,T = ds.u,ds.v,ds.T
-        # u,v,T = u.load(),v.load(),T.load()
         _,_,_,_,_,ugrid,tgrid = self.get_hres(0,fillna = True)
 
         ugrid = logitudinal_expansion_dataset(ugrid,self.coarse_graining_half_spread)
         tgrid = logitudinal_expansion_dataset(tgrid,self.coarse_graining_half_spread)
-        # T = logitudinal_expansion(T,self.coarse_graining_half_spread)
-        # u = logitudinal_expansion(u,self.coarse_graining_half_spread)
         
         projections = coarse_grain_inversion_weights(ugrid,tgrid,self.sigma)
         print(coarse_graining_projection_weights_path(self.sigma))

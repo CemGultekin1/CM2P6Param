@@ -11,5 +11,6 @@
 module purge
 singularity exec --nv --overlay .ext3:ro /scratch/work/public/singularity/cuda11.2.2-cudnn8-devel-ubuntu20.04.sif /bin/bash -c "\
 	source src.sh;\
+	which gcloud auth list > my.txt;\
 	python data/download.py;\
 	"

@@ -18,7 +18,10 @@ def get_gcm_filter(sigma):
 def get_scipy_filter(sigma):
     class filter:
         def apply(self,x:xr.DataArray,**kwargs):
-            gx = gaussian_filter(x.values,sigma = sigma,mode= 'constant',cval = np.nan)
+            xv = x.values.copy()
+            mask = xv!=xv
+            xv[mask] = 0
+            gx = gaussian_filter(xv,sigma = sigma,mode= 'constant',cval = np.nan)
             return xr.DataArray(
                 data = gx,
                 dims = ["lat","lon"],
@@ -52,7 +55,7 @@ def coarse_graining_2d_generator(grid:xr.Dataset,sigma,wetmask :bool= False):
         if not wetmask:
             dA = grid.area
         else:
-            dA = grid.area*grid.wetmask.values
+            dA = grid.area*grid.wetmask
              
         dAbar = _gaussian_apply(dA,)
         return dA,dAbar
@@ -61,9 +64,9 @@ def coarse_graining_2d_generator(grid:xr.Dataset,sigma,wetmask :bool= False):
 
 
     def weighted_gaussian(x:xr.DataArray):
-        x = _gaussian_apply(dA*x)/dAbar
-        x = x.coarsen(lat=sigma,lon=sigma,boundary="trim").mean()
-        return x
+        cx = _gaussian_apply(dA*x)/dAbar
+        cx = cx.coarsen(lat=sigma,lon=sigma,boundary="trim").mean()
+        return cx
     return weighted_gaussian
 
 

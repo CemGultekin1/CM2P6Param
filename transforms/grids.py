@@ -74,8 +74,8 @@ def longitudinal_nan_cut_values(sfd):
 
 
 
-def forward_difference(x:xr.DataArray,grid:xr.Dataset,field):
-    dx = x.diff(field)/grid[f"d{field}"]
+def forward_difference(x:xr.DataArray,dx:xr.DataArray,field):
+    dx = x.diff(field)/dx
     f0 = x[field][0]
     dx = dx.pad({field : (1,0)},constant_values = np.nan)
     dxf = dx[field].values
@@ -86,8 +86,8 @@ def forward_difference(x:xr.DataArray,grid:xr.Dataset,field):
 def ugrid2tgrid(u:xr.DataArray,v:xr.DataArray,ugrid:xr.Dataset,tgrid:xr.Dataset):
     uval = u.values
     vval = v.values
-    dlat = ugrid.dlat.values
-    dlon = ugrid.dlon.values
+    dlat = ugrid.dy.values
+    dlon = ugrid.dx.values
 
     udlat = uval*dlat
 
@@ -96,23 +96,20 @@ def ugrid2tgrid(u:xr.DataArray,v:xr.DataArray,ugrid:xr.Dataset,tgrid:xr.Dataset)
     vdlon = (vdlon[:,1:] + vdlon[:,:-1])/(dlon[:,1:]+dlon[:,:-1])
     udlat = np.concatenate([np.zeros((udlat.shape[0],1)),udlat],axis =1)
     vdlon = np.concatenate([np.zeros((vdlon.shape[0],1)),vdlon],axis =1)
-    # print(udlat.shape,tgrid.lat.shape,tgrid.lon.shape)
-    ut = xr.DataArray(
-        data = udlat,
-        dims = ['lat','lon'],
+    coords = dict(dims = ['lat','lon'],
         coords = dict(
             lat = tgrid.lat.values,
             lon = tgrid.lon.values,
         )
     )
+    ut = xr.DataArray(
+        data = udlat,
+        **coords
+    )
 
     vt = xr.DataArray(
         data = vdlon,
-        dims = ['lat','lon'],
-        coords = dict(
-            lat = tgrid.lat.values,
-            lon = tgrid.lon.values,
-        )
+        **coords
     )
     return ut,vt
 
