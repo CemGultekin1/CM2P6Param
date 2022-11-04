@@ -7,7 +7,7 @@ from utils.paths import SLURM, SLURM_LOGS
 JOBNAME = 'datagen'
 root = SLURM
 
-NCPU = 20
+NCPU = 40
 
 def python_args():
     def givearg(sigma,depth):

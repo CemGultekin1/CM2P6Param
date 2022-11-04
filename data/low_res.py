@@ -3,7 +3,7 @@ from typing import Dict, Tuple
 from utils.xarray import concat, no_nan_input_mask
 import xarray as xr
 import numpy as np
-from transforms.grids import bound_grid, divide2equals, fix_grid, larger_longitude_grid, lose_tgrid, make_divisible_by_grid, trim_grid_nan_boundaries, ugrid2tgrid
+from transforms.grids import bound_grid, divide2equals, fix_grid, larger_longitude_grid, lose_tgrid
 
 
 class CM2p6Dataset:
@@ -110,38 +110,25 @@ class SingleDomain(CM2p6Dataset):
             forcing = ds[lv.replace('lsrp_','')]
             lsrp_res_forcing = forcing.values - lsrp_forcing
             ds[lv.replace('lsrp_','lsrp_res_')] = (forcing.dims,lsrp_res_forcing)
+        wetmask = ds.ugrid_wetmask + ds.tgrid_wetmask
+        wetmask = xr.where(wetmask > 0,0,1)
+        self.wet_mask = wetmask
+
+        for name in ds.data_vars.keys():
+            u = ds[name]
+            ds[name] = xr.where(wetmask,u,np.nan)
+        ds = ds.drop('tgrid_wetmask').drop('ugrid_wetmask')
+        forcing_mask = no_nan_input_mask(self.wet_mask,self.half_spread,lambda x: x==0,same_size = True)
+        forcing_mask = xr.where(forcing_mask==0,1,0)
+        
+        self.all_land = np.mean(self.forcing_mask.values) > 1 - 1e-2
         return ds
+
     def get_grid_fixed_lres(self,i,fields):
         ds = self.get_dataset(i)
-
         U = concat(**{field : self.fix_grid(ds[field]) for field in fields})
         return  U
-
-    def init_coarse_masks(self,):
-        ds = self.get_dataset(0)
-
-        def get_mask(name):
-            u = ds[name]
-            u = self.fix_grid(u)
-            return xr.where(no_nan_input_mask(u,0) == 0 ,1,0)
         
-        cmask = None
-        for key in self.field_names:
-            mask = get_mask(key)
-            if cmask is None:
-                cmask = mask
-            else:
-                cmask = cmask + mask
-        self.wet_mask =  xr.where(cmask == 0 ,0,1)
-        forcing_mask = no_nan_input_mask(self.wet_mask,self.half_spread,lambda x: x==1,same_size = True)
-
-        for key in  self.forcing_names:
-            mask = get_mask(key,)
-            forcing_mask = forcing_mask+mask
-
-        self.forcing_mask = xr.where(forcing_mask==0,1,0)
-        self.wet_mask = xr.where(self.wet_mask==0,1,0)
-        self.all_land = np.mean(self.forcing_mask.values) > 1 - 1e-2
 
     @property
     def nan_map(self,):

@@ -1,4 +1,3 @@
-from transforms.grids import get_grid_vars, get_separated_grid_vars
 import xarray as xr
 import numpy as np
 import gcm_filters
