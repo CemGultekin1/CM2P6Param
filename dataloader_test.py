@@ -81,34 +81,57 @@ from models.load import load_model
 from utils.parallel import get_device
 from utils.slurm import flushed_print
 import torch
+from utils.xarray import fromtorchdict, mask_dataset, normalize_dataset, remove_normalization
 
 def main():
-    args = "--sigma 4 --domain global --depth 5 --parts 3 3 --minibatch 1 --prefetch_factor 2 --linsupres True --temperature True --latitude True --num_workers 1 --mode train".split()
+    args = "--sigma 8 --domain global --depth 0 --parts 1 1 --minibatch 1 --prefetch_factor 2 --linsupres True --temperature True --latitude True --num_workers 1 --mode eval".split()
     generator,= get_data(args,half_spread = 10, torch_flag = True, data_loaders = True,groups = ('all',))
 
     modelid,state_dict,net,criterion,optimizer,scheduler,logs,runargs=load_model(args)
 
     flushed_print(runargs)
-    training_generator,val_generator=get_data(args,half_spread = 0,torch_flag = True,data_loaders = True,groups = ('train','validation'))
+    training_generator,val_generator=get_data(args,half_spread = 5,torch_flag = False,data_loaders = True,groups = ('train','validation'))
     device=get_device()
     # flushed_print("epochs started")
     # timer = Timer()
 
     import matplotlib.pyplot as plt
     import numpy as np
+    t = 0
     for epoch in range(runargs.epoch,runargs.maxepoch):
-        for infields,outfields,mask in training_generator:
-            outfields[mask<1] = np.nan
-            vars = [infields,outfields,mask]
-            vars = [var[0].numpy() for var in vars]
-            # for var in vars:
-            #     for var_ in var:
-            #         v = var_[var_==var_]
+        # for fields,forcings,forcing_masks in training_generator:
+        for fields,forcings,field_masks,forcing_masks,field_coords,forcing_coords in training_generator:#
+            fields = fromtorchdict(fields,field_coords)
+            forcings = fromtorchdict(forcings,forcing_coords)
+            field_masks = fromtorchdict(field_masks,field_coords)
+            forcing_masks = fromtorchdict(forcing_masks,forcing_coords)
+            fields = mask_dataset(fields,field_masks)
+            forcings = mask_dataset(forcings,forcing_masks)
+            fields = normalize_dataset(fields,denormalize = True)
+            forcings = normalize_dataset(forcings,denormalize = True)
 
-            #         mom1 = np.mean(v)
-            #         mom2 = np.sqrt(np.mean((v - mom1)**2))
-            #         print(mom1,mom2)
-            ncol,nrow = 3,3
+            fields1 = remove_normalization(fields)
+            forcings1 = remove_normalization(forcings)
+            ncol,nrow = 2,6
+            fig,axs = plt.subplots(nrow,ncol,figsize = (35,30))
+            for i,j in itertools.product(range(nrow),range(ncol)):
+                ax = axs[i,j]
+                if j==0:
+                    ff = fields1
+                else:
+                    ff = forcings1
+                keys = list(ff.data_vars.keys())
+                if len(keys) <= i:
+                    continue
+                ff[keys[i]].plot(ax = ax)
+                ax.set_title(keys[i])
+            fig.savefig('input_output.png')
+            return
+            print(fields.shape,forcings.shape,forcing_masks.shape)
+            # forcings[forcing_masks<1] = np.nan
+            vars = [fields,forcings,forcing_masks]
+            vars = [var[0].numpy() for var in vars]
+            ncol,nrow = 2,3
             fig,axs = plt.subplots(nrow,ncol,figsize = (25,20))
             for i,j in itertools.product(range(nrow),range(ncol)):
                 axs[i,j].imshow(vars[i][j])

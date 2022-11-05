@@ -347,7 +347,9 @@ def fix_grid(u,target_grid):
 def fix_latitude(u,target_grid):
     dims = list(u.dims)
     dims = [d for d in dims if "lat" in d]
-    assert len(dims) == 1
+    if len(dims) != 1:
+        raise Exception(f'there should only be one dimensions with lat in its name:\t{dims}')
+
     lat_name = dims[0]
     return u.sel(**{lat_name: slice(*target_grid[[0,-1]])})
 

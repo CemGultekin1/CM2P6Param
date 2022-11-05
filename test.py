@@ -1,3 +1,6 @@
+
+from data.load import dataset_arguments, get_var_grouping
+from data.low_res import DividedDomain
 import torch
 
 
@@ -25,9 +28,54 @@ def separate_batch(vec,batchnum):
             return None
     return sub_separate_batch(vec,None,batchnum)
 
+def low_res_dataset():
+    nbatch = 1
+    args = f'--sigma 4 --domain four_regions --depth 5 --minibatch {nbatch} --prefetch_factor 1 --num_workers 1 --mode train'.split()
+    from data.load import load_xr_dataset
+    import itertools
+    ds = load_xr_dataset(args)
+    vars = get_var_grouping(args)
 
+    _args,_kwargs = dataset_arguments(args)
+    _kwargs['boundaries'] = _kwargs['boundaries'][2]
+    dd = DividedDomain(*_args,**_kwargs)
+    sf  = dd[0]
+    import matplotlib.pyplot as plt
+    fig,axs = plt.subplots(1,3,figsize = (25,10))
+    rows = [
+        'u v T'.split(),
+        'Su Sv ST'.split(),
+        'lsrp_res_Su lsrp_res_Sv lsrp_res_ST'.split()
+    ]
+    ncols = len(rows[0])
+    nrows = len(rows)
+
+    fig,axs = plt.subplots(nrows,ncols,figsize = (ncols*6,nrows*5))
+    
+    for i,j in itertools.product(range(nrows),range(ncols)):
+        if nrows == 1:
+            ax = axs[j]
+        else:
+            ax = axs[i,j]
+        name = rows[i][j]
+        u = sf[name]
+        u.plot(ax = ax)
+        ax.set_title(name)
+
+    fig.savefig('subgrid_forcings_global.png')
+    plt.close()
+
+def data_loader():
+    nbatch = 1
+    args = f'--sigma 4 --depth 5 --minibatch {nbatch} --prefetch_factor 1 --num_workers 1 --mode train'.split()
+    from data.load import get_data
+    ld, = get_data(args,half_spread = 10, torch_flag = True, data_loaders = True,groups = ('all',))
+    
+    
 
 def main(): 
+    low_res_dataset()
+    return
     import xarray as xr
     import matplotlib.pyplot as plt
     import itertools

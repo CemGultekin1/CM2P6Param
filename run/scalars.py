@@ -11,10 +11,7 @@ def main():
     generator,= get_data(args,half_spread = 0, torch_flag = False, data_loaders = True,groups = ('train',))
     tot_scalars = {norm : {} for norm in normalizations}
     time_limit = 64
-    for fields,forcings,masks,locations in generator:
-        print('time #\t',locations['itime'].numpy()[0])
-        if np.any(locations['itime'].numpy() >= time_limit):
-            break
+    for fields,forcings,field_masks,forcing_masks in generator:
         fields = dict(fields,**forcings)
         for name,vec_dict in fields.items():
             vec = vec_dict['val']

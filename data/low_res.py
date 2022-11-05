@@ -1,6 +1,6 @@
 import itertools
 from typing import Dict, Tuple
-from utils.xarray import concat, no_nan_input_mask
+from utils.xarray import no_nan_input_mask #concat, 
 import xarray as xr
 import numpy as np
 from transforms.grids import bound_grid, divide2equals, fix_grid, larger_longitude_grid, lose_tgrid
@@ -29,9 +29,13 @@ class CM2p6Dataset:
         if boundaries is None:
             boundaries = (-90,90,-180,180)
     
-        varnames = kwargs.get('var_grouping')
-        self.field_names = flatten_tuple_list(varnames[0])
-        self.forcing_names = flatten_tuple_list(varnames[1])
+        varnames = kwargs.get('var_grouping',None)
+        if varnames is not None:
+            self.field_names = flatten_tuple_list(varnames[0])
+            self.forcing_names = flatten_tuple_list(varnames[1])
+        else:
+            self.field_names = None
+            self.forcing_names  = None
         
         self.global_lres_coords = self.ds.ulat.values,larger_longitude_grid(self.ds.ulon.values)
         self.preboundaries = boundaries
@@ -99,11 +103,17 @@ class SingleDomain(CM2p6Dataset):
         
     def fix_grid(self,u, ):
         latlon = self.local_lres_coords
-        return fix_grid(u,latlon)#at_name = "ulat",lon_name = "ulon")
+        dims = u.dims
+        if 'lat' in dims and 'lon' in dims:
+            return fix_grid(u,latlon)#at_name = "ulat",lon_name = "ulon")
+        else:
+            return u
 
     def get_dataset(self,t):
         ds = self.ds.isel(time =t)
+        print(ds)
         ds = lose_tgrid(ds)
+        ds = self.get_grid_fixed_lres(ds)
         lsrp_vars = [v for v in list(ds.data_vars) if 'lsrp' in v]
         for lv in lsrp_vars:
             lsrp_forcing = ds[lv].values
@@ -112,21 +122,30 @@ class SingleDomain(CM2p6Dataset):
             ds[lv.replace('lsrp_','lsrp_res_')] = (forcing.dims,lsrp_res_forcing)
         wetmask = ds.ugrid_wetmask + ds.tgrid_wetmask
         wetmask = xr.where(wetmask > 0,0,1)
-        self.wet_mask = wetmask
 
         for name in ds.data_vars.keys():
             u = ds[name]
             ds[name] = xr.where(wetmask,u,np.nan)
         ds = ds.drop('tgrid_wetmask').drop('ugrid_wetmask')
-        forcing_mask = no_nan_input_mask(self.wet_mask,self.half_spread,lambda x: x==0,same_size = True)
+        forcing_mask = no_nan_input_mask(wetmask,self.half_spread,lambda x: x==0,same_size = True)
         forcing_mask = xr.where(forcing_mask==0,1,0)
-        
-        self.all_land = np.mean(self.forcing_mask.values) > 1 - 1e-2
+        for field in 'u v T'.split():
+            ds[field] = xr.where(wetmask,ds[field],np.nan)
+        for field in ds.data_vars.keys():
+            if 'S' in field:
+                ds[field] = xr.where(forcing_mask,ds[field],np.nan)
+        all_land = np.mean(forcing_mask.values) > 1 - 1e-2
+        ds['all_land'] = all_land
         return ds
 
-    def get_grid_fixed_lres(self,i,fields):
-        ds = self.get_dataset(i)
-        U = concat(**{field : self.fix_grid(ds[field]) for field in fields})
+    def get_grid_fixed_lres(self,ds):
+        fields = list(ds.data_vars.keys())
+        var = []
+        for field in fields:
+            v = self.fix_grid(ds[field])
+            v.name = field
+            var.append(v)
+        U = xr.merge(var)
         return  U
         
 
@@ -145,20 +164,12 @@ class SingleDomain(CM2p6Dataset):
         return U,F
 
     def __getitem__(self,i):
-        if not self.initiated:
-            self.init_coarse_masks()
-            self.initiated = True
-        if self.all_land:
-            Zs = self.nan_map
-            return dict(fields = Zs, forcings = Zs)
-
-        U = self.get_grid_fixed_lres(i, self.field_names)
-        F = self.get_grid_fixed_lres(i, self.forcing_names)
-        M1 = self.forcing_mask.sel(**self.final_boundaries) == 1
-        M0 = self.wet_mask.sel(**self.final_boundaries) == 1
-        F = xr.where(M1, F.sel(**self.final_boundaries), np.nan)
-        U = xr.where(M0, U.sel(**self.final_boundaries), np.nan)
-        return xr.merge([U,F])
+        ds = self.get_dataset(i)
+        # if ds.all_land:
+        #     Zs = self.nan_map
+        #     return dict(fields = Zs, forcings = Zs)
+        # U = self.get_grid_fixed_lres(ds)
+        return ds
 
 
 
@@ -172,10 +183,9 @@ class DividedDomain(CM2p6Dataset):
         self.parts = parts
         self.cgs = {}
         self.linsupres = kwargs.pop("linsupres",False)
-        kwargs.pop('boundaries')
-        constructor = SingleDomain
+        kwargs.pop('boundaries',None)
         for i,j in self.iterate_over_parts():
-            self.cgs[(i,j)] = constructor(self.ds,self.sigma,boundaries=bds[(i,j)],**kwargs)
+            self.cgs[(i,j)] = SingleDomain(self.ds,self.sigma,boundaries=bds[(i,j)],**kwargs)
     def set_time_constraint(self, t0, t1):
         super().set_time_constraint(t0, t1)
         for i,j in self.iterate_over_parts():

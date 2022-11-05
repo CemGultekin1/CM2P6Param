@@ -130,20 +130,29 @@ class MultiDomainDataset(MultiDomain):
                 vals =  vals[self.sslice,self.sslice]
             vals = np.pad(vals,pad_width = ((0,pad[0]),(0,pad[1])),constant_values = np.nan)
             data_vars[name] = (dims,vals)
-        lat = coords['lat']
-        pad = self.max_shape[0] - len(lat)
-        coords['lat_pad'] = pad
-        lat = np.pad(lat,pad_width = ((0,pad),),constant_values = 0)
-        coords['lat'] = lat
+        
+        def pad_coords(coords,slice_flag = False):
+            lat = coords['lat']
+            pad = self.max_shape[0] - len(lat)
+            coords['lat_pad'] = pad
+            lat = np.pad(lat,pad_width = ((0,pad),),constant_values = 0)
+            if slice_flag:
+                lat = lat[self.sslice]
+            coords['lat'] = lat
 
-        lon = coords['lon']
-        pad = self.max_shape[1] - len(lon)
-        coords['lon_pad'] = pad
-        lon = np.pad(lon,pad_width = ((0,pad),),constant_values = 0)
-        coords['lon'] = lon
-
-
-        return data_vars,coords
+            lon = coords['lon']
+            pad = self.max_shape[1] - len(lon)
+            coords['lon_pad'] = pad
+            lon = np.pad(lon,pad_width = ((0,pad),),constant_values = 0)
+            if slice_flag:
+                lon = lon[self.sslice]
+            coords['lon'] = lon
+            return coords
+        
+        forcing_coords = pad_coords(copy.deepcopy(coords),slice_flag=True)
+        coords = pad_coords(coords,slice_flag=False)
+        
+        return data_vars,coords,forcing_coords
 
     def add_lat_features(self,data_vars,coords):
         lats = coords['lat']
@@ -154,15 +163,19 @@ class MultiDomainDataset(MultiDomain):
         return data_vars
     def group_variables(self,data_vars):
         groups = []
+        # normalization_groups = []
         for vargroup in self.var_grouping:
             valdict = {}
+            # valnormalization = {}
             for varname in vargroup:
                 valdict[varname] = data_vars[varname]
                 nvarname = f"{varname}_normalization"
                 if nvarname in data_vars:
                     valdict[nvarname] = data_vars[nvarname]
-
             groups.append(valdict)
+            # normalization_groups.append(valnormalization)
+        # if not self.torch_flag:
+            # groups.extend(normalization_groups)
         return tuple(groups)
 
     def group_np_stack(self,vargroups):
@@ -171,7 +184,10 @@ class MultiDomainDataset(MultiDomain):
         v = []
         for _,val in vals.values():
             v.append(val)
-        return np.stack(v,axis =0)
+        if len(v) == 0:
+            return np.empty(0)
+        else:
+            return np.stack(v,axis =0)
     def group_to_torch(self,vargroups):
         return tuple([self._to_torch(vars) for vars in vargroups])
     def _to_torch(self,vals:np.array,type = torch.float32):
@@ -196,11 +212,14 @@ class MultiDomainDataset(MultiDomain):
         keys_list = tuple(data_vars.keys())
         for key in keys_list:
             dims,f = data_vars[key]
+            if not ('lat' in dims and 'lon' in dims):
+                continue
             mask = f==f
             f[~mask] = 0
             varmask = get_var_mask_name(key)
             data_vars[varmask] = (dims,mask)
-            data_vars[f"{varmask}_normalization"] = (['normalization'],np.array([0,1]))
+            if not self.torch_flag:
+                data_vars[f"{varmask}_normalization"] = (['normalization'],np.array([0,1]))
         return data_vars
     def fillna(self,values):
         for key,v in values.items():
@@ -209,16 +228,13 @@ class MultiDomainDataset(MultiDomain):
         return values
     def __getitem__(self,i):
         outs = super().__getitem__(i)
-        # location = {key: outs[key].values for key in ['ilat','ilon','itime','idom','depth']}
-        # values = self.outs2numpydict_latlon(outs)
         data_vars,coords = tonumpydict(outs)
-        # values = dict(values,**location)
 
         if self.latitude:
             data_vars = self.add_lat_features(data_vars,coords)
 
         data_vars,coords = self.normalize(data_vars,coords)
-        data_vars,coords = self.pad(data_vars,coords)
+        data_vars,coords,forcing_coords = self.pad(data_vars,coords)
         data_vars = self.mask(data_vars)
         grouped_vars = self.group_variables(data_vars)
 
@@ -228,4 +244,5 @@ class MultiDomainDataset(MultiDomain):
         else:
             grouped_vars = list(grouped_vars)
             grouped_vars.append(coords)
+            grouped_vars.append(forcing_coords)
             return tuple(grouped_vars)

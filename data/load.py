@@ -89,8 +89,8 @@ def get_var_grouping(args)-> Tuple[Tuple[List[str],...],Tuple[List[str],...]]:
         varnames.extend(fieldmask_names)
     varnames.extend(forcingmask_names)
 
-    if runprms.mode != 'train':
-        varnames.append(['itime','depth'])
+    # if runprms.mode != 'train':
+    #     varnames.append(['time','depth'])
 
     for i in range(len(varnames)):
         varnames[i] = tuple(varnames[i])
@@ -168,13 +168,13 @@ def get_data(args,torch_flag = False,data_loaders = True,**kwargs):
     if data_loaders:
         minibatch = ns.minibatch
         if ns.mode != "train":
-            minibatch = 1
+            minibatch = None
         params={'batch_size':minibatch,\
             'shuffle':ns.mode == "train" or ns.mode == "view",\
             'num_workers':ns.num_workers,\
             'prefetch_factor':ns.prefetch_factor,\
             'persistent_workers':ns.persistent_workers,
-            'pin_memory': True}
+            'pin_memory': True,}
         torchdsets = (TorchDatasetWrap(dset_) for dset_ in dsets)
         return (torch.utils.data.DataLoader(tset_, **params) for tset_ in torchdsets)
     else:
@@ -207,9 +207,9 @@ def preprocess_dataset(args,ds:xr.Dataset):
             if int(ds.depth.values) != int(prms.depth):
                 raise RequestDoesntExist
     else:
-        ds['depth'] = [0]
+        # ds['depth'] = [0]
         # if prms.mode != 'data':
-        #     ds = ds.isel(depth = 0)
+        ds = ds.isel(depth = 0)
     return ds
 
 def physical_domains(domain:str,):

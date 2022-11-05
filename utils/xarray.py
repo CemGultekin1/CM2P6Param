@@ -1,4 +1,5 @@
 from typing import Callable
+from data.vars import get_var_mask_name
 import xarray as xr
 import torch
 import numpy as np
@@ -33,6 +34,41 @@ def fromnumpydict(data_vars,coords):
                 coords_[key] =  np.array([coords[key][i]])#datetime.fromisoformat(coords[key][i])])
         ds = xr.Dataset(data_vars = data_vars_,coords = coords_)
         return ds
+
+def fromtorchdict(data_vars,coords):
+    for key in data_vars:
+        data_vars[key] = (data_vars[key][0],data_vars[key][1].numpy())
+    for key,val in coords.items():
+        if isinstance(val,torch.Tensor):
+            coords[key] = val.numpy()
+    ds = xr.Dataset(data_vars = data_vars,coords = coords)
+    return ds
+
+def normalize_dataset(ds,denormalize = False):
+    for key in ds.data_vars.keys():
+        if 'normalization' in key:
+            continue
+        nkey = f"{key}_normalization"
+        a,b = ds[nkey].values
+        if denormalize:
+            ds[key] = ds[key] *b + a
+        else:
+            ds[key] = (ds[key] - a)/b
+    return ds
+def mask_dataset(ds,maskds):
+    for key in ds.data_vars.keys():
+        mkey = get_var_mask_name(key)
+        if mkey in maskds.data_vars:
+            ds[key] = xr.where(maskds[mkey],ds[key],np.nan)
+    return ds
+
+def remove_normalization(ds):
+    data_vars = {}
+    coords = ds.coords
+    for key,val in ds.data_vars.items():
+        if 'normalization' not in key:
+            data_vars[key] = val
+    return xr.Dataset(data_vars = data_vars,coords = coords)
 
 def no_nan_input_mask(u,span,codition:Callable = lambda x:  np.isnan(x),same_size = False)->xr.DataArray:
     '''
