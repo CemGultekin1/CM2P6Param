@@ -83,25 +83,47 @@ def forward_difference(x:xr.DataArray,dx:xr.DataArray,field):
     dx[field] = dxf
     return dx
 
-def ugrid2tgrid(u:xr.DataArray,v:xr.DataArray,ugrid:xr.Dataset,tgrid:xr.Dataset):
+def ugrid2tgrid(u:xr.DataArray,v:xr.DataArray,ugrid:xr.Dataset,tgrid:xr.Dataset,stacked = False):
     uval = u.values
     vval = v.values
     dlat = ugrid.dy.values
     dlon = ugrid.dx.values
+    
+    if stacked:
+        vdlon_ = vval*0
+        udlat_ = uval*0
+        for i,(uval_,vval_) in enumerate(zip(uval,vval)):
+            udlat = uval_*dlat
+            vdlon = vval_*dlon
+            udlat = (udlat[:,1:] + udlat[:,:-1])/(2*dlat[:,1:])
+            vdlon = (vdlon[:,1:] + vdlon[:,:-1])/(dlon[:,1:]+dlon[:,:-1])
+            udlat = np.concatenate([np.zeros((udlat.shape[0],1)),udlat],axis =1)
+            vdlon = np.concatenate([np.zeros((vdlon.shape[0],1)),vdlon],axis =1)
+            vdlon_[i] = vdlon
+            udlat_[i] = udlat
 
-    udlat = uval*dlat
-
-    vdlon = vval*dlon
-    udlat = (udlat[:,1:] + udlat[:,:-1])/(2*dlat[:,1:])
-    vdlon = (vdlon[:,1:] + vdlon[:,:-1])/(dlon[:,1:]+dlon[:,:-1])
-    udlat = np.concatenate([np.zeros((udlat.shape[0],1)),udlat],axis =1)
-    vdlon = np.concatenate([np.zeros((vdlon.shape[0],1)),vdlon],axis =1)
-    coords = dict(dims = ['lat','lon'],
-        coords = dict(
-            lat = tgrid.lat.values,
-            lon = tgrid.lon.values,
+        udlat = udlat_
+        vdlon = vdlon_
+        coords = dict(dims = ['depth','lat','lon'],
+            coords = dict(
+                depth = u.depth.values,
+                lat = tgrid.lat.values,
+                lon = tgrid.lon.values,
+            )
         )
-    )
+    else:
+        udlat = uval*dlat
+        vdlon = vval*dlon
+        udlat = (udlat[:,1:] + udlat[:,:-1])/(2*dlat[:,1:])
+        vdlon = (vdlon[:,1:] + vdlon[:,:-1])/(dlon[:,1:]+dlon[:,:-1])
+        udlat = np.concatenate([np.zeros((udlat.shape[0],1)),udlat],axis =1)
+        vdlon = np.concatenate([np.zeros((vdlon.shape[0],1)),vdlon],axis =1)
+        coords = dict(dims = ['lat','lon'],
+            coords = dict(
+                lat = tgrid.lat.values,
+                lon = tgrid.lon.values,
+            )
+        )
     ut = xr.DataArray(
         data = udlat,
         **coords
@@ -180,30 +202,62 @@ def get_grid_vars(grid:xr.Dataset,):
     return vars
 
 
-def logitudinal_expansion(u:xr.DataArray,expansion,prefix = ''):
+def logitudinal_expansion(u:xr.DataArray,expansion,prefix = '',stacked = False):
     slon = f"{prefix}lon"
     slat = f"{prefix}lat"
 
     lon =u[slon].values
     uval = u.values
-    
+
+
     lon0 = lon[:expansion] + 360
     lon1 = lon[-expansion:]- 360
-
-    u0 = uval[:,:expansion]
-    u1 = uval[:,-expansion:]
-
-
     newlon = np.concatenate([lon1,lon,lon0])
-    newuval = np.concatenate([u1,uval,u0],axis = 1)
-    return xr.DataArray(
-        data = newuval,
-        dims = [slat,slon],
-        coords = {
-            slat : u[slat].values,
-            slon : newlon,
-        }
-    )
+
+    
+
+    if stacked:
+        newuval = []
+        for i in range(uval.shape[0]):
+            uval_ = uval[i]
+            u0 = uval_[:,:expansion]
+            u1 = uval_[:,-expansion:]
+            newuval_ = np.concatenate([u1,uval_,u0],axis = 1)
+            newuval.append(newuval_)
+        newuval = np.stack(newuval,axis =0)
+        dims =list(u.dims)
+        coords = {}
+        def latlon_correct(ftr):
+            if 'lat' in ftr:
+                return slat
+            if 'lon' in ftr:
+                return slon
+            return ftr
+        for i in range(len(dims)):
+            dims[i] = latlon_correct(dims[i])
+        coordskeys = list(u.coords.keys())
+        for key in coordskeys:
+            key1 = latlon_correct(key)
+            coords[key1] = u.coords[key].values
+        coords[slon] = newlon
+        return xr.DataArray(
+            data = newuval,
+            dims = tuple(dims),
+            coords = coords
+        )
+    
+    else:
+        u0 = uval[:,:expansion]
+        u1 = uval[:,-expansion:]
+        newuval = np.concatenate([u1,uval,u0],axis = 1)
+        return xr.DataArray(
+            data = newuval,
+            dims = [slat,slon],
+            coords = {
+                slat : u[slat].values,
+                slon : newlon,
+            }
+        )
 
 def logitudinal_expansion_dataset(ds:xr.Dataset,expansion,prefix = ''):
     names = list(ds.data_vars)

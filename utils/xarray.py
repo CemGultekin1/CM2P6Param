@@ -16,7 +16,7 @@ def tonumpydict(x:xr.Dataset):
     for c in list(x.coords):
         coords[c] = x[c].values
         if c == 'time':
-            coords[c] = str(coords[c][0])
+            coords[c] = np.array(coords[c]).astype(str)
     return data_vars,coords
 def fromnumpydict(data_vars,coords):
     for key in data_vars:

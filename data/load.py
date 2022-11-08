@@ -105,7 +105,7 @@ def dataset_arguments(args,**kwargs_):
     
     scalars_dict = load_scalars(args)
     boundaries = REGIONS[prms.domain]
-    kwargs = ['linsupres','parts','latitude','normalization','lsrp_span','temperature']
+    kwargs = ['linsupres','parts','latitude','normalization','lsrp_span','temperature','section']
     if runprms.mode == 'eval':
         kwargs.pop(1)
     kwargs = {key:runprms.__dict__[key] for key in kwargs}
@@ -207,9 +207,9 @@ def preprocess_dataset(args,ds:xr.Dataset):
             if int(ds.depth.values) != int(prms.depth):
                 raise RequestDoesntExist
     else:
-        # ds['depth'] = [0]
-        # if prms.mode != 'data':
-        ds = ds.isel(depth = 0)
+        ds['depth'] = [0]
+        if prms.mode != 'data':
+            ds = ds.isel(depth = 0)
     return ds
 
 def physical_domains(domain:str,):

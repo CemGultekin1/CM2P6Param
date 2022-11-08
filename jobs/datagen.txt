@@ -1,8 +1,80 @@
---minibatch 1 --prefetch_factor 1 --depth 0 --sigma 4 --mode data --num_workers 40
---minibatch 1 --prefetch_factor 1 --depth 5 --sigma 4 --mode data --num_workers 40
---minibatch 1 --prefetch_factor 1 --depth 0 --sigma 8 --mode data --num_workers 40
---minibatch 1 --prefetch_factor 1 --depth 5 --sigma 8 --mode data --num_workers 40
---minibatch 1 --prefetch_factor 1 --depth 0 --sigma 12 --mode data --num_workers 40
---minibatch 1 --prefetch_factor 1 --depth 5 --sigma 12 --mode data --num_workers 40
---minibatch 1 --prefetch_factor 1 --depth 0 --sigma 16 --mode data --num_workers 40
---minibatch 1 --prefetch_factor 1 --depth 5 --sigma 16 --mode data --num_workers 40
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 4 --section 0 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 4 --section 1 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 4 --section 2 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 4 --section 3 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 4 --section 4 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 4 --section 5 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 4 --section 6 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 4 --section 7 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 4 --section 8 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 4 --section 9 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 4 --section 0 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 4 --section 1 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 4 --section 2 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 4 --section 3 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 4 --section 4 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 4 --section 5 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 4 --section 6 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 4 --section 7 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 4 --section 8 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 4 --section 9 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 8 --section 0 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 8 --section 1 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 8 --section 2 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 8 --section 3 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 8 --section 4 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 8 --section 5 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 8 --section 6 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 8 --section 7 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 8 --section 8 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 8 --section 9 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 8 --section 0 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 8 --section 1 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 8 --section 2 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 8 --section 3 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 8 --section 4 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 8 --section 5 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 8 --section 6 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 8 --section 7 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 8 --section 8 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 8 --section 9 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 12 --section 0 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 12 --section 1 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 12 --section 2 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 12 --section 3 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 12 --section 4 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 12 --section 5 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 12 --section 6 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 12 --section 7 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 12 --section 8 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 12 --section 9 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 12 --section 0 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 12 --section 1 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 12 --section 2 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 12 --section 3 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 12 --section 4 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 12 --section 5 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 12 --section 6 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 12 --section 7 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 12 --section 8 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 12 --section 9 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 16 --section 0 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 16 --section 1 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 16 --section 2 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 16 --section 3 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 16 --section 4 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 16 --section 5 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 16 --section 6 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 16 --section 7 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 16 --section 8 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 0 --sigma 16 --section 9 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 16 --section 0 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 16 --section 1 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 16 --section 2 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 16 --section 3 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 16 --section 4 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 16 --section 5 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 16 --section 6 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 16 --section 7 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 16 --section 8 10 --mode data --num_workers 18
+--minibatch 1 --prefetch_factor 1 --depth 5 --sigma 16 --section 9 10 --mode data --num_workers 18

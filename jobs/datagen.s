@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --time=48:00:00
-#SBATCH --array=1-8
-#SBATCH --mem=200GB
+#SBATCH --time=24:00:00
+#SBATCH --array=1-80
+#SBATCH --mem=180GB
 #SBATCH --job-name=datagen
 #SBATCH --output=/scratch/cg3306/climate/CM2P6Param/saves/slurm_logs/datagen_%a_%A.out
 #SBATCH --error=/scratch/cg3306/climate/CM2P6Param/saves/slurm_logs/datagen_%a_%A.err
-#SBATCH --cpus-per-task=40
+#SBATCH --cpus-per-task=18
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 ARGS=$(sed -n "$SLURM_ARRAY_TASK_ID"p /scratch/cg3306/climate/CM2P6Param/jobs/datagen.txt)

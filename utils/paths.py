@@ -62,3 +62,15 @@ def inverse_coarse_graining_weights_path(sigma:int):
     return os.path.join(LSRP,f'inv_weights_{sigma}.nc')
 def coarse_graining_projection_weights_path(sigma:int):
     return os.path.join(LSRP,f'proj_weights_{sigma}.nc')
+
+def average_lowhres_fields_path(sigma:int,isdeep):
+    if isdeep:
+        return os.path.join(LSRP,f'average_lowhres_{sigma}_3D.nc')
+    else:
+        return os.path.join(LSRP,f'average_lowhres_{sigma}_surface.nc')
+
+def average_highres_fields_path(isdeep):
+    if isdeep:
+        return os.path.join(LSRP,f'average_highres_3D.nc')
+    else:
+        return os.path.join(LSRP,f'average_highres_surface.nc')

@@ -73,7 +73,7 @@ def coarse_grain_inversion_weights(ugrid,tgrid,sigma,):
         coords = coords,
     )
     return filters
-def coarse_grain_projection(u,filters,prefix = 'u'):
+def coarse_grain_projection(u,filters,prefix = 'u',stacked = False):
     plat = f'{prefix}_proj_lat'
     plon = f'{prefix}_proj_lon'
     latproj = filters[plat].values
@@ -81,18 +81,23 @@ def coarse_grain_projection(u,filters,prefix = 'u'):
     uval = u.values.copy()
     mask = np.isnan(uval)
     uval[mask] = 0
-    puval = (latproj@uval)@(lonproj.T)
-    puval = (latproj.T@puval)@lonproj
+    if stacked:
+        puval = uval*0
+        for i in range(uval.shape[0]):
+            uval_ = uval[i]
+            puval_ = (latproj@uval_)@(lonproj.T)
+            puval_ = (latproj.T@puval_)@lonproj
+            puval[i] = puval_
+    else:
+        puval = (latproj@uval)@(lonproj.T)
+        puval = (latproj.T@puval)@lonproj
     puval[mask] = np.nan
-    u = xr.DataArray(
+    return xr.DataArray(
         data = puval,
-        dims = ['lat','lon'],
-        coords = dict(
-            lat = u.lat.values,
-            lon = u.lon.values
-        )
+        dims = u.dims,
+        coords = u.coords,
+        name = u.name
     )
-    return u
 def test(sigma):
     from data.load import load_xr_dataset
     path = inverse_coarse_graining_weights_path(sigma)

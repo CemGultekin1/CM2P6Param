@@ -72,9 +72,77 @@ def data_loader():
     ld, = get_data(args,half_spread = 10, torch_flag = True, data_loaders = True,groups = ('all',))
     
     
+def average_high_res_data():
+    from utils.paths import average_highres_fields_path
+    import xarray as xr
+    import matplotlib.pyplot as plt
+    import itertools
+    import numpy as np
+    for sigma,isdeep in itertools.product([4,8,12,16],[False,True]):
+        filename = average_highres_fields_path(sigma,isdeep)
+        data =xr.open_dataset(filename)
+        nrows = len(data.data_vars.keys())
+        print(sigma,isdeep)
+        if isdeep:
+            ndepth = len(data.depth)
+            for di in range(ndepth):
+                fig,axs = plt.subplots(nrows,1,figsize = (6,nrows*5))
+                for i,key in enumerate(data.data_vars.keys()):
+                    u = np.log10(np.abs(data[key].isel(depth = di)))
+                    u.plot(ax = axs[i])
+                    axs[i].set_title(key)
+                fig.savefig(f'average_highres_fields_{sigma}_{di+1}.png')
+                plt.close()
+        else:
+            fig,axs = plt.subplots(nrows,1,figsize = (6,nrows*5))
+            for i,key in enumerate(data.data_vars.keys()):
+                u = np.log10(np.abs(data[key]))
+                u.plot(ax = axs[i])
+                axs[i].set_title(key)
+
+            fig.savefig(f'average_highres_fields_{sigma}_{0}.png')
+            plt.close()
+
+def plot_forcings():
+    import xarray as xr
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import itertools
+    
+    def plot_ds(ds,imname):
+        flat_vars = {}
+
+        for key in ds.data_vars.keys():
+            u = ds[key]
+            if 'tr_depth'in u.dims:
+                for i in range(len(u.tr_depth)):
+                    flat_vars[f'{key}_tr_depth_{i}'] = u.isel(tr_depth = i)
+            else:
+                flat_vars[key] = u
+        vars = list(flat_vars.keys())
+        ncols = 3
+        nrows = int(np.ceil(len(vars)/ncols))
+        fig,axs = plt.subplots(nrows,ncols,figsize=(ncols*6,nrows*5))
+        for z,(i,j) in enumerate(itertools.product(range(nrows),range(ncols))):
+            ax = axs[i,j]
+            if z >= len(vars):
+                continue
+            u = flat_vars[vars[z]]
+            # u = np.log10(np.abs(u))
+            u.plot(ax = ax)
+            ax.set_title(vars[z])
+        fig.savefig(imname)
+        plt.close()
+    ds = xr.open_zarr('outputs.zarr').isel(time = 0,depth = 0)
+    plot_ds(ds,'surf.png')
+    ds = xr.open_zarr('outputs_depth.zarr').isel(time = 0)
+    for i in range(len(ds.depth)):
+        dsi = ds.isel(depth= i)
+        plot_ds(dsi,f'depth_{i}.png')
+
 
 def main(): 
-    low_res_dataset()
+    plot_forcings()
     return
     import xarray as xr
     import matplotlib.pyplot as plt

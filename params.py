@@ -62,6 +62,7 @@ RUN_PARAMS = {
     "relog":{"type":bool,"default":False},
     "disp" :  {"type":int,"default":-1},
     "mode" : {"type": str, "choices" : ["train","eval","data","scalars","view"],},
+    "section" : {"type":int, "nargs": 2, "default":(0,1)},
     "sanity": {"type":bool, "default":False},
     "lsrp_span": {"type":int,  "default": 12},
 }

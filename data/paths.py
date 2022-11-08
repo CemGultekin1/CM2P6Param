@@ -5,7 +5,7 @@ from utils.paths import GRID_INFO
 root = "/scratch/zanna/data/cm2.6"
 
 
-def get_filename(sigma,depth,co2,):
+def get_filename(sigma,depth,co2,locdir = root):
     if sigma > 1:
         co2 = '1pct_co2' if co2 else ''
         surf = 'surface' if depth < 1e-3 else 'beneath_surface'
@@ -16,7 +16,7 @@ def get_filename(sigma,depth,co2,):
         surf = 'surface' if depth < 1e-3 else 'beneath_surface'
         filename = f'{surf}_{co2}.zarr'
         filename = filename.replace('_.zarr','.zarr')
-    path = os.path.join(root,filename)
+    path = os.path.join(locdir,filename)
     return path
 
 def get_high_res_grid_location():
@@ -30,6 +30,13 @@ def get_low_res_data_location(args):
     prms,_ = options(args,key = "data")
     return  get_filename(prms.sigma,prms.depth,prms.co2)
 
+
+def get_preliminary_low_res_data_location(args):
+    prms,_ = options(args,key = "run")
+    a,b = prms.section
+    filename = get_filename(prms.sigma,prms.depth,prms.co2,locdir = '/scratch/cg3306/climate/CM2P6Param/saves')
+    filename = filename.replace('.zarr',f'_{a}_{b}.zarr')
+    return filename
 
 def get_data_address(args):
     drs = os.listdir(root)

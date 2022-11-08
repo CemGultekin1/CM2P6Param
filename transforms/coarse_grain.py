@@ -1,8 +1,74 @@
+from transforms.grids import forward_difference
 import xarray as xr
 import numpy as np
 import gcm_filters
 from scipy.ndimage import gaussian_filter
 
+
+def hreslres(uvars,tvars,ugrid:xr.Dataset,tgrid:xr.Dataset,coarse_grain_u,coarse_grain_t):
+    '''
+    converts hres :u,v,t: into lres versions by coarse-graining
+    including their derivatives across latitude and longitude
+    '''
+    # flushed_print('ugrid2tgrid(u,v,ugrid,tgrid)')
+    # u_t,v_t = ugrid2tgrid(u,v,ugrid,tgrid)
+    # if projections is not None:
+        # import matplotlib.pyplot as plt
+        # def plotsave(u_t,u_t1,name):
+        #     fig,axs = plt.subplots(1,2,figsize = (25,10))
+        #     u_t.plot(ax = axs[0])
+        #     u_t1.plot(ax = axs[1])
+        #     fig.savefig(f'{name}.png')
+        #     plt.close()
+        # flushed_print("coarse_grain_projection(u_t,projections,prefix = 't')")
+        # u_t = coarse_grain_projection(u_t,projections,prefix = 't')
+        # v_t = coarse_grain_projection(v_t,projections,prefix = 't')
+        # T = coarse_grain_projection(T,projections,prefix = 't')
+        # u = coarse_grain_projection(u,projections,prefix = 'u')
+        # v = coarse_grain_projection(v,projections,prefix = 'u')
+        # flushed_print("plotsave(u,u1,'u')")
+        # plotsave(u,u1,'u')
+        # plotsave(v,v1,'v')
+        # plotsave(T,T1,'T')
+        # plotsave(u_t,u_t1,'u_t')
+        # plotsave(v_t,v_t1,'v_t')
+        # u_t = u_t1
+        # v_t = v_t1
+        # T = T1
+        # u = u1
+        # v = v1
+        # raise Exception
+        # import matplotlib.pyplot as plt
+        # u.plot()
+        # plt.savefig('projected_u.png')
+        # plt.close()
+    # else:
+    #     import matplotlib.pyplot as plt
+    #     u.plot()
+    #     plt.savefig('u.png')
+    #     plt.close()
+
+    # uvars = dict(u=u,v=v)
+    # tvars = dict(u=u_t,v=v_t, T = T)
+    def subhres_lres(hresdict,grid,cg):
+        lres = {x:cg(y) for x,y in hresdict.items()}
+        dybar = cg(grid.dy)
+        dxbar = cg(grid.dx)
+
+        dlat = {f"dlat_{x}":forward_difference(y,grid.dy,"lat") for x,y in hresdict.items()}
+        dlon = {f"dlon_{x}":forward_difference(y,grid.dx,"lon") for x,y in hresdict.items()}
+        hres = dict(hresdict,**dlat,**dlon)
+        dlat = {f"dlat_{x}":forward_difference(y,dybar,"lat") for x,y in lres.items()}
+        dlon = {f"dlon_{x}":forward_difference(y,dxbar,"lon") for x,y in lres.items()}
+        lres = dict(lres,**dlat,**dlon)
+        return hres,lres
+
+    uhres,ulres = subhres_lres(uvars,ugrid,coarse_grain_u)
+    thres,tlres = subhres_lres(tvars,tgrid,coarse_grain_t)
+    return uhres,ulres,thres,tlres
+
+
+    
 def get_gcm_filter(sigma):
     filter_scale = sigma/2*np.sqrt(12)
     dx_min = 1
