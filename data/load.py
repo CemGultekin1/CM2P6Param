@@ -37,8 +37,8 @@ def load_xr_dataset(args):
         ds_zarr = load_grid(ds_zarr)
     if runargs.sanity:
         ds_zarr = ds_zarr.isel(time = slice(0,1))
-    ds_zarr =  preprocess_dataset(args,ds_zarr)
-    return ds_zarr
+    ds_zarr,scs=  preprocess_dataset(args,ds_zarr)
+    return ds_zarr,scs
 
 def get_var_grouping(args)-> Tuple[Tuple[List[str],...],Tuple[List[str],...]]:
     runprms,_=options(args,key = "run")
@@ -67,7 +67,7 @@ def get_var_grouping(args)-> Tuple[Tuple[List[str],...],Tuple[List[str],...]]:
         lsrpi = runprms.lsrp - 1
         if runprms.mode != 'train':
             varnames.append(forcings + lsrp_res[lsrpi])
-            varnames.append(fieldmask_names)
+            # varnames.append(fieldmasks)
             forcingmask_names.append(forcingmasks + lsrpforcingmasks[lsrpi])
         else:
             varnames.append(lsrp_res[lsrpi])
@@ -78,9 +78,8 @@ def get_var_grouping(args)-> Tuple[Tuple[List[str],...],Tuple[List[str],...]]:
     if runprms.mode == 'view':
         varnames.extend(fieldmask_names)
     varnames.extend(forcingmask_names)
-
-    # if runprms.mode != 'train':
-    #     varnames.append(['time','depth'])
+    # print('len(varnames)',len(varnames))
+    
 
     for i in range(len(varnames)):
         varnames[i] = tuple(varnames[i])
@@ -88,12 +87,14 @@ def get_var_grouping(args)-> Tuple[Tuple[List[str],...],Tuple[List[str],...]]:
     return varnames
 
 def dataset_arguments(args,**kwargs_):
-    ds_zarr = load_xr_dataset(args)
+    
 
     prms,_=options(args,key = "data")
     runprms,_=options(args,key = "run")
     
-    scalars = load_scalars(args)
+    
+    ds_zarr,scalars = load_xr_dataset(args)
+    
     boundaries = REGIONS[prms.domain]
     kwargs = ['lsrp','parts','latitude','lsrp_span','temperature','section']
     if runprms.mode == 'eval':
@@ -163,8 +164,8 @@ def get_data(args,torch_flag = False,data_loaders = True,**kwargs):
             'shuffle':ns.mode == "train" or ns.mode == "view",\
             'num_workers':ns.num_workers,\
             'prefetch_factor':ns.prefetch_factor,\
-            'persistent_workers':ns.persistent_workers,
-            'pin_memory': True,}
+            'persistent_workers':ns.persistent_workers,}
+            # 'pin_memory': True,}
         torchdsets = (TorchDatasetWrap(dset_) for dset_ in dsets)
         return (torch.utils.data.DataLoader(tset_, **params) for tset_ in torchdsets)
     else:
@@ -183,6 +184,7 @@ def preprocess_dataset(args,ds:xr.Dataset):
     prms,_ = options(args,key = "run")
     ds = rename(ds)
     coord_names = list(ds.coords.keys())
+    
     if prms.depth > 1e-3:
         if 'depth' not in coord_names:
             raise RequestDoesntExist
@@ -200,14 +202,22 @@ def preprocess_dataset(args,ds:xr.Dataset):
         ds['depth'] = [0]
         if prms.mode != 'data':
             ds = ds.isel(depth = 0)
-    if prms.mode == 'train':
-        depthval = depthvals_[ind]
+    if prms.mode == 'train' or prms.mode == 'eval':
+        depthval = ds.depth.values
         trd = ds.tr_depth.values
         tr_ind = np.argmin(np.abs(depthval - trd))
         if np.abs(trd[tr_ind] - depthval)>1:
             raise RequestDoesntExist
         ds = ds.isel(tr_depth = tr_ind)
-    return ds
+    scs = load_scalars(args)
+    if prms.mode != 'scalars' and scs is not None:
+        depthval = ds.depth.values
+        trd = scs.tr_depth.values
+        tr_ind = np.argmin(np.abs(depthval - trd))
+        if np.abs(trd[tr_ind] - depthval)>1:
+            raise RequestDoesntExist
+        scs = scs.isel(tr_depth = tr_ind)
+    return ds,scs
 
 def physical_domains(domain:str,):
     partition={}

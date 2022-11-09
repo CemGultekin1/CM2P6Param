@@ -2,6 +2,8 @@
 from data.load import dataset_arguments, get_var_grouping
 from data.low_res import DividedDomain
 import torch
+from utils.arguments import options
+from utils.xarray import fromtensor, fromtorchdict2tensor
 
 
 # def separate_batch(vec,batchnum):
@@ -131,21 +133,90 @@ def scalars():
         plot_ds(fields,'scalars_example.png',ncols = 3)
         print(fields)
         return
+
+
+        
+
+def eval():
+    nbatch = 1
+    args = f'--sigma 4 --depth 5 --domain global --minibatch {nbatch} --prefetch_factor 1 --lsrp 2 --termperature True --num_workers 1 --mode eval'.split()
+    from data.load import get_data
+    import xarray as xr
+    import numpy as np
+    from utils.xarray import fromtorchdict,plot_ds
+    stats = None
+    def lsrp_pred(respred,tr):
+        keys= list(respred.data_vars.keys())
+        data_vars = {}
+        coords = {key:val for key,val in tr.coords.items()}
+        for key in  keys:
+            trkey = key.replace('0_res','').replace('1_res','')
+            err = tr[trkey] - tr[key]
+            data_vars[trkey] = (err.dims,err.values)
+            respred[key] = err + respred[key]
+            respred = respred.rename({key:trkey})
+            tr = tr.drop(key)
+        lsrp = xr.Dataset(data_vars =data_vars,coords = coords)
+        return (respred,lsrp),tr
+    def update_stats(stats,prd,tr,lsrp_flag):
+        if lsrp_flag:
+            cnn_prd,lsrp_prd = prd
+            if stats is None:
+                stats = [None,None]
+            stats[0] = update_stats(stats[0],cnn_prd,tr,False)
+            stats[1] = update_stats(stats[1],lsrp_prd,tr,False)
+            return stats
+
+        err = np.square(tr - prd)
+        sc2 = np.square(tr)
+        err = err.rename({key:f'{key}_mse' for key in err.data_vars})
+        sc2 = sc2.rename({key:f'{key}_sc2' for key in sc2.data_vars})
+        stats_ = xr.merge([err,sc2])
+        if stats is None:
+            stats = stats_
+        else:
+            stats = stats + stats_
+        return stats
+    runprms,_ = options(args,key = 'run')
+    lsrp_flag = runprms.lsrp > 0
+    kwargs = dict(contained = '' if not lsrp_flag else 'res')
+    generator,= get_data(args,half_spread = 0, torch_flag = False, data_loaders = True,groups = ('test',))
+    for fields,forcings,forcing_mask,_,forcing_coords in generator:
+        fields_tensor = fromtorchdict2tensor(fields)
+        forcings_tensor = fromtorchdict2tensor(forcings,**kwargs)
+        outputs = torch.randn(forcings_tensor.shape)
+        print(fields_tensor.shape,outputs.shape,forcings_tensor.shape)
+        predicted_forcings = fromtensor(outputs,forcings,forcing_coords, forcing_mask,denormalize = True,**kwargs)
+        true_forcings = fromtorchdict(forcings,forcing_coords,forcing_mask,denormalize = True)
+        if lsrp_flag:
+            predicted_forcings,true_forcings = lsrp_pred(predicted_forcings,true_forcings)
+        stats = update_stats(stats,predicted_forcings,true_forcings,lsrp_flag)
+        plot_ds(stats,'scalars_example.png',ncols = 3)
+        return
         
 
 
 def training():
     nbatch = 1
-    args = f'--sigma 4 --depth 5 --minibatch {nbatch} --domain global --prefetch_factor 1 --lsrp 1 --mode train --temperature True --num_workers 1'.split()
+    args = f'--sigma 4 --depth 0 --minibatch {nbatch} --domain four_regions --prefetch_factor 1 --lsrp 2 --mode train --temperature True --num_workers 1'.split()
     from data.load import get_data
     import numpy as np
     import matplotlib.pyplot as plt
     import itertools
-
-    generator,= get_data(args,half_spread = 10, torch_flag = True, data_loaders = True,groups = ('train',))
-    for fields,forcings,masks in generator:
+    def compute_stats(forcings,masks):
+        nonan = masks.sum(dim = [0,2,3])
+        # forcings[masks<1] = 0
+        means = forcings.sum(dim = [0,2,3])/nonan
+        sc2 = (forcings**2).sum(dim = [0,2,3])/nonan
+        std = torch.sqrt(sc2 - means**2)
         forcings[masks<1] = np.nan
-        print(fields.shape,forcings.shape,masks.shape)
+        return means.numpy(),std.numpy()
+    generator,= get_data(args,half_spread = 10, torch_flag = True, data_loaders = True,groups = ('train',))
+    for k,(fields,forcings,masks) in enumerate(generator):
+        print(np.any(np.isnan(fields.numpy())),np.any(np.isnan(forcings.numpy())))
+        print(compute_stats(fields,(torch.abs(fields)>0).type(torch.float)))
+        print(compute_stats(forcings,masks))
+        print()
         vecs = []
         for f in [fields,forcings,masks]:
             vecs.extend(torch.unbind(f))
@@ -153,7 +224,7 @@ def training():
         for f in vecs:
             vecs1.extend(torch.unbind(f))
         n = len(vecs1)
-        ncols = 2
+        ncols = 3
         nrows = np.ceil(n/ncols).astype(int)
         fig,axs = plt.subplots(nrows,ncols,figsize = (ncols*6,nrows*5))
         for z,(i,j) in enumerate(itertools.product(range(nrows),range(ncols))):
@@ -161,13 +232,13 @@ def training():
             if n <= z:
                 continue
             ax.imshow(vecs1[z].numpy()[::-1,:])
-        fig.savefig('training_batch.png')
+        fig.savefig(f'training_batch_{k}.png')
         plt.close()
-
-        break
+        if k==4:
+            break
 
 def main(): 
-    scalars()
+    eval()
     return
     import xarray as xr
     import matplotlib.pyplot as plt

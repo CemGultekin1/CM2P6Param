@@ -152,7 +152,7 @@ class MultiDomainDataset(MultiDomain):
             coords['lon'] = lon
             return coords
         
-        forcing_coords = pad_coords(copy.deepcopy(coords),slice_flag=True)
+        forcing_coords = pad_coords(copy.deepcopy(coords),slice_flag=self.half_spread>0)
         coords = pad_coords(coords,slice_flag=False)
         
         return data_vars,coords,forcing_coords
@@ -217,9 +217,9 @@ class MultiDomainDataset(MultiDomain):
             
             a,b = np.zeros(shp0),np.ones(shp0)
             if self.scalars is not None:
-                if key in self.scalars:
-                    a = self.scalars[f"{key}_mean"].value
-                    b = self.scalars[f"{key}_std"].value
+                if f"{key}_mean" in self.scalars:
+                    a = self.scalars[f"{key}_mean"].values
+                    b = self.scalars[f"{key}_std"].values
                     a = a.reshape(shp0)
                     b = b.reshape(shp0)
 

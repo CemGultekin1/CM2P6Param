@@ -6,11 +6,11 @@ from jobs.job_body import create_slurm_job
 from jobs.taskgen import python_args
 from utils.arguments import options
 from utils.paths import SLURM, SLURM_LOGS
-
+from data.coords import DEPTHS
 TRAINJOB = 'trainjob'
 root = SLURM
 
-NCPU = 20
+NCPU = 15
 def get_arch_defaults():
     nms = ('widths','kernels','batchnorm','skipconn')
     return (get_default(nm) for nm in nms)
@@ -37,27 +37,70 @@ def fix_architecture(args):
     return args
 def fix_minibatch(args):
     datargs,_ = options(args,key = "data")
-    optminibatch = int(datargs.parts[0]*datargs.parts[1]*datargs.sigma/4*2)
+    if datargs.domain == 'global':
+        optminibatch = int(datargs.parts[0]*datargs.parts[1]*datargs.sigma/4*2)
+    else:
+        optminibatch = 64
     args = replace_param(args,'minibatch',optminibatch)
     return args
 def check_training_task(args):
+    runargs,_ = options(args,key = "run")
+    if runargs.rerun:
+        return False
     _,modelid = options(args,key = "model")
     return is_trained(modelid)
 
 def generate_training_tasks():
     kwargs = dict(
-        depth = [0,5,55,110,181,330,1497],
-        sigma = [8],
-        parts = "1 1",
-        domain = 'global',
-        temperature = True,
-        normalization = "standard",
-        lossfun = "MSE",
-        latitude = [False,True],
-        linsupres = [False,True],       
-        num_workers = NCPU*2,
+        lsrp = [0],     
+        depth = [0],
+        sigma = [4,8,12,16],
+        temperature = False,
+        lossfun = 'MSE',
+        latitude = [False],
+        domain = ['four_regions','global'],
+        num_workers = NCPU,
+        disp = 100,
+        rerun = True,
+        relog = True
     )
     argslist = python_args(**kwargs)
+
+
+    kwargs = dict(
+        lsrp = [0,1,2],     
+        depth = [0],
+        sigma = [4,8,12,16],
+        temperature = True,
+        lossfun = 'MSE',
+        latitude = [False,True],
+        domain = ['four_regions','global'],
+        num_workers = NCPU*2,
+        disp = 100,
+        rerun = True,
+        relog = True
+    )
+    argslist = argslist + python_args(**kwargs)
+
+    kwargs = dict(
+        lsrp = [0,1,2],     
+        depth =[int(d) for d in DEPTHS],
+        sigma = [8],
+        temperature = True,
+        lossfun = 'MSE',
+        latitude = [False,True],
+        domain = 'global',
+        num_workers = NCPU*2,
+        disp = 100,
+        rerun = True,
+        relog = True
+    )
+    argslist = argslist + python_args(**kwargs)
+    import numpy as np
+    _,idx = np.unique(np.array(argslist),return_index=True)
+    argslist = np.array(argslist)
+    argslist = argslist[np.sort(idx)].tolist()
+    
     for i in range(len(argslist)):
         args = fix_architecture(argslist[i].split())
         args = fix_minibatch(args)
@@ -68,7 +111,7 @@ def generate_training_tasks():
         flag = check_training_task(argslist[i].split())
         print(flag,argslist[i])
         istrained.append(flag)
-    jobarray = ','.join([str(i) for i in range(njobs) if not istrained[i]])
+    jobarray = ','.join([str(i+1) for i in range(njobs) if not istrained[i]])
     njobs = len(argslist)
     lines = '\n'.join(argslist)
     argsfile = TRAINJOB + '.txt'
@@ -79,8 +122,8 @@ def generate_training_tasks():
     out = os.path.join(SLURM_LOGS,TRAINJOB+ '_%a_%A.out')
     err = os.path.join(SLURM_LOGS,TRAINJOB+ '_%a_%A.err')
     create_slurm_job(slurmfile,\
-        time = "36:00:00",array = jobarray,\
-        mem = "120GB",job_name = TRAINJOB,\
+        time = "24:00:00",array = jobarray,\
+        mem = "150GB",job_name = TRAINJOB,\
         output = out,error = err,\
         cpus_per_task = str(NCPU),
         nodes = "1",

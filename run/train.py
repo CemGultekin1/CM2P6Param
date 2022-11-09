@@ -60,6 +60,7 @@ def cnn_train(args):
     modelid,state_dict,net,criterion,optimizer,scheduler,logs,runargs=load_model(args)
     flushed_print('torch.cuda.is_available():\t',torch.cuda.is_available())
     flushed_print('runargs:\t',runargs)
+    
     training_generator,val_generator=get_data(args,half_spread = net.spread,torch_flag = True,data_loaders = True,groups = ('train','validation'))
     device=get_device()
     print(f"using device: {device}")
@@ -71,6 +72,7 @@ def cnn_train(args):
         tt=0
         net.train()
         timer.start('data')
+
         for infields,outfields,mask in training_generator:
             if not torch.any(mask>0):
                 continue
@@ -89,12 +91,14 @@ def cnn_train(args):
 
 
             tt+=1
-            if runargs.disp > 0 and tt%runargs.disp==0:
+            if runargs.disp > 0 and tt%runargs.disp==1:
                 flushed_print('\t\t\t train-loss: ',str(np.mean(np.array(logs['train-loss'][-1]))),\
                         '\t ±',\
                         str(np.std(np.array(logs['train-loss'][-1]))))
                 # flushed_print(timer)
             timer.start('data')
+            # if len(logs['train-loss'][-1]) == 4:
+            #     break
 
         timer.reset()
         # if runargs.sanity:

@@ -10,7 +10,11 @@ def plot_ds(ds,imname,ncols = 3):
     import matplotlib.pyplot as plt
     import itertools
     flat_vars = {}
-
+    if isinstance(ds,list):
+        for i,ds_ in enumerate(ds):
+            imname_ = imname.replace('.png',f'-{i}.png')
+            plot_ds(ds_,imname_,ncols = ncols)
+        return
     for key in ds.data_vars.keys():
         u = ds[key]
         if 'tr_depth'in u.dims:
@@ -24,6 +28,7 @@ def plot_ds(ds,imname,ncols = 3):
     vars = list(flat_vars.keys())
     nrows = int(np.ceil(len(vars)/ncols))
     fig,axs = plt.subplots(nrows,ncols,figsize=(ncols*6,nrows*5))
+    print('nrows,ncols\t',nrows,ncols)
     for z,(i,j) in enumerate(itertools.product(range(nrows),range(ncols))):
         ax = axs[i,j]
         if z >= len(vars):
@@ -63,6 +68,36 @@ def fromnumpydict(data_vars,coords):
                 coords_[key] =  np.array([coords[key][i]])#datetime.fromisoformat(coords[key][i])])
         ds = xr.Dataset(data_vars = data_vars_,coords = coords_)
         return ds
+def fromtorchdict2tensor(data_vars,contained = ''):
+    vecs = []
+    for key in data_vars:
+        if '_mean' in key or '_std' in key:
+            continue
+        if contained not in key:
+            continue
+        _,vec = data_vars[key]
+        vecs.append(vec)
+    for i in range(len(vecs)):
+        vec = vecs[i]
+        j = 4 - len(vec.shape)
+        vecs[i] = vec.reshape([1]*j + list(vec.shape))
+    return torch.cat(vecs,dim=1)
+
+def fromtensor2dict(tts,data_vars0,contained = ''):
+    data_vars = {}
+    i= 0 
+    for key in data_vars0:
+        dims,vec = data_vars0[key]
+        if '_mean' in key or '_std' in key:
+            data_vars[key] = dims,vec
+        elif contained in key:
+            data_vars[key] = dims, tts[0,i]
+            i+=1
+    return data_vars
+
+def fromtensor(tts,data_vars0,coords,masks,denormalize = True,fillvalue = np.nan,**kwargs):
+    data_vars = fromtensor2dict(tts,data_vars0,**kwargs)
+    return fromtorchdict(data_vars,coords,masks,normalize = False,denormalize=denormalize, fillvalue=fillvalue)
 
 def fromtorchdict(data_vars,coords,masks,normalize = False,denormalize = False,fillvalue = np.nan):
     ds = fromtorchdict2dataset(data_vars,coords)
@@ -85,8 +120,10 @@ def drop_unused_coords(ds):
         ds = ds.drop(dcn)
     return ds
 def fromtorchdict2dataset(data_vars,coords):
-    for key in data_vars:
-        data_vars[key] = (data_vars[key][0],data_vars[key][1].numpy())
+    for key,(dims,vals) in data_vars.items():
+        if isinstance(vals,torch.Tensor):
+            vals = vals.numpy()
+        data_vars[key] = (dims,vals)
     for key,val in coords.items():
         if isinstance(val,torch.Tensor):
             coords[key] = val.numpy()

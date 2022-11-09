@@ -10,6 +10,7 @@ from utils.parallel import get_device
 from utils.paths import EVALS
 from utils.slurm import flushed_print
 import numpy as np
+from utils.xarray import fromtensor, fromtorchdict, fromtorchdict2tensor
 import xarray as xr
 
 def change_scale(d0,normalize = False,denormalize = False):
@@ -104,18 +105,48 @@ def err_scale_dataset(mean,truef):
 def expand_depth(evs,depthval):
     print(depthval)
     return evs.expand_dims(dims = dict(depth = depthval),axis=0)
+def lsrp_pred(respred,tr):
+    keys= list(respred.data_vars.keys())
+    data_vars = {}
+    coords = {key:val for key,val in tr.coords.items()}
+    for key in  keys:
+        trkey = key.replace('0_res','').replace('1_res','')
+        err = tr[trkey] - tr[key]
+        data_vars[trkey] = (err.dims,err.values)
+        respred[key] = err + respred[key]
+        respred = respred.rename({key:trkey})
+        tr = tr.drop(key)
+    lsrp = xr.Dataset(data_vars =data_vars,coords = coords)
+    return (respred,lsrp),tr
+def update_stats(stats,prd,tr,lsrp_flag):
+    if lsrp_flag:
+        cnn_prd,lsrp_prd = prd
+        if stats is None:
+            stats = [None,None]
+        stats[0] = update_stats(stats[0],cnn_prd,tr,False)
+        stats[1] = update_stats(stats[1],lsrp_prd,tr,False)
+        return stats
+    err = np.square(tr - prd)
+    sc2 = np.square(tr)
+    err = err.rename({key:f'{key}_mse' for key in err.data_vars})
+    sc2 = sc2.rename({key:f'{key}_sc2' for key in sc2.data_vars})
+    stats_ = xr.merge([err,sc2])
+    if stats is None:
+        stats = stats_
+    else:
+        stats = stats + stats_
+    return stats
+
 def main():
     args = sys.argv[1:]
     modelid,_,net,_,_,_,_,runargs=load_model(args)
     device = get_device()
     runargs,_ = options(args,key = "run")
-    linsupres = runargs.linsupres
+    lsrp_flag = runargs.lsrp > 0
+    kwargs = dict(contained = '' if not lsrp_flag else 'res')
     assert runargs.mode == "eval"
-    multidatargs = populate_data_options(args,non_static_params=["depth"])
-    # multidatargs = multidatargs[:2]
-    total_evs = []
-    if linsupres:
-        total_lsrp_evs = []
+    multidatargs = populate_data_options(args,non_static_params=["depth"],domain = 'global')
+    allstats = []
     for datargs in multidatargs:
         try:
             test_generator, = get_data(datargs,half_spread = net.spread, torch_flag = False, data_loaders = True,groups = ('test',))
@@ -124,64 +155,43 @@ def main():
             test_generator = None
         if test_generator is None:
             continue
-        evs = None
-        nt_limit = np.inf
+        stats = None
         nt = 0
-        for fields,forcings,forcing_masks,info in test_generator:
-            depth = info['depth'].numpy().reshape([-1])
+
+        for fields,forcings,forcing_mask,_,forcing_coords in test_generator:
+            fields_tensor = fromtorchdict2tensor(fields).type(torch.float32)
+            depth = forcing_coords['depth'].item()
             if nt == 0:
-                flushed_print(depth[0])
+                flushed_print(depth)
 
-            torch_fields, = torch_stack(fields)
             with torch.set_grad_enabled(False):
-                mean,_ =  net.forward(torch_fields.to(device))
+                mean,_ =  net.forward(fields_tensor.to(device))
                 mean = mean.to("cpu")
-            if linsupres:
-                true_forcing,lsrp_res = separate_linsupres(forcings)
-                mean = match(mean,lsrp_res)
-                mean = change_scale(mean,denormalize=True)
-                true_forcing = change_scale(true_forcing,denormalize=True)
-                lsrp_res = change_scale(lsrp_res,denormalize=True)
-                lsrp_res = override_names(lsrp_res,true_forcing)
-                mean = override_names(mean,true_forcing)
-            else:
-                true_forcing = forcings
-                mean = match(mean,true_forcing)
-                mean = change_scale(mean,denormalize=True)
-                true_forcing = change_scale(true_forcing,denormalize=True)
-            true_forcing = mask(true_forcing,forcing_masks)
-            mean = mask(mean,forcing_masks)
-            mean = to_xarray(mean,depth,)
-            true_forcing = to_xarray(true_forcing,depth,)
+            predicted_forcings = fromtensor(mean,forcings,forcing_coords, forcing_mask,denormalize = True,**kwargs)
+            true_forcings = fromtorchdict(forcings,forcing_coords,forcing_mask,denormalize = True)
+            if lsrp_flag:
+                predicted_forcings,true_forcings = lsrp_pred(predicted_forcings,true_forcings)
+            stats = update_stats(stats,predicted_forcings,true_forcings,lsrp_flag)
+            nt += 1
+            break
 
-            if linsupres:
-                lsrp_res = mask(lsrp_res,forcing_masks)
-                lsrp_res = to_xarray(lsrp_res,depth)
-                lsrp_out = true_forcing - lsrp_res
-                mean = mean + lsrp_out
-                part_lsrp_evs = err_scale_dataset(lsrp_out,true_forcing)
-            part_evs = err_scale_dataset(mean,true_forcing)
-
-            if evs is None:
-                evs = part_evs
-                if linsupres:
-                    lsrp_evs = part_lsrp_evs
-            else:
-                evs = evs + part_evs
-                if linsupres:
-                    lsrp_evs = lsrp_evs + part_lsrp_evs
-            nt+=1
-            if nt>=nt_limit:
-                break
-        total_evs.append(evs/nt)
-        if linsupres:
-            total_lsrp_evs.append(lsrp_evs/nt)
+        if lsrp_flag:
+            for i in range(len(stats)):
+                stats[i] = stats[i].expand_dims(dim = {'depth':[depth]},axis= 0)
+                stats[i] = stats[i]/nt
+        else:
+            stats = stats.expand_dims(dim = {'depth':[depth]},axis= 0)
+            stats = stats/nt
         
-    evs = xr.merge(total_evs)
+        allstats.append(stats)
+    if lsrp_flag:
+        evs = xr.merge([alst[0] for alst in allstats])
+        lsrp_evs = xr.merge([alst[1] for alst in allstats])
+    else:
+        evs = xr.merge(allstats)
     fileame = os.path.join(EVALS,modelid+'.nc')
     evs.to_netcdf(fileame,mode = 'w')
-    if linsupres:
-        lsrp_evs = xr.merge(total_lsrp_evs)
+    if lsrp_flag:
         fileame = os.path.join(EVALS,'lsrp.nc')
         lsrp_evs.to_netcdf(fileame,mode = 'w')
 

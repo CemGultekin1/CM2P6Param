@@ -56,7 +56,7 @@ RUN_PARAMS = {
     "num_workers" : {"type": int, "default" : 0},
     "prefetch_factor" : {"type": int, "default": 1},
     "maxepoch" : {"type": int, "default" : 500},
-    "persistent_workers" : {"type":bool,"default":False},
+    "persistent_workers" : {"type":bool,"default":True},
     "rerun":{"type":bool,"default":False},
     "relog":{"type":bool,"default":False},
     "disp" :  {"type":int,"default":-1},
