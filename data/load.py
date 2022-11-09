@@ -67,7 +67,6 @@ def get_var_grouping(args)-> Tuple[Tuple[List[str],...],Tuple[List[str],...]]:
         lsrpi = runprms.lsrp - 1
         if runprms.mode != 'train':
             varnames.append(forcings + lsrp_res[lsrpi])
-            # varnames.append(fieldmasks)
             forcingmask_names.append(forcingmasks + lsrpforcingmasks[lsrpi])
         else:
             varnames.append(lsrp_res[lsrpi])

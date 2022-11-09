@@ -177,9 +177,6 @@ class MultiDomainDataset(MultiDomain):
                     if nvarname in data_vars:
                         valdict[nvarname] = data_vars[nvarname]
             groups.append(valdict)
-            # normalization_groups.append(valnormalization)
-        # if not self.torch_flag:
-            # groups.extend(normalization_groups)
         return tuple(groups)
 
     def group_np_stack(self,vargroups):

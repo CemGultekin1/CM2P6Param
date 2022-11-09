@@ -27,7 +27,6 @@ DATA_PARAMS = {
 
 TRAIN_PARAMS = {
     "lr" : {"type": float, "default" : 1e-2},
-    "minibatch" : {"type": int, "default" : 1},
     "lossfun" : {"type":str, "choices":["heteroscedastic","MSE"]}
 }
 
@@ -53,6 +52,7 @@ ARCH_PARAMS = {
 
 
 RUN_PARAMS = {
+    "minibatch" : {"type": int, "default" : 1},
     "num_workers" : {"type": int, "default" : 0},
     "prefetch_factor" : {"type": int, "default": 1},
     "maxepoch" : {"type": int, "default" : 500},

@@ -18,7 +18,6 @@ class CM2p6Dataset:
         self.sigma = sigma
         self.half_spread = half_spread
         self.global_hres_coords = [None]*4
-        self.wetmask_flag = kwargs.get('wetmask',False)
         def flatten_tuple_list(l_):
             # varnames = list(ds.data_vars)
             l = []
@@ -26,8 +25,9 @@ class CM2p6Dataset:
                 # if n in varnames:
                 l.append(n)
             return l
-        if boundaries is None:
-            boundaries = (-90,90,-180,180)
+        # if boundaries is None:
+        print(boundaries)
+        self.requested_boundaries = boundaries
     
         varnames = kwargs.get('var_grouping',None)
         if varnames is not None:
@@ -38,7 +38,7 @@ class CM2p6Dataset:
             self.forcing_names  = None
         
         self.global_lres_coords = self.ds.ulat.values,larger_longitude_grid(self.ds.ulon.values)
-        self.preboundaries = boundaries
+        self.preboundaries = (-90,90,-180,180)
 
     @property
     def depth(self,):
@@ -73,7 +73,6 @@ class CM2p6Dataset:
 class SingleDomain(CM2p6Dataset):
     local_lres_coords :Tuple[np.ndarray,...] # larger lres grid
     final_local_lres_coords : Tuple[np.ndarray,...] # smaller lres grid
-    wet_mask : xr.DataArray
     initiated : bool
     all_land : bool
     def __init__(self,*args,**kwargs):
@@ -81,6 +80,8 @@ class SingleDomain(CM2p6Dataset):
         self.confine(*self.preboundaries)
         self.initiated = False
         self.all_land = None
+        self._wetmask = None
+        self._forcingmask = None
         
 
     @property
@@ -108,9 +109,41 @@ class SingleDomain(CM2p6Dataset):
             return fix_grid(u,latlon)#at_name = "ulat",lon_name = "ulon")
         else:
             return u
-
+    @property
+    def fieldwetmask(self,):
+        if self._wetmask is None:
+            ds = self.ds.isel(time =0).load()
+            ds = lose_tgrid(ds)
+            ds = self.get_grid_fixed_lres(ds)
+            wetmask = ds.ugrid_wetmask + ds.tgrid_wetmask
+            wetmask = xr.where(wetmask > 0,1,0)
+            if self.requested_boundaries is not None:
+                wmask = wetmask.values
+                bmask = wmask*0 + 1
+                lat = wetmask.lat.values 
+                lon = wetmask.lon.values
+                for lat0,lat1,lon0,lon1 in self.requested_boundaries:
+                    latmask = (lat >= lat0)*(lat <= lat1)
+                    lonmask = (lon >= lon0)*(lon <= lon1)
+                    mask = latmask.reshape([-1,1])@lonmask.reshape([1,-1])
+                    bmask = mask  + bmask
+                wmask = wmask*bmask
+                wetmask = xr.DataArray(
+                    data = wmask,
+                    dims = ['lat','lon'],
+                    coords = {'lat':lat,'lon':lon}
+                )
+            self._wetmask = wetmask
+        return self._wetmask
+    @property
+    def forcingwetmask(self,):
+        if self._forcingmask is None:
+            forcing_mask = no_nan_input_mask(self._wetmask,self.half_spread,lambda x: x==0,same_size = True)
+            self._forcingmask =  xr.where(forcing_mask==0,1,0)
+        return self._forcingmask
+            
     def get_dataset(self,t):
-        ds = self.ds.isel(time =t)
+        ds = self.ds.isel(time =t).load()
         ds = lose_tgrid(ds)
         ds = self.get_grid_fixed_lres(ds)
         for prefix in '0 1'.split():
@@ -122,9 +155,8 @@ class SingleDomain(CM2p6Dataset):
                     forcing = np.stack([forcing],axis = 0)
                 lsrp_res_forcing = forcing - lsrp_forcing
                 ds[lv.replace(prefix,f'{prefix}_res')] = (ds[lv].dims,lsrp_res_forcing)
-        wetmask = ds.ugrid_wetmask + ds.tgrid_wetmask
-        wetmask = xr.where(wetmask > 0,1,0)
         
+
 
         def apply_mask(ds,wetmaskv,keys):
             for name in keys:
@@ -137,17 +169,10 @@ class SingleDomain(CM2p6Dataset):
             return ds
 
         ds = ds.drop('tgrid_wetmask').drop('ugrid_wetmask')
-        forcing_mask = no_nan_input_mask(wetmask,self.half_spread,lambda x: x==0,same_size = True)
-        forcing_mask = xr.where(forcing_mask==0,1,0)
-        ds = apply_mask(ds,wetmask.values,list(ds.data_vars))
-        ds = apply_mask(ds,forcing_mask.values,[field for field in list(ds.data_vars) if 'S' in field])
-        # for field in 'u v T'.split():
-        #     ds[field] = xr.where(wetmask,ds[field],np.nan)
-        # for field in ds.data_vars.keys():
-        #     if 'S' in field:
-        #         ds[field] = xr.where(forcing_mask,ds[field],np.nan)
-        all_land = np.mean(forcing_mask.values) > 1 - 1e-2
-        ds['all_land'] = all_land
+        # forcing_mask = no_nan_input_mask(wetmask,self.half_spread,lambda x: x==0,same_size = True)
+        # forcing_mask = xr.where(forcing_mask==0,1,0)
+        ds = apply_mask(ds,self.fieldwetmask.values,list(ds.data_vars))
+        ds = apply_mask(ds,self.forcingwetmask.values,[field for field in list(ds.data_vars) if 'S' in field])
         return ds
 
     def get_grid_fixed_lres(self,ds):

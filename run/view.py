@@ -1,6 +1,7 @@
 import os
 import random
 import sys
+from run.eval import lsrp_pred
 import torch
 from data.load import get_data
 from data.vars import get_var_mask_name
@@ -10,6 +11,7 @@ from utils.parallel import get_device
 import numpy as np
 from utils.paths import get_view_path
 from utils.slurm import flushed_print
+from utils.xarray import fromtensor, fromtorchdict, fromtorchdict2tensor
 import xarray as xr
 
 def change_scale(d0,normalize = False,denormalize = False):
@@ -120,79 +122,42 @@ def main():
     net.to(device)
     
     runargs,_ = options(args,key = "run")
-    linsupres = runargs.linsupres
+    lsrp_flag = runargs.lsrp
     assert runargs.mode == "view"
     
     multidatargs = populate_data_options(args,non_static_params=["depth"])
-    total_evs = []
-    if linsupres:
-        total_lsrp_evs = []
+    allstats = []
     for datargs in multidatargs:
-        set_seed()
         try:
             test_generator, = get_data(datargs,half_spread = net.spread, torch_flag = False, data_loaders = True,groups = ('test',))
-            # test_generator2, = get_data(datargs,half_spread = net.spread, torch_flag = True, data_loaders = True,groups = ('test',))
         except GroupNotFoundError:
             print('data not found!')
             test_generator = None
         if test_generator is None:
             continue
-        evs = None
-        lsrp_evs =None
-        nt_limit = 8
+        stats = None
         nt = 0
+        kwargs = dict(contained = '' if not lsrp_flag else 'res')
+        for fields,forcings,field_mask,forcing_mask,field_coords,forcing_coords in test_generator:
+            fields_tensor = fromtorchdict2tensor(fields).type(torch.float32)
+            depth = forcing_coords['depth'].item()
+            time = forcing_coords['time'][0]
 
-        for fields,forcings,field_masks,forcing_masks,info in test_generator:
-            depth = info['depth'].numpy().reshape([-1])
-            time = info['itime'].numpy().astype(int).reshape([-1])
-            itime = np.array([nt], dtype=int)
-            flushed_print(nt,depth[0],time[0])
-            # time[0] = nt
+            flushed_print(nt,depth,time)
+
             torch_fields = torch_stack(fields)
             with torch.set_grad_enabled(False):
                 mean,_ =  net.forward(torch_fields.to(device))
                 mean = mean.to("cpu")
                 # mean = torch.randn(1,3,309-10,458-10)
-            if linsupres:
-                true_forcing,lsrp_res = separate_linsupres(forcings)
-                mean = match(mean,lsrp_res)
-                mean = change_scale(mean,denormalize=True)
-                true_forcing = change_scale(true_forcing,denormalize=True)
-                lsrp_res = change_scale(lsrp_res,denormalize=True)
-                lsrp_res = override_names(lsrp_res,true_forcing)
-                mean = override_names(mean,true_forcing)
-            else:
-                true_forcing = forcings
-                mean = match(mean,true_forcing)
-                mean = change_scale(mean,denormalize=True)
-                true_forcing = change_scale(true_forcing,denormalize=True)
-
-            fields = change_scale(fields,denormalize=True)
-            fields = mask(fields,field_masks)
-            fields = to_xarray(fields,depth,time,itime).isel(lon = slice(0,-1))
-
-            true_forcing = mask(true_forcing,forcing_masks)
-            mean = mask(mean,forcing_masks)
-            mean = to_xarray(mean,depth,time,itime).isel(lon = slice(0,-1))
-            true_forcing = to_xarray(true_forcing,depth,time,itime).isel(lon = slice(0,-1))
-
-            if linsupres:
-                lsrp_res = mask(lsrp_res,forcing_masks)
-                lsrp_res = to_xarray(lsrp_res,depth,time,itime).isel(lon = slice(0,-1))
-                lsrp_out = true_forcing - lsrp_res
-                mean = mean + lsrp_out
-                lsrp_out['time'] = true_forcing['time']
-
-                part_lsrp_evs = err_scale_dataset(lsrp_out,true_forcing)
-            part_evs = err_scale_dataset(mean,true_forcing)
-            part_evs = xr.merge([part_evs,fields],fill_value = np.nan)
-            evs = ifnotnone_merge(evs,part_evs)
-            if linsupres:
-                part_lsrp_evs = xr.merge([part_lsrp_evs,fields],fill_value = np.nan)
-                lsrp_evs = ifnotnone_merge(lsrp_evs,part_lsrp_evs)
+            predicted_forcings = fromtensor(mean,forcings,forcing_coords, forcing_mask,denormalize = True,**kwargs)
+            true_forcings = fromtorchdict(forcings,forcing_coords,forcing_mask,denormalize = True)
+            true_fields = fromtorchdict(fields,field_coords,field_mask,denormalize = True)
+            if lsrp_flag:
+                predicted_forcings,true_forcings = lsrp_pred(predicted_forcings,true_forcings)
             nt+=1
-            if nt>=nt_limit:
-                break
+
+            
         total_evs.append(evs)
         if linsupres:
             total_lsrp_evs.append(lsrp_evs)

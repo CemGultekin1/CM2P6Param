@@ -139,7 +139,7 @@ def scalars():
 
 def eval():
     nbatch = 1
-    args = f'--sigma 4 --depth 5 --domain global --minibatch {nbatch} --prefetch_factor 1 --lsrp 2 --termperature True --num_workers 1 --mode eval'.split()
+    args = f'--sigma 4 --depth 5 --domain four_regions --minibatch {nbatch} --prefetch_factor 1 --lsrp 2 --termperature True --num_workers 1 --mode eval'.split()
     from data.load import get_data
     import xarray as xr
     import numpy as np

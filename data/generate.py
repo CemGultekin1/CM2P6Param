@@ -356,66 +356,6 @@ class ProjectedHighResCm2p6(HighResCm2p6):
         if not maskpurposed:
             outputs = outputs.expand_dims(dim = {"time": [str(time)]},axis=0)
         return outputs
-
-        sfds = subgrid_forcing(u,v,T,ugrid,tgrid,*self.coarse_grain)
-
-        if not self.initiated:
-            def replace_values(u):
-                uv = u.values.copy()
-                randentry = np.random.randn(*uv.shape)
-
-                uv[uv==uv] = 0
-                uv[uv!=uv] = randentry[uv!=uv]
-                
-                dims = u.dims
-                coords = u.coords
-                return xr.DataArray(
-                    data = uv,
-                    dims = dims,
-                    coords = coords,
-                    name = u.name
-                )
-            
-            u1,v1,T1 = replace_values(u),replace_values(v),replace_values(T)
-
-            sfds1 = subgrid_forcing(u1,v1,T1,ugrid,tgrid,*self.dry_coarse_grain)
-            sfds1 = trim_expanded_longitude(sfds1,expansion = self.coarse_graining_crop)
-            ugridmask = sfds1.u*0
-            tgridmask = sfds1.T*0
-            for name in list(sfds1.data_vars):
-                vals = sfds1[name]
-                vals = xr.where((np.abs(vals) + np.isnan(vals))>0,1,0)
-                if 'u' in vals.dims[0]:
-                    ugridmask = ugridmask + vals
-                else:
-                    tgridmask = tgridmask + vals
-            ugridmask = xr.where( (ugridmask>0)  + np.isnan(ugridmask),1,0)
-            tgridmask = xr.where( (tgridmask>0)  + np.isnan(tgridmask),1,0)
-            ugridmask.name = 'ugrid_wetmask'
-            tgridmask.name = 'tgrid_wetmask'
-            wetmasks = xr.merge([ugridmask,tgridmask])
-            self.wetmasks = wetmasks
-            self.initiated = True
-
-        sfds = subgrid_forcing(u,v,T,ugrid,tgrid,*self.coarse_grain)
-        psfds = subgrid_forcing(u,v,T,ugrid,tgrid,*self.coarse_grain,projections = self.projections)
-        psfds_vars = {f"lsrp_{key}":val for key,val in psfds.data_vars.items() if 'S' in key}
-
-        sfds = xr.Dataset(
-            data_vars = dict(
-                sfds.data_vars,**psfds_vars
-            )
-        )
-        sfds = trim_expanded_longitude(sfds,expansion = self.coarse_graining_crop)
-        
-        sfds = xr.merge([sfds,self.wetmasks])
-        sfds = sfds.expand_dims(dim = {"depth": [depth]},axis=0)
-        sfds = sfds.expand_dims(dim = {"time": [str(time)]},axis=0)
-        
-        sfds['ugrid_wetmask'] = sfds.ugrid_wetmask.isel(time = 0)
-        sfds['tgrid_wetmask'] = sfds.tgrid_wetmask.isel(time = 0)
-        
-        return sfds
     def is_wetmask_needed(self,i):
         if self.wetmask is None:
             return True
