@@ -17,7 +17,7 @@ def get_filename(sigma,depth,co2,locdir = root):
         filename = f'{surf}_{co2}.zarr'
         filename = filename.replace('_.zarr','.zarr')
     path = os.path.join(locdir,filename)
-    return path
+    return path.replace('.zarr','_.zarr')
 
 def get_high_res_grid_location():
     return GRID_INFO

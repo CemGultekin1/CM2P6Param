@@ -111,29 +111,41 @@ class SingleDomain(CM2p6Dataset):
 
     def get_dataset(self,t):
         ds = self.ds.isel(time =t)
-        print(ds)
         ds = lose_tgrid(ds)
         ds = self.get_grid_fixed_lres(ds)
-        lsrp_vars = [v for v in list(ds.data_vars) if 'lsrp' in v]
-        for lv in lsrp_vars:
-            lsrp_forcing = ds[lv].values
-            forcing = ds[lv.replace('lsrp_','')]
-            lsrp_res_forcing = forcing.values - lsrp_forcing
-            ds[lv.replace('lsrp_','lsrp_res_')] = (forcing.dims,lsrp_res_forcing)
+        for prefix in '0 1'.split():
+            lsrp_vars = [v for v in list(ds.data_vars) if prefix in v]
+            for lv in lsrp_vars:
+                lsrp_forcing = ds[lv].values
+                forcing = ds[lv.replace(prefix,'')].values
+                if 'tr_depth' in ds[lv].dims:
+                    forcing = np.stack([forcing],axis = 0)
+                lsrp_res_forcing = forcing - lsrp_forcing
+                ds[lv.replace(prefix,f'{prefix}_res')] = (ds[lv].dims,lsrp_res_forcing)
         wetmask = ds.ugrid_wetmask + ds.tgrid_wetmask
-        wetmask = xr.where(wetmask > 0,0,1)
+        wetmask = xr.where(wetmask > 0,1,0)
+        
 
-        for name in ds.data_vars.keys():
-            u = ds[name]
-            ds[name] = xr.where(wetmask,u,np.nan)
+        def apply_mask(ds,wetmaskv,keys):
+            for name in keys:
+                v = ds[name].values
+                vshp = list(v.shape)
+                v = v.reshape([-1] + vshp[-2:])
+                v[:,wetmaskv<1] = np.nan
+                v = v.reshape(vshp)
+                ds[name] = (ds[name].dims,v)
+            return ds
+
         ds = ds.drop('tgrid_wetmask').drop('ugrid_wetmask')
         forcing_mask = no_nan_input_mask(wetmask,self.half_spread,lambda x: x==0,same_size = True)
         forcing_mask = xr.where(forcing_mask==0,1,0)
-        for field in 'u v T'.split():
-            ds[field] = xr.where(wetmask,ds[field],np.nan)
-        for field in ds.data_vars.keys():
-            if 'S' in field:
-                ds[field] = xr.where(forcing_mask,ds[field],np.nan)
+        ds = apply_mask(ds,wetmask.values,list(ds.data_vars))
+        ds = apply_mask(ds,forcing_mask.values,[field for field in list(ds.data_vars) if 'S' in field])
+        # for field in 'u v T'.split():
+        #     ds[field] = xr.where(wetmask,ds[field],np.nan)
+        # for field in ds.data_vars.keys():
+        #     if 'S' in field:
+        #         ds[field] = xr.where(forcing_mask,ds[field],np.nan)
         all_land = np.mean(forcing_mask.values) > 1 - 1e-2
         ds['all_land'] = all_land
         return ds
@@ -182,7 +194,7 @@ class DividedDomain(CM2p6Dataset):
         bds = divide2equals(lat,lon,parts[0],parts[1],*self.preboundaries)
         self.parts = parts
         self.cgs = {}
-        self.linsupres = kwargs.pop("linsupres",False)
+        self.lsrp = kwargs.pop("lsrp",0)
         kwargs.pop('boundaries',None)
         for i,j in self.iterate_over_parts():
             self.cgs[(i,j)] = SingleDomain(self.ds,self.sigma,boundaries=bds[(i,j)],**kwargs)

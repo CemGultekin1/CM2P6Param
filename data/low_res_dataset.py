@@ -12,7 +12,7 @@ def determine_ndoms(*args,**kwargs):
     for i in range(len(args)):
         if isinstance(args[i],list):
             arglens.append(len(args[i]))
-    for key,val in kwargs.items():
+    for key,_ in kwargs.items():
         if isinstance(kwargs[key],list):
             arglens.append(len(kwargs[key]))
     return  int(np.amax(arglens))
@@ -34,7 +34,7 @@ class MultiDomain(CM2p6Dataset):
             self.domain_datasets.append(DividedDomain(*args_,**kwargs_))
             self.shapes.append(self.domain_datasets[-1].shapes)
             self.parts.append(self.domain_datasets[-1].parts)
-        self.linsupres = self.domain_datasets[0].linsupres
+        self.lsrp = self.domain_datasets[0].lsrp
         self.half_spread = self.domain_datasets[0].half_spread
         self.normalization = kwargs.pop("normalization","standard")
         self.var_grouping = kwargs.pop('var_grouping')
@@ -103,8 +103,8 @@ class MultiDomain(CM2p6Dataset):
 
 
 class MultiDomainDataset(MultiDomain):
-    def __init__(self,*args,scalars_dict = None,latitude = False,temperature = False,torch_flag = False,**kwargs):
-        self.scalars_dict = scalars_dict
+    def __init__(self,*args,scalars = None,latitude = False,temperature = False,torch_flag = False,**kwargs):
+        self.scalars = scalars
         self.latitude = latitude
         self.temperature = temperature
         self.running_mean = {}
@@ -124,11 +124,14 @@ class MultiDomainDataset(MultiDomain):
             dims,vals = data_vars[name]
             if 'lat' not in dims or 'lon' not in dims:
                 continue
-            
-            pad = self.max_shape - np.array(vals.shape)
+            pad = self.max_shape - np.array(vals.shape)[-2:]
             if name in self.forcing_names and self.half_spread>0:
-                vals =  vals[self.sslice,self.sslice]
-            vals = np.pad(vals,pad_width = ((0,pad[0]),(0,pad[1])),constant_values = np.nan)
+                vrshp = list(vals.shape)
+                vals = vals.reshape([-1]+ vrshp[-2:])
+                vals =  vals[:,self.sslice,self.sslice]
+                vals = vals.reshape(vrshp[:-2] + list(vals.shape[-2:]))
+            padtuple = (len(vals.shape)-2)*[(0,0)] + [(0,pad[0]),(0,pad[1])]
+            vals = np.pad(vals,pad_width = tuple(padtuple),constant_values = np.nan)
             data_vars[name] = (dims,vals)
         
         def pad_coords(coords,slice_flag = False):
@@ -169,9 +172,10 @@ class MultiDomainDataset(MultiDomain):
             # valnormalization = {}
             for varname in vargroup:
                 valdict[varname] = data_vars[varname]
-                nvarname = f"{varname}_normalization"
-                if nvarname in data_vars:
-                    valdict[nvarname] = data_vars[nvarname]
+                for suff in '_mean _std'.split():
+                    nvarname = varname + suff
+                    if nvarname in data_vars:
+                        valdict[nvarname] = data_vars[nvarname]
             groups.append(valdict)
             # normalization_groups.append(valnormalization)
         # if not self.torch_flag:
@@ -195,17 +199,37 @@ class MultiDomainDataset(MultiDomain):
     def normalize(self,data_vars,coords):
         keys_list = tuple(data_vars.keys())
         for key in keys_list:
-            a,b = 0,1
-            if self.scalars_dict is not None:
-                if key in self.scalars_dict:
-                    a,b = self.scalars_dict[key]
-            if not self.torch_flag:
-                coords['normalization'] = ['mean','std']
-                data_vars[f"{key}_normalization"] =(['normalization'],np.array([a,b]))
             dims,vals = data_vars[key]
-            vals = (vals - a)/b
-            data_vars[key] = (dims,vals)
+            if 'lat' not in dims or 'lon' not in dims:
+                continue
+            shp = {d:len(coords[d]) for d in dims}
+            newdims = {key:None for key in shp}
+            if 'lon' in shp:
+                shp['lon'] = 1
+                newdims.pop('lon')
+            if 'lat' in shp:
+                shp['lat'] = 1
+                newdims.pop('lat')
+            shp0 = [shp[key] for key in newdims]
+            shp1 = list(shp.values())
+            newdims = list(newdims.keys())
+            
+            
+            a,b = np.zeros(shp0),np.ones(shp0)
+            if self.scalars is not None:
+                if key in self.scalars:
+                    a = self.scalars[f"{key}_mean"].value
+                    b = self.scalars[f"{key}_std"].value
+                    a = a.reshape(shp0)
+                    b = b.reshape(shp0)
 
+            
+
+            if not self.torch_flag:
+                data_vars[f"{key}_mean"] = (newdims,a)
+                data_vars[f"{key}_std"] = (newdims,b)
+            vals = (vals - a.reshape(shp1))/b.reshape(shp1)
+            data_vars[key] = (dims,vals)
         return data_vars,coords
 
     def mask(self,data_vars):

@@ -2,18 +2,18 @@ import itertools
 import os
 from jobs.job_body import create_slurm_job
 from utils.paths import SLURM_LOGS, SLURM
-
+from data.coords import DEPTHS
 JobName = 'scalars'
 root = SLURM
 
-NCPU = 2
-
+NCPU = 8
+MEM_PER_CPU = 9
 def python_args():
     def givearg(sigma,depth):
-        st =  f"--domain global --minibatch 1 --prefetch_factor 1 --depth {depth} --sigma {sigma} --mode scalars --linsupres True --temperature True --num_workers {NCPU}"
+        st =  f"--domain global --prefetch_factor 1 --depth {depth} --sigma {sigma} --mode scalars --num_workers {NCPU}"
         return st
     sigmas = [4,8,12,16]
-    depths = [0,5,55,110,181,330,1497]
+    depths = [int(d) for d in DEPTHS]
     prods = (sigmas,depths)
     lines = []
     for args in itertools.product(*prods):
@@ -31,8 +31,8 @@ def slurm(njob):
     err = os.path.join(SLURM_LOGS,JobName+ '_%a_%A.err')
     create_slurm_job(slurmfile,\
         python_file = 'run/scalars.py',
-        time = "30:00",array = f"1-{njob}",\
-        mem = "30GB",job_name = JobName,\
+        time = "3:00:00",array = f"1-{njob}",\
+        mem = f"{MEM_PER_CPU*NCPU}GB",job_name = JobName,\
         output = out,error = err,\
         cpus_per_task = str(NCPU),
         nodes = "1",

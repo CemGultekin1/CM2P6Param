@@ -2,7 +2,7 @@
 
 import itertools
 import os
-from data.save import scalars_exist
+from data.scalars import scalars_exist
 from models.nets.cnn import adjustcnn
 from jobs.job_body import create_slurm_job
 from utils.arguments import options

@@ -4,7 +4,36 @@ import xarray as xr
 import torch
 import numpy as np
 import torch.nn as nn
-from datetime import datetime
+
+
+def plot_ds(ds,imname,ncols = 3):
+    import matplotlib.pyplot as plt
+    import itertools
+    flat_vars = {}
+
+    for key in ds.data_vars.keys():
+        u = ds[key]
+        if 'tr_depth'in u.dims:
+            for i in range(len(u.tr_depth)):
+                ui = u.isel(tr_depth = i)
+                if np.all(np.isnan(ui.values)):
+                    continue
+                flat_vars[f'{key}_tr_depth_{i}'] = u.isel(tr_depth = i)
+        else:
+            flat_vars[key] = u
+    vars = list(flat_vars.keys())
+    nrows = int(np.ceil(len(vars)/ncols))
+    fig,axs = plt.subplots(nrows,ncols,figsize=(ncols*6,nrows*5))
+    for z,(i,j) in enumerate(itertools.product(range(nrows),range(ncols))):
+        ax = axs[i,j]
+        if z >= len(vars):
+            continue
+        u = flat_vars[vars[z]]
+        u.plot(ax = ax)
+        ax.set_title(vars[z])
+    fig.savefig(imname)
+    plt.close()
+
 
 def tonumpydict(x:xr.Dataset):
     vars = list(x.data_vars)
@@ -35,7 +64,27 @@ def fromnumpydict(data_vars,coords):
         ds = xr.Dataset(data_vars = data_vars_,coords = coords_)
         return ds
 
-def fromtorchdict(data_vars,coords):
+def fromtorchdict(data_vars,coords,masks,normalize = False,denormalize = False,fillvalue = np.nan):
+    ds = fromtorchdict2dataset(data_vars,coords)
+    dsmasks = fromtorchdict2dataset(masks,coords)
+    ds = mask_dataset(ds,dsmasks,fillvalue = fillvalue)
+    if normalize:
+        ds = normalize_dataset(ds,denormalize=False)
+    elif denormalize:
+        ds = normalize_dataset(ds,denormalize=True)
+    ds = remove_normalization(ds)
+    return drop_unused_coords(ds)
+def drop_unused_coords(ds):
+    cns = list(ds.coords.keys())
+    dims = []
+    for key in ds.data_vars.keys():
+        dims.extend(list(ds[key].dims))
+    dims = np.unique(dims)
+    dropcns = [c for c in cns if c not in dims]
+    for dcn in dropcns:
+        ds = ds.drop(dcn)
+    return ds
+def fromtorchdict2dataset(data_vars,coords):
     for key in data_vars:
         data_vars[key] = (data_vars[key][0],data_vars[key][1].numpy())
     for key,val in coords.items():
@@ -46,27 +95,39 @@ def fromtorchdict(data_vars,coords):
 
 def normalize_dataset(ds,denormalize = False):
     for key in ds.data_vars.keys():
-        if 'normalization' in key:
+        if 'mean' in key or 'std' in key:
             continue
-        nkey = f"{key}_normalization"
-        a,b = ds[nkey].values
+        mkey = f"{key}_mean"
+        skey = f"{key}_std"
+
+        a,b = ds[mkey].values,ds[skey].values
+
+        dims1 = ds[key].dims
+        dims0 = ds[mkey].dims
+        shp = []
+        for d in dims1:
+            if d in dims0:
+                shp.append(len(ds[d]))
+            else:
+                shp.append(1)
+        a,b = a.reshape(shp),b.reshape(shp)
         if denormalize:
             ds[key] = ds[key] *b + a
         else:
             ds[key] = (ds[key] - a)/b
     return ds
-def mask_dataset(ds,maskds):
+def mask_dataset(ds,maskds,fillvalue = np.nan):
     for key in ds.data_vars.keys():
         mkey = get_var_mask_name(key)
         if mkey in maskds.data_vars:
-            ds[key] = xr.where(maskds[mkey],ds[key],np.nan)
+            ds[key] = xr.where(maskds[mkey],ds[key],fillvalue)
     return ds
 
 def remove_normalization(ds):
     data_vars = {}
     coords = ds.coords
     for key,val in ds.data_vars.items():
-        if 'normalization' not in key:
+        if '_mean' not in key and '_std' not in key:
             data_vars[key] = val
     return xr.Dataset(data_vars = data_vars,coords = coords)
 

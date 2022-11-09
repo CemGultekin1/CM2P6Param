@@ -5,32 +5,15 @@ from data.low_res_dataset import MultiDomainDataset
 from data.generate import  ProjectedHighResCm2p6
 from data.paths import get_high_res_data_location, get_high_res_grid_location, get_low_res_data_location
 import copy
-from data.vars import FIELD_NAMES, FORCING_NAMES, LATITUDE_NAMES, LSRP_RES_NAMES, get_var_mask_name, rename
-from utils.paths import SCALARS_JSON
+from data.vars import FIELD_NAMES, FORCING_NAMES, LATITUDE_NAMES, LSRP0_RES_NAMES, LSRP1_RES_NAMES, get_var_mask_name, rename
+from data.scalars import load_scalars
 import xarray as xr
 from data.coords import  DEPTHS, REGIONS, TIMES
 from utils.arguments import options
 import numpy as np
-import json
 import torch
 
 
-
-
-def load_scalars(args,):
-    run,_ = options(args,key = "run")
-    if run.mode == "data" or run.mode == "scalars":
-        return None
-    _,scalarid = options(args,key = "scalar")
-    file = SCALARS_JSON
-    if os.path.exists(file):
-        with open(file) as f:
-            scalars = json.load(f)
-        if scalarid in scalars:
-            return scalars[scalarid]
-
-    print('scalars are not found!')
-    return None
 def load_grid(ds:xr.Dataset,):
     grid_loc = xr.open_dataset(get_high_res_grid_location())
     # import matplotlib.pyplot as plt
@@ -60,11 +43,12 @@ def load_xr_dataset(args):
 def get_var_grouping(args)-> Tuple[Tuple[List[str],...],Tuple[List[str],...]]:
     runprms,_=options(args,key = "run")
     fields,forcings = FIELD_NAMES.copy(),FORCING_NAMES.copy()
-    lsrp_forcings = LSRP_RES_NAMES.copy()
-    if not runprms.temperature:
+    lsrp_res = [LSRP0_RES_NAMES.copy(),LSRP1_RES_NAMES.copy()]
+    
+    if not runprms.temperature and not runprms.mode == 'scalars':
         fields = fields[:2]
         forcings = forcings[:2]
-        lsrp_forcings = lsrp_forcings[:2]
+        lsrp_res = [lr[:2] for lr in lsrp_res]
     if runprms.latitude:
         fields.extend(LATITUDE_NAMES)
     varnames = [fields]
@@ -74,14 +58,20 @@ def get_var_grouping(args)-> Tuple[Tuple[List[str],...],Tuple[List[str],...]]:
     fieldmask_names = [fieldmasks]
 
     forcingmasks = [get_var_mask_name(f) for f in forcings]
-    lsrpforcingmasks = [get_var_mask_name(f) for f in lsrp_forcings]
-    if runprms.linsupres:
+    lsrpforcingmasks = [[get_var_mask_name(f) for f in lr] for lr in lsrp_res]
+    if runprms.mode == 'scalars':
+        varnames[0].extend(forcings + lsrp_res[0] + lsrp_res[1])
+        forcingmask_names.append(fieldmasks)
+        forcingmask_names[0].extend(forcingmasks + lsrpforcingmasks[0] + lsrpforcingmasks[1])
+    elif runprms.lsrp>0:
+        lsrpi = runprms.lsrp - 1
         if runprms.mode != 'train':
-            varnames.append(forcings + lsrp_forcings)
-            forcingmask_names.append(forcingmasks + lsrpforcingmasks)
+            varnames.append(forcings + lsrp_res[lsrpi])
+            varnames.append(fieldmask_names)
+            forcingmask_names.append(forcingmasks + lsrpforcingmasks[lsrpi])
         else:
-            varnames.append(lsrp_forcings)
-            forcingmask_names.append(lsrpforcingmasks)
+            varnames.append(lsrp_res[lsrpi])
+            forcingmask_names.append(lsrpforcingmasks[lsrpi])
     else:
         varnames.append(forcings)
         forcingmask_names.append(forcingmasks)
@@ -103,14 +93,14 @@ def dataset_arguments(args,**kwargs_):
     prms,_=options(args,key = "data")
     runprms,_=options(args,key = "run")
     
-    scalars_dict = load_scalars(args)
+    scalars = load_scalars(args)
     boundaries = REGIONS[prms.domain]
-    kwargs = ['linsupres','parts','latitude','normalization','lsrp_span','temperature','section']
+    kwargs = ['lsrp','parts','latitude','lsrp_span','temperature','section']
     if runprms.mode == 'eval':
         kwargs.pop(1)
     kwargs = {key:runprms.__dict__[key] for key in kwargs}
     kwargs['boundaries'] = boundaries
-    kwargs['scalars_dict'] = scalars_dict
+    kwargs['scalars'] = scalars
     kwargs['coarse_grain_needed'] = runprms.mode == "data"
 
     for key,val in kwargs_.items():
@@ -210,6 +200,13 @@ def preprocess_dataset(args,ds:xr.Dataset):
         ds['depth'] = [0]
         if prms.mode != 'data':
             ds = ds.isel(depth = 0)
+    if prms.mode == 'train':
+        depthval = depthvals_[ind]
+        trd = ds.tr_depth.values
+        tr_ind = np.argmin(np.abs(depthval - trd))
+        if np.abs(trd[tr_ind] - depthval)>1:
+            raise RequestDoesntExist
+        ds = ds.isel(tr_depth = tr_ind)
     return ds
 
 def physical_domains(domain:str,):

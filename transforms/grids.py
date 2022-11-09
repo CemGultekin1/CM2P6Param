@@ -6,11 +6,22 @@ EARTH_RADIUS = 6.371*1e6 # in meters
 
 def lose_tgrid(ds):
     vrns = list(ds.data_vars)
-    data_vars = {vrn: (
-        ['lat','lon'],ds[vrn].values
-    ) for vrn in vrns}
-    coords = {'lat':ds['ulat'].values,'lon':ds['ulon'].values}
-    return xr.Dataset(data_vars=data_vars,coords = coords)
+    data_vars = {}
+    coords = {}
+    for vrn in vrns:
+        d = list(ds[vrn].dims)
+        for ll in 'lat lon'.split():
+            if 't'+ll in d:
+                d[d.index('t'+ll)] = ll
+            if 'u'+ll in d:
+                d[d.index('u'+ll)] = ll
+        v = ds[vrn].values
+        data_vars[vrn] = (tuple(d),v)
+    coords['lat'] = ds.coords['ulat'].values
+    coords['lon'] = ds.coords['ulon'].values
+    if 'tr_depth' in ds.coords:
+        coords['tr_depth'] = ds.coords['tr_depth'].values
+    return xr.Dataset(data_vars = data_vars,coords = coords)
 
 
 def trim_expanded_longitude(sfd,expansion = 5):

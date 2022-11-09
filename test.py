@@ -4,40 +4,40 @@ from data.low_res import DividedDomain
 import torch
 
 
-def separate_batch(vec,batchnum):
-    def sub_separate_batch(vec,i,batchnum):
-        if isinstance(vec,torch.Tensor):
-            return vec[batchnum].detach().to('cpu').numpy()
-        if isinstance(vec,dict):
-            return {key:separate_batch(val,batchnum) for key,val in vec.items()}
-        if isinstance(vec,tuple) or isinstance(vec,list):
-            x = [sub_separate_batch(val,i,batchnum) for i,val in enumerate(vec)]
-            x_ = [a for a in x if a is not None]
-            if len(x_)< len(x):
-                if len(x_) == 0:
-                    print(x)
-                    raise Exception
-                return x_[0]
-            if isinstance(vec,tuple):
-                return tuple(x_)
-            else:
-                return x_
-        if i==batchnum:
-            return vec
-        else:
-            return None
-    return sub_separate_batch(vec,None,batchnum)
+# def separate_batch(vec,batchnum):
+#     def sub_separate_batch(vec,i,batchnum):
+#         if isinstance(vec,torch.Tensor):
+#             return vec[batchnum].detach().to('cpu').numpy()
+#         if isinstance(vec,dict):
+#             return {key:separate_batch(val,batchnum) for key,val in vec.items()}
+#         if isinstance(vec,tuple) or isinstance(vec,list):
+#             x = [sub_separate_batch(val,i,batchnum) for i,val in enumerate(vec)]
+#             x_ = [a for a in x if a is not None]
+#             if len(x_)< len(x):
+#                 if len(x_) == 0:
+#                     print(x)
+#                     raise Exception
+#                 return x_[0]
+#             if isinstance(vec,tuple):
+#                 return tuple(x_)
+#             else:
+#                 return x_
+#         if i==batchnum:
+#             return vec
+#         else:
+#             return None
+#     return sub_separate_batch(vec,None,batchnum)
 
 def low_res_dataset():
     nbatch = 1
-    args = f'--sigma 4 --domain four_regions --depth 5 --minibatch {nbatch} --prefetch_factor 1 --num_workers 1 --mode train'.split()
+    args = f'--sigma 4 --domain global --depth 5 --minibatch {nbatch} --lsrp 0 --prefetch_factor 1 --num_workers 1 --mode train'.split()
     from data.load import load_xr_dataset
     import itertools
     ds = load_xr_dataset(args)
     vars = get_var_grouping(args)
 
     _args,_kwargs = dataset_arguments(args)
-    _kwargs['boundaries'] = _kwargs['boundaries'][2]
+    # _kwargs['boundaries'] = _kwargs['boundaries'][2]
     dd = DividedDomain(*_args,**_kwargs)
     sf  = dd[0]
     import matplotlib.pyplot as plt
@@ -45,7 +45,7 @@ def low_res_dataset():
     rows = [
         'u v T'.split(),
         'Su Sv ST'.split(),
-        'lsrp_res_Su lsrp_res_Sv lsrp_res_ST'.split()
+        'Su0_res Sv0_res ST0_res'.split()
     ]
     ncols = len(rows[0])
     nrows = len(rows)
@@ -105,44 +105,69 @@ def average_high_res_data():
 
 def plot_forcings():
     import xarray as xr
-    import numpy as np
-    import matplotlib.pyplot as plt
-    import itertools
+    from utils.xarray import  plot_ds
     
-    def plot_ds(ds,imname):
-        flat_vars = {}
-
-        for key in ds.data_vars.keys():
-            u = ds[key]
-            if 'tr_depth'in u.dims:
-                for i in range(len(u.tr_depth)):
-                    flat_vars[f'{key}_tr_depth_{i}'] = u.isel(tr_depth = i)
-            else:
-                flat_vars[key] = u
-        vars = list(flat_vars.keys())
-        ncols = 3
-        nrows = int(np.ceil(len(vars)/ncols))
-        fig,axs = plt.subplots(nrows,ncols,figsize=(ncols*6,nrows*5))
-        for z,(i,j) in enumerate(itertools.product(range(nrows),range(ncols))):
-            ax = axs[i,j]
-            if z >= len(vars):
-                continue
-            u = flat_vars[vars[z]]
-            # u = np.log10(np.abs(u))
-            u.plot(ax = ax)
-            ax.set_title(vars[z])
-        fig.savefig(imname)
-        plt.close()
-    ds = xr.open_zarr('outputs.zarr').isel(time = 0,depth = 0)
+    root =  '/scratch/zanna/data/cm2.6/'
+    import os
+    ds = xr.open_zarr(os.path.join(root,'coarse_4_surface_.zarr')).isel(time = 0,depth = 0)
     plot_ds(ds,'surf.png')
-    ds = xr.open_zarr('outputs_depth.zarr').isel(time = 0)
+    ds = xr.open_zarr(os.path.join(root,'coarse_4_beneath_surface_.zarr')).isel(time = 0)
     for i in range(len(ds.depth)):
         dsi = ds.isel(depth= i)
         plot_ds(dsi,f'depth_{i}.png')
+def scalars():
+    nbatch = 1
+    args = f'--sigma 4 --depth 5 --domain global --minibatch {nbatch} --prefetch_factor 1 --termperature True --num_workers 1 --mode scalars'.split()
+    from data.load import get_data
+    from params import SCALAR_PARAMS
+    import xarray as xr
+    import numpy as np
+    from utils.xarray import remove_normalization,fromtorchdict,mask_dataset,plot_ds
+    normalizations = SCALAR_PARAMS["normalization"]["choices"]
 
+    generator,= get_data(args,half_spread = 0, torch_flag = False, data_loaders = True,groups = ('train',))
+    for fields,field_masks,field_coords,_ in generator:
+        fields = fromtorchdict(fields,field_coords,field_masks)
+        plot_ds(fields,'scalars_example.png',ncols = 3)
+        print(fields)
+        return
+        
+
+
+def training():
+    nbatch = 1
+    args = f'--sigma 4 --depth 5 --minibatch {nbatch} --domain global --prefetch_factor 1 --lsrp 1 --mode train --temperature True --num_workers 1'.split()
+    from data.load import get_data
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import itertools
+
+    generator,= get_data(args,half_spread = 10, torch_flag = True, data_loaders = True,groups = ('train',))
+    for fields,forcings,masks in generator:
+        forcings[masks<1] = np.nan
+        print(fields.shape,forcings.shape,masks.shape)
+        vecs = []
+        for f in [fields,forcings,masks]:
+            vecs.extend(torch.unbind(f))
+        vecs1 = []
+        for f in vecs:
+            vecs1.extend(torch.unbind(f))
+        n = len(vecs1)
+        ncols = 2
+        nrows = np.ceil(n/ncols).astype(int)
+        fig,axs = plt.subplots(nrows,ncols,figsize = (ncols*6,nrows*5))
+        for z,(i,j) in enumerate(itertools.product(range(nrows),range(ncols))):
+            ax = axs[i,j]
+            if n <= z:
+                continue
+            ax.imshow(vecs1[z].numpy()[::-1,:])
+        fig.savefig('training_batch.png')
+        plt.close()
+
+        break
 
 def main(): 
-    plot_forcings()
+    scalars()
     return
     import xarray as xr
     import matplotlib.pyplot as plt
@@ -194,44 +219,7 @@ def main():
             fig.savefig(f'subgrid_forcings_local_{z}.png')
         plt.close()
     return 
-    nbatch = 2
-    args = f'--sigma 4 --depth 5 --minibatch {nbatch} --prefetch_factor 1 --num_workers 1'.split()
-    from data.load import get_data
-    from params import SCALAR_PARAMS
-    import xarray as xr
-    import numpy as np
-    normalizations = SCALAR_PARAMS["normalization"]["choices"]
-
-    generator,= get_data(args,half_spread = 2, torch_flag = False, data_loaders = True,groups = ('train',))
-    tot_scalars = {norm : {} for norm in normalizations}
-    time_limit = 64
-    for fields,forcings,masks,coords in generator:
-        fields = {key:tuple(val) for key,val in fields.items()}
-        forcings = {key:tuple(val) for key,val in forcings.items()}
-        masks = {key:tuple(val) for key,val in masks.items()}
-        for t in range(nbatch):
-            print('\n'*6)
-            ifield = separate_batch(fields,t)
-            iforcing = separate_batch(forcings,t)
-            imask = separate_batch(masks,t)
-            icoord = separate_batch(coords,t)
-            for key,coor in icoord.items():
-                icoord[key] = np.asarray(coor)
-                if not np.issubdtype(icoord[key].dtype, np.number):
-                    icoord[key] = icoord[key].astype(object)
-            # for f,name in zip([ifield,iforcing,imask,],['fields','forcings','masks']):
-            #     for key in f:
-            #         dims,vals = f[key]
-            #         print(f'{t}\t{name}\t',key,dims,vals.shape)
-            # for key in icoord:
-            #     print(f'{t}\tcoords\t',key,icoord[key])
-            # print(ifield)
-            # print(icoord)
-            ds = xr.Dataset(\
-                data_vars = dict(ifield,**iforcing,**imask),\
-                    coords = icoord)
-            print(ds)
-        break
+    
     return
     datargs = '--sigma 4'.split()
     from data.load import load_xr_dataset

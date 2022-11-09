@@ -7,19 +7,18 @@ USUAL_PARAMS = {
 }
 
 SCALAR_PARAMS = {
-    "domain" : {"type": str, "choices" : ["four_regions","global","custom"],},
     "sigma" : {"type": int, "choices" : (4,8,12,16)},
     "depth" : {"type": float, "default" : 0.},
     "co2" : {"type":bool,"default":False},
-    "normalization" :  {"type": str, "choices" : ["standard","absolute"],},
 }
 
 
 
 DATA_PARAMS = {
+    "domain" : {"type": str, "choices" : ["four_regions","global","custom"],},
     "temperature" : {"type": bool, "default":False},
     "latitude" : {"type": bool, "default":False},
-    "linsupres" :  {"type": bool, "default":False},
+    "lsrp" :  {"type": int, "default":0},
     "parts": {"type":int, "nargs": 2, "default":(1,1)},
 }
 
