@@ -2,7 +2,7 @@ from typing import List
 from argparse import ArgumentTypeError
 
 USUAL_PARAMS = {
-    "depth" : (0,5,55,110,181,330,1497),
+    "depth" : (0,5,55,110,181,330,728),
     "sigma" : (4,8,12,16),
 }
 

@@ -1,7 +1,7 @@
 import copy
 from typing import Dict, List, Tuple
 import torch
-from data.low_res import CM2p6Dataset,DividedDomain
+from data.low_res import SingleDomain
 from data.geography import frequency_encoded_latitude
 import numpy as np
 from data.vars import get_var_mask_name
@@ -16,58 +16,10 @@ def determine_ndoms(*args,**kwargs):
         if isinstance(kwargs[key],list):
             arglens.append(len(kwargs[key]))
     return  int(np.amax(arglens))
-class MultiDomain(CM2p6Dataset):
+class MultiDomain(SingleDomain):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
-        self.ndoms = determine_ndoms(*args,**kwargs)
-        self.domain_datasets  : List[DividedDomain]= []
-        self.shapes = []
-        self.parts = []
-        def read_value(var,i):
-            if isinstance(var,list):
-                return var[i]
-            else:
-                return var
-        for i in range(self.ndoms):
-            args_ = [read_value(arg,i) for arg in args]
-            kwargs_ = {key:read_value(val,i) for key,val in kwargs.items()}
-            self.domain_datasets.append(DividedDomain(*args_,**kwargs_))
-            self.shapes.append(self.domain_datasets[-1].shapes)
-            self.parts.append(self.domain_datasets[-1].parts)
-        self.lsrp = self.domain_datasets[0].lsrp
-        self.half_spread = self.domain_datasets[0].half_spread
-        self.normalization = kwargs.pop("normalization","standard")
         self.var_grouping = kwargs.pop('var_grouping')
-
-
-    def set_time_constraint(self,t0,t1):
-        super().set_time_constraint(t0,t1)
-        for i in range(self.ndoms):
-            self.domain_datasets[i].set_time_constraint(t0,t1)
-
-    def time_slice(self,t0,t1)->'MultiDomain':
-        x = copy.deepcopy(self)
-        x.set_time_constraint(t0,t1)
-        return x
-
-    def set_half_spread(self,num):
-        self.half_spread = num
-        for dds in self.domain_datasets:
-            dds.set_half_spread(num)
-
-    def get_max_shape(self,):
-        lat,lon = 0,0
-        for i in range(self.ndoms):
-            lat_,lon_ = self.domain_datasets[i].get_max_shape()
-            lat = np.maximum(lat_,lat)
-            lon = np.maximum(lon_,lon)
-        return lat,lon
-
-    def time2index(self,t):
-        a = 0
-        for nlon,nlat in self.parts:
-            a+=nlon*nlat
-        return a*t,a*(t+1)
     def get_lat_features(self,lats):
         posdict = self.locate(lats[0],lats[-1],lat = True)
         (n0,_),n = posdict['locs'],posdict["len"]
@@ -93,13 +45,7 @@ class MultiDomain(CM2p6Dataset):
         )
         outs['lat_feats'] = latfeats
         return outs
-    def __len__(self,):
-        return sum([len(dom) for dom in self.domain_datasets])
-    def __getitem__(self,i):
-        idom  = i%self.ndoms
-        ds = self.domain_datasets[idom][i//self.ndoms]
-        ds = ds.assign_coords(**{'domain_id':np.array(idom)})
-        return ds
+    
 
 
 class MultiDomainDataset(MultiDomain):
@@ -107,13 +53,9 @@ class MultiDomainDataset(MultiDomain):
         self.scalars = scalars
         self.latitude = latitude
         self.temperature = temperature
-        self.running_mean = {}
         self.torch_flag = torch_flag
         super().__init__(*args,**kwargs)
 
-    @property
-    def max_shape(self,):
-        return np.array(self.get_max_shape())
 
     @property
     def sslice(self,):
@@ -124,7 +66,7 @@ class MultiDomainDataset(MultiDomain):
             dims,vals = data_vars[name]
             if 'lat' not in dims or 'lon' not in dims:
                 continue
-            pad = self.max_shape - np.array(vals.shape)[-2:]
+            pad = (0,0)
             if name in self.forcing_names and self.half_spread>0:
                 vrshp = list(vals.shape)
                 vals = vals.reshape([-1]+ vrshp[-2:])
@@ -136,7 +78,7 @@ class MultiDomainDataset(MultiDomain):
         
         def pad_coords(coords,slice_flag = False):
             lat = coords['lat']
-            pad = self.max_shape[0] - len(lat)
+            pad = 0
             coords['lat_pad'] = pad
             lat = np.pad(lat,pad_width = ((0,pad),),constant_values = 0)
             if slice_flag:
@@ -144,7 +86,7 @@ class MultiDomainDataset(MultiDomain):
             coords['lat'] = lat
 
             lon = coords['lon']
-            pad = self.max_shape[1] - len(lon)
+            pad = 0
             coords['lon_pad'] = pad
             lon = np.pad(lon,pad_width = ((0,pad),),constant_values = 0)
             if slice_flag:

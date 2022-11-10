@@ -1,6 +1,7 @@
 import os
 import random
 import sys
+from data.exceptions import RequestDoesntExist
 from run.eval import lsrp_pred
 import torch
 from data.load import get_data
@@ -9,8 +10,7 @@ from models.load import load_model
 from utils.arguments import options, populate_data_options
 from utils.parallel import get_device
 import numpy as np
-from utils.paths import get_view_path
-from utils.slurm import flushed_print
+from utils.paths import VIEWS
 from utils.xarray import fromtensor, fromtorchdict, fromtorchdict2tensor
 import xarray as xr
 
@@ -107,14 +107,14 @@ def ifnotnone_merge(evs,part_evs):
     return evs
 
 def main():
-    def set_seed():
-        seed = 0
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
-        torch.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
-        np.random.seed(seed)
-        random.seed(seed)
+    # def set_seed():
+    #     seed = 0
+    #     torch.backends.cudnn.deterministic = True
+    #     torch.backends.cudnn.benchmark = False
+    #     torch.manual_seed(seed)
+    #     torch.cuda.manual_seed_all(seed)
+    #     np.random.seed(seed)
+    #     random.seed(seed)
     args = sys.argv[1:]
     
     modelid,_,net,_,_,_,_,runargs=load_model(args)
@@ -123,6 +123,7 @@ def main():
     
     runargs,_ = options(args,key = "run")
     lsrp_flag = runargs.lsrp
+    lsrpid = f'lsrp_{lsrp_flag}'
     assert runargs.mode == "view"
     
     multidatargs = populate_data_options(args,non_static_params=["depth"])
@@ -130,45 +131,50 @@ def main():
     for datargs in multidatargs:
         try:
             test_generator, = get_data(datargs,half_spread = net.spread, torch_flag = False, data_loaders = True,groups = ('test',))
-        except GroupNotFoundError:
+        except RequestDoesntExist:
             print('data not found!')
             test_generator = None
         if test_generator is None:
             continue
-        stats = None
         nt = 0
-        kwargs = dict(contained = '' if not lsrp_flag else 'res')
+        nt_limit = 1
+        
         for fields,forcings,field_mask,forcing_mask,field_coords,forcing_coords in test_generator:
+            time,depth = field_coords['time'].item(),field_coords['depth'].item()
+            kwargs = dict(contained = '' if not lsrp_flag else 'res', \
+                expand_dims = {'time':[time],'depth':[depth]})
             fields_tensor = fromtorchdict2tensor(fields).type(torch.float32)
-            depth = forcing_coords['depth'].item()
-            time = forcing_coords['time'][0]
+            mean = fromtorchdict2tensor(forcings,**kwargs).type(torch.float32)
+            
+            # with torch.set_grad_enabled(False):
+            #     mean,_ =  net.forward(fields_tensor.to(device))
+            #     mean = mean.to("cpu")
 
-            flushed_print(nt,depth,time)
-
-            torch_fields = torch_stack(fields)
-            with torch.set_grad_enabled(False):
-                mean,_ =  net.forward(torch_fields.to(device))
-                mean = mean.to("cpu")
-                # mean = torch.randn(1,3,309-10,458-10)
             predicted_forcings = fromtensor(mean,forcings,forcing_coords, forcing_mask,denormalize = True,**kwargs)
             true_forcings = fromtorchdict(forcings,forcing_coords,forcing_mask,denormalize = True)
             true_fields = fromtorchdict(fields,field_coords,field_mask,denormalize = True)
             if lsrp_flag:
-                predicted_forcings,true_forcings = lsrp_pred(predicted_forcings,true_forcings)
+                (predicted_forcings,lsrp_forcings),true_forcings = lsrp_pred(predicted_forcings,true_forcings)
+            renames = {}
+            for key in true_forcings.data_vars.keys():
+                renames[key] = f'{key}_true'
+            true_forcings = true_forcings.rename(renames)
+            predictions_ = xr.merge([predicted_forcings,true_forcings])
+            if lsrp_flag:
+                lsrp_predictions_ = xr.merge([lsrp_forcings,true_forcings])
+                allstats.append({lsrpid:lsrp_predictions_})
+            allstats.append({modelid:predictions_})
+
             nt+=1
-
-            
-        total_evs.append(evs)
-        if linsupres:
-            total_lsrp_evs.append(lsrp_evs)
-    evs = xr.merge(total_evs)
-    fileame = get_view_path(modelid)
-    evs.to_netcdf(fileame,mode = 'w')
-    if linsupres:
-        lsrp_evs = xr.merge(total_lsrp_evs)
-        fileame = get_view_path('lsrp')
-        lsrp_evs.to_netcdf(fileame,mode = 'w')
-
+            if nt == nt_limit:
+                break
+        
+    evs = {modelid:xr.merge([alst[modelid] for alst in allstats])}
+    if lsrp_flag:
+        evs[lsrpid] = xr.merge([alst[lsrpid] for alst in allstats])
+    for key in evs:
+        fileame = os.path.join(VIEWS,key+'.nc')
+        evs[key].to_netcdf(fileame,mode = 'w')
 
             
 

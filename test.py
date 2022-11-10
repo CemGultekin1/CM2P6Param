@@ -1,6 +1,5 @@
 
 from data.load import dataset_arguments, get_var_grouping
-from data.low_res import DividedDomain
 import torch
 from utils.arguments import options
 from utils.xarray import fromtensor, fromtorchdict2tensor
@@ -30,42 +29,42 @@ from utils.xarray import fromtensor, fromtorchdict2tensor
 #             return None
 #     return sub_separate_batch(vec,None,batchnum)
 
-def low_res_dataset():
-    nbatch = 1
-    args = f'--sigma 4 --domain global --depth 5 --minibatch {nbatch} --lsrp 0 --prefetch_factor 1 --num_workers 1 --mode train'.split()
-    from data.load import load_xr_dataset
-    import itertools
-    ds = load_xr_dataset(args)
-    vars = get_var_grouping(args)
+# def low_res_dataset():
+#     nbatch = 1
+#     args = f'--sigma 4 --domain global --depth 5 --minibatch {nbatch} --lsrp 0 --prefetch_factor 1 --num_workers 1 --mode train'.split()
+#     from data.load import load_xr_dataset
+#     import itertools
+#     ds = load_xr_dataset(args)
+#     vars = get_var_grouping(args)
 
-    _args,_kwargs = dataset_arguments(args)
-    # _kwargs['boundaries'] = _kwargs['boundaries'][2]
-    dd = DividedDomain(*_args,**_kwargs)
-    sf  = dd[0]
-    import matplotlib.pyplot as plt
-    fig,axs = plt.subplots(1,3,figsize = (25,10))
-    rows = [
-        'u v T'.split(),
-        'Su Sv ST'.split(),
-        'Su0_res Sv0_res ST0_res'.split()
-    ]
-    ncols = len(rows[0])
-    nrows = len(rows)
+#     _args,_kwargs = dataset_arguments(args)
+#     # _kwargs['boundaries'] = _kwargs['boundaries'][2]
+#     dd = DividedDomain(*_args,**_kwargs)
+#     sf  = dd[0]
+#     import matplotlib.pyplot as plt
+#     fig,axs = plt.subplots(1,3,figsize = (25,10))
+#     rows = [
+#         'u v T'.split(),
+#         'Su Sv ST'.split(),
+#         'Su0_res Sv0_res ST0_res'.split()
+#     ]
+#     ncols = len(rows[0])
+#     nrows = len(rows)
 
-    fig,axs = plt.subplots(nrows,ncols,figsize = (ncols*6,nrows*5))
+#     fig,axs = plt.subplots(nrows,ncols,figsize = (ncols*6,nrows*5))
     
-    for i,j in itertools.product(range(nrows),range(ncols)):
-        if nrows == 1:
-            ax = axs[j]
-        else:
-            ax = axs[i,j]
-        name = rows[i][j]
-        u = sf[name]
-        u.plot(ax = ax)
-        ax.set_title(name)
+#     for i,j in itertools.product(range(nrows),range(ncols)):
+#         if nrows == 1:
+#             ax = axs[j]
+#         else:
+#             ax = axs[i,j]
+#         name = rows[i][j]
+#         u = sf[name]
+#         u.plot(ax = ax)
+#         ax.set_title(name)
 
-    fig.savefig('subgrid_forcings_global.png')
-    plt.close()
+#     fig.savefig('subgrid_forcings_global.png')
+#     plt.close()
 
 def data_loader():
     nbatch = 1
@@ -180,7 +179,7 @@ def eval():
     runprms,_ = options(args,key = 'run')
     lsrp_flag = runprms.lsrp > 0
     kwargs = dict(contained = '' if not lsrp_flag else 'res')
-    generator,= get_data(args,half_spread = 0, torch_flag = False, data_loaders = True,groups = ('test',))
+    generator,= get_data(args,half_spread = 5, torch_flag = False, data_loaders = True,groups = ('test',))
     for fields,forcings,forcing_mask,_,forcing_coords in generator:
         fields_tensor = fromtorchdict2tensor(fields)
         forcings_tensor = fromtorchdict2tensor(forcings,**kwargs)
@@ -198,7 +197,7 @@ def eval():
 
 def training():
     nbatch = 1
-    args = f'--sigma 4 --depth 0 --minibatch {nbatch} --domain four_regions --prefetch_factor 1 --lsrp 2 --mode train --temperature True --num_workers 1'.split()
+    args = f'--sigma 12 --depth 0 --minibatch {nbatch} --domain four_regions --prefetch_factor 1 --lsrp 2 --mode train --temperature True --latitude True --num_workers 1'.split()
     from data.load import get_data
     import numpy as np
     import matplotlib.pyplot as plt
@@ -211,7 +210,7 @@ def training():
         std = torch.sqrt(sc2 - means**2)
         forcings[masks<1] = np.nan
         return means.numpy(),std.numpy()
-    generator,= get_data(args,half_spread = 10, torch_flag = True, data_loaders = True,groups = ('train',))
+    generator,= get_data(args,half_spread = 3, torch_flag = True, data_loaders = True,groups = ('train',))
     for k,(fields,forcings,masks) in enumerate(generator):
         print(np.any(np.isnan(fields.numpy())),np.any(np.isnan(forcings.numpy())))
         print(compute_stats(fields,(torch.abs(fields)>0).type(torch.float)))
@@ -238,7 +237,7 @@ def training():
             break
 
 def main(): 
-    eval()
+    training()
     return
     import xarray as xr
     import matplotlib.pyplot as plt

@@ -68,7 +68,7 @@ def fromnumpydict(data_vars,coords):
                 coords_[key] =  np.array([coords[key][i]])#datetime.fromisoformat(coords[key][i])])
         ds = xr.Dataset(data_vars = data_vars_,coords = coords_)
         return ds
-def fromtorchdict2tensor(data_vars,contained = ''):
+def fromtorchdict2tensor(data_vars,contained = '',**kwargs):
     vecs = []
     for key in data_vars:
         if '_mean' in key or '_std' in key:
@@ -83,7 +83,7 @@ def fromtorchdict2tensor(data_vars,contained = ''):
         vecs[i] = vec.reshape([1]*j + list(vec.shape))
     return torch.cat(vecs,dim=1)
 
-def fromtensor2dict(tts,data_vars0,contained = ''):
+def fromtensor2dict(tts,data_vars0,contained = '',**kwargs):
     data_vars = {}
     i= 0 
     for key in data_vars0:
@@ -97,9 +97,9 @@ def fromtensor2dict(tts,data_vars0,contained = ''):
 
 def fromtensor(tts,data_vars0,coords,masks,denormalize = True,fillvalue = np.nan,**kwargs):
     data_vars = fromtensor2dict(tts,data_vars0,**kwargs)
-    return fromtorchdict(data_vars,coords,masks,normalize = False,denormalize=denormalize, fillvalue=fillvalue)
+    return fromtorchdict(data_vars,coords,masks,normalize = False,denormalize=denormalize, fillvalue=fillvalue,**kwargs)
 
-def fromtorchdict(data_vars,coords,masks,normalize = False,denormalize = False,fillvalue = np.nan):
+def fromtorchdict(data_vars,coords,masks,normalize = False,denormalize = False,fillvalue = np.nan,**kwargs):
     ds = fromtorchdict2dataset(data_vars,coords)
     dsmasks = fromtorchdict2dataset(masks,coords)
     ds = mask_dataset(ds,dsmasks,fillvalue = fillvalue)
@@ -108,16 +108,20 @@ def fromtorchdict(data_vars,coords,masks,normalize = False,denormalize = False,f
     elif denormalize:
         ds = normalize_dataset(ds,denormalize=True)
     ds = remove_normalization(ds)
-    return drop_unused_coords(ds)
-def drop_unused_coords(ds):
+    return drop_unused_coords(ds,**kwargs)
+def drop_unused_coords(ds,expand_dims = {},**kwargs):
     cns = list(ds.coords.keys())
     dims = []
     for key in ds.data_vars.keys():
         dims.extend(list(ds[key].dims))
     dims = np.unique(dims)
-    dropcns = [c for c in cns if c not in dims]
+    dropcns = [c for c in cns if c not in dims and c not in expand_dims]
     for dcn in dropcns:
         ds = ds.drop(dcn)
+    keys = list(expand_dims.keys())
+    for i in range(len(keys)):
+        key = keys[-i-1]
+        ds = ds.expand_dims(dim = {key:expand_dims[key]},axis=0)
     return ds
 def fromtorchdict2dataset(data_vars,coords):
     for key,(dims,vals) in data_vars.items():

@@ -10,7 +10,7 @@ from data.coords import DEPTHS
 TRAINJOB = 'trainjob'
 root = SLURM
 
-NCPU = 12
+NCPU = 16
 def get_arch_defaults():
     nms = ('widths','kernels','batchnorm','skipconn')
     return (get_default(nm) for nm in nms)
@@ -37,10 +37,10 @@ def fix_architecture(args):
     return args
 def fix_minibatch(args):
     datargs,_ = options(args,key = "data")
-    if datargs.domain == 'global':
-        optminibatch = int(datargs.parts[0]*datargs.parts[1]*(datargs.sigma/4)**2*2)
-    else:
-        optminibatch = int(64*(datargs.sigma/4)**2)
+    # if datargs.domain == 'global':
+    optminibatch = int((datargs.sigma/4)**2*2)
+    # else:
+    #     optminibatch = int(64*(datargs.sigma/4)**2)
     args = replace_param(args,'minibatch',optminibatch)
     return args
 def check_training_task(args):
@@ -53,7 +53,7 @@ def check_training_task(args):
 def generate_training_tasks():
     base_kwargs = dict(
         num_workers = NCPU,
-        disp = 100,
+        disp = 50,
         rerun = True,
         relog = True
     )

@@ -17,10 +17,17 @@ def lose_tgrid(ds):
                 d[d.index('u'+ll)] = ll
         v = ds[vrn].values
         data_vars[vrn] = (tuple(d),v)
-    coords['lat'] = ds.coords['ulat'].values
-    coords['lon'] = ds.coords['ulon'].values
-    if 'tr_depth' in ds.coords:
-        coords['tr_depth'] = ds.coords['tr_depth'].values
+
+    for key in ds.coords.keys():
+        if key == 'ulat':
+            coords['lat'] = ds.coords['ulat'].values
+        elif key == 'ulon':
+            coords['lon'] = ds.coords['ulon'].values
+        elif key != 'tlat' or key != 'tlon':
+            coords[key] =ds.coords[key].values
+    # if 'tr_depth' in ds.coords:
+    #     coords['tr_depth'] = ds.coords['tr_depth'].values
+
     return xr.Dataset(data_vars = data_vars,coords = coords)
 
 

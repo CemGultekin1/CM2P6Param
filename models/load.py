@@ -80,7 +80,10 @@ def load_model(args):
         if "scheduler" in state_dict:
             scheduler.load_state_dict(state_dict["scheduler"])
     else:
-        print(f"Model was not found")
+        if state_dict is not None:
+            print(f"Model was not found")
+        elif runargs.rerun:
+            print(f"Model is re-initiated for rerun")
     if runargs.relog:
         logs = {"epoch":[],"train-loss":[],"test-loss":[],"val-loss":[],"lr":[],"batchsize":[]}
     if len(logs["epoch"])>0:

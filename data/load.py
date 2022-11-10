@@ -175,7 +175,7 @@ def populate_dataset(dataset:MultiDomainDataset,groups = ("train","validation"),
     datasets = []
     for group in groups:
         t0,t1 = TIMES[group]
-        datasets.append(dataset.time_slice(t0,t1))
+        datasets.append(dataset.set_time_constraint(t0,t1))
     return tuple(datasets)
 
 
@@ -195,13 +195,14 @@ def preprocess_dataset(args,ds:xr.Dataset):
             depthvals_=ds.coords['depth'].values
             ind = np.argmin(np.abs(depthvals_ - prms.depth ))
             ds = ds.isel(depth = ind)
-            if int(ds.depth.values) != int(prms.depth):
+            if np.abs(ds.depth.values-prms.depth)>1:
+                print(f'requested depth {prms.depth},\t existing depth = {ds.depth.values}')
                 raise RequestDoesntExist
     else:
         ds['depth'] = [0]
         if prms.mode != 'data':
             ds = ds.isel(depth = 0)
-    if prms.mode == 'train' or prms.mode == 'eval':
+    if prms.mode in ['train','eval','view']:
         depthval = ds.depth.values
         trd = ds.tr_depth.values
         tr_ind = np.argmin(np.abs(depthval - trd))
