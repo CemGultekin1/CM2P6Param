@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --time=30:00
-#SBATCH --array=5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28
-#SBATCH --mem=10GB
+#SBATCH --array=3
+#SBATCH --mem=12GB
 #SBATCH --job-name=viewjob
 #SBATCH --output=/scratch/cg3306/climate/CM2P6Param/saves/slurm_logs/viewjob_%a_%A.out
 #SBATCH --error=/scratch/cg3306/climate/CM2P6Param/saves/slurm_logs/viewjob_%a_%A.err

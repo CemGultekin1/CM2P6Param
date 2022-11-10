@@ -66,7 +66,8 @@ def load_model(args):
         # gamma = 1.
 
     scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=0.5,patience=2)
-    if state_dict is not None and not runargs.rerun:
+    rerun_flag = runargs.rerun and runargs.mode == 'train'
+    if state_dict is not None and not rerun_flag:
         if runargs.mode == "train":
             net.load_state_dict(state_dict["last_model"])
             net.train()
@@ -82,7 +83,7 @@ def load_model(args):
     else:
         if state_dict is not None:
             print(f"Model was not found")
-        elif runargs.rerun:
+        elif rerun_flag:
             print(f"Model is re-initiated for rerun")
     if runargs.relog:
         logs = {"epoch":[],"train-loss":[],"test-loss":[],"val-loss":[],"lr":[],"batchsize":[]}

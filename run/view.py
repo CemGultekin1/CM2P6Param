@@ -141,6 +141,7 @@ def main():
         
         for fields,forcings,field_mask,forcing_mask,field_coords,forcing_coords in test_generator:
             time,depth = field_coords['time'].item(),field_coords['depth'].item()
+            print(time,depth)
             kwargs = dict(contained = '' if not lsrp_flag else 'res', \
                 expand_dims = {'time':[time],'depth':[depth]})
             fields_tensor = fromtorchdict2tensor(fields).type(torch.float32)
@@ -151,17 +152,25 @@ def main():
             #     mean = mean.to("cpu")
 
             predicted_forcings = fromtensor(mean,forcings,forcing_coords, forcing_mask,denormalize = True,**kwargs)
-            true_forcings = fromtorchdict(forcings,forcing_coords,forcing_mask,denormalize = True)
-            true_fields = fromtorchdict(fields,field_coords,field_mask,denormalize = True)
+            true_forcings = fromtorchdict(forcings,forcing_coords,forcing_mask,denormalize = True,**kwargs)
+            true_fields = fromtorchdict(fields,field_coords,field_mask,denormalize = True,**kwargs)
+
             if lsrp_flag:
                 (predicted_forcings,lsrp_forcings),true_forcings = lsrp_pred(predicted_forcings,true_forcings)
-            renames = {}
-            for key in true_forcings.data_vars.keys():
-                renames[key] = f'{key}_true'
-            true_forcings = true_forcings.rename(renames)
-            predictions_ = xr.merge([predicted_forcings,true_forcings])
+            def rename_dict(suffix):
+                renames = {}
+                for key in true_forcings.data_vars.keys():
+                    renames[key] = f'{key}_{suffix}'
+                return renames
+
+            err_forcings = true_forcings - predicted_forcings
+            err_forcings = err_forcings.rename(rename_dict('err'))
+            true_forcings = true_forcings.rename(rename_dict('true'))
+            predictions_ = xr.merge([predicted_forcings,err_forcings,true_forcings,true_fields])
             if lsrp_flag:
-                lsrp_predictions_ = xr.merge([lsrp_forcings,true_forcings])
+                err_forcings = true_forcings - lsrp_forcings
+                err_forcings = err_forcings.rename(rename_dict('err'))
+                lsrp_predictions_ = xr.merge([lsrp_forcings,err_forcings,true_forcings,true_fields])
                 allstats.append({lsrpid:lsrp_predictions_})
             allstats.append({modelid:predictions_})
 

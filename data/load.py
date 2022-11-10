@@ -93,8 +93,10 @@ def dataset_arguments(args,**kwargs_):
     
     
     ds_zarr,scalars = load_xr_dataset(args)
-    
-    boundaries = REGIONS[prms.domain]
+    if runprms.mode == 'view':
+        boundaries = REGIONS['global']
+    else:
+        boundaries = REGIONS[prms.domain]
     kwargs = ['lsrp','parts','latitude','lsrp_span','temperature','section']
     if runprms.mode == 'eval':
         kwargs.pop(1)
@@ -160,7 +162,7 @@ def get_data(args,torch_flag = False,data_loaders = True,**kwargs):
         if ns.mode != "train":
             minibatch = None
         params={'batch_size':minibatch,\
-            'shuffle':ns.mode == "train" or ns.mode == "view",\
+            'shuffle':ns.mode == "train",\
             'num_workers':ns.num_workers,\
             'prefetch_factor':ns.prefetch_factor,\
             'persistent_workers':ns.persistent_workers,}
@@ -177,13 +179,23 @@ def populate_dataset(dataset:MultiDomainDataset,groups = ("train","validation"),
         t0,t1 = TIMES[group]
         datasets.append(dataset.set_time_constraint(t0,t1))
     return tuple(datasets)
-
+def get_time_values(deep):
+    if deep:
+        return load_xr_dataset('--mode train --depth 5'.split())[0].time.values
+    return load_xr_dataset('--mode train --depth 0'.split())[0].time.values
 
 def preprocess_dataset(args,ds:xr.Dataset):
     prms,_ = options(args,key = "run")
     ds = rename(ds)
     coord_names = list(ds.coords.keys())
-    
+    if prms.mode == 'view':
+        np.random.seed(0)
+        t1 = get_time_values(True)
+        t0 = get_time_values(False)
+        t01 = np.array([t for t in t0 if t in t1])
+        tis = np.sort(np.random.randint(0,len(t01),size = 16))
+        time_vals = t01[tis]
+        ds = ds.sel(time = time_vals)
     if prms.depth > 1e-3:
         if 'depth' not in coord_names:
             raise RequestDoesntExist

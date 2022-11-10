@@ -42,7 +42,7 @@ def generate_eval_tasks():
     create_slurm_job(slurmfile,\
         python_file = 'run/view.py',
         time = "30:00",array = jobarray,\
-        mem = "10GB",job_name = JOBNAME,\
+        mem = "12GB",job_name = JOBNAME,\
         output = out,error = err,\
         cpus_per_task = str(NCPU),
         nodes = "1",
