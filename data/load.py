@@ -25,6 +25,62 @@ def load_grid(ds:xr.Dataset,):
         ds[key] = grid_loc[key]
     return ds
 
+def pass_geo_grid(ds,sigma):
+    grid = xr.open_dataset(get_high_res_grid_location())
+    lon = grid.xt_ocean.values
+    lat = grid.yt_ocean.values
+    ilon = np.argsort(((lon + 180 )%360 - 180))
+    lon = lon[ilon]
+    geolon =grid.geolon_t.values[:,ilon]
+    geolat = grid.geolat_t.values[:,ilon]
+    geoc = xr.Dataset(
+        data_vars = dict(
+            geolon = (['lat','lon'],geolon),
+            geolat = (['lat','lon'],geolat),
+        ),
+        coords = dict(
+            lat = lat,lon = lon
+        )
+    )
+    if sigma > 1:
+        geoc = geoc.coarsen(dim = {'lat':sigma,'lon':sigma},boundary = 'trim').mean().load()
+    rlat = ds['lat'].values
+    rlon = ds['lon'].values
+    # geoc = geoc.sel(lat = slice(rlat[0],rlat[-1]),lon = slice(rlon[0],rlon[-1]))
+    geolon = geoc.geolon.values
+    geolat = geoc.geolat.values
+    def match_shape(g,r,axis):
+        df = len(r) - g.shape[axis]
+        ldf = df//2
+        rdf = df - ldf
+        if df>0:
+            padding_ = (rdf,ldf)
+            padding = [(0,0),(0,0)]
+            padding[axis] = padding_
+            return np.pad(g,padding,'wrap')
+        elif df<0:
+            ldf = -ldf
+            rdf = -rdf
+            return g[ldf:-rdf]
+        else:
+            return g
+
+    
+    # geolon = match_shape(geolon,rlon,1)
+    # geolon = match_shape(geolon,rlat,0)
+
+    # geolat = match_shape(geolat,rlon,1)
+    # geolat = match_shape(geolat,rlat,0)
+
+    ds = ds.assign_coords(
+        dict(
+            geolon = (['lat','lon'],(geolon + 180 ) % 360 - 180),
+            geolat = (['lat','lon'],geolat)))    
+    return ds
+        
+
+
+
 
 def load_xr_dataset(args):
     runargs,_ = options(args,'run')
@@ -32,6 +88,8 @@ def load_xr_dataset(args):
         data_address = get_high_res_data_location(args)
     else:
         data_address = get_low_res_data_location(args)
+    if not os.path.exists(data_address):
+        raise RequestDoesntExist
     ds_zarr= xr.open_zarr(data_address,consolidated=False )
     if runargs.mode == 'data':  
         ds_zarr = load_grid(ds_zarr)
@@ -93,11 +151,12 @@ def dataset_arguments(args,**kwargs_):
     
     
     ds_zarr,scalars = load_xr_dataset(args)
-    if runprms.mode == 'view':
-        boundaries = REGIONS['global']
-    else:
+    if runprms.mode == 'train':
         boundaries = REGIONS[prms.domain]
-    kwargs = ['lsrp','parts','latitude','lsrp_span','temperature','section']
+    else:
+        boundaries = REGIONS['global']
+        
+    kwargs = ['lsrp','parts','latitude','temperature','section']
     if runprms.mode == 'eval':
         kwargs.pop(1)
     kwargs = {key:runprms.__dict__[key] for key in kwargs}
@@ -188,6 +247,16 @@ def preprocess_dataset(args,ds:xr.Dataset):
     prms,_ = options(args,key = "run")
     ds = rename(ds)
     coord_names = list(ds.coords.keys())
+
+    def add_co2(ds,prms):
+        if prms.co2:
+            ds['co2'] = [0.01]
+        else:
+            ds['co2'] = [0.]
+        ds = ds.isel(co2 = 0)
+        return ds
+    ds = add_co2(ds,prms)
+
     if prms.mode == 'view':
         np.random.seed(0)
         t1 = get_time_values(True)

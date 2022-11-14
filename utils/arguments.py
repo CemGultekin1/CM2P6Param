@@ -69,11 +69,25 @@ def options(string_input,key:str = "model"):
 
 
     model_parser=argparse.ArgumentParser()
+    st_inputs = []
     for argname,argdesc in prms.items():
         model_parser.add_argument(f"--{argname}",**argdesc)
-
+        if f"--{argname}" in string_input:
+            # print(argname,argdesc)
+            i = string_input.index(f"--{argname}")
+            j = i+1
+            st_inputs.append(f"--{argname}")
+            while '--' not in string_input[j]:
+                # print('\t\t',string_input[j])
+                st_inputs.append(string_input[j])
+                j+=1
+                if j == len(string_input):
+                    break
+            
+    # print(st_inputs)
     # model_parser.parse_known_intermixed_args
-    args,_ = model_parser.parse_known_args(string_input)
+    # print(string_input)
+    args,_ = model_parser.parse_known_args(st_inputs)#string_input)#parse_known_args
     return args,args2num(prms,args)
 
 def args2num(prms:dict,args:argparse.Namespace):

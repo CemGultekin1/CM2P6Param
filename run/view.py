@@ -137,19 +137,19 @@ def main():
         if test_generator is None:
             continue
         nt = 0
-        nt_limit = 1
+        nt_limit = 2
         
         for fields,forcings,field_mask,forcing_mask,field_coords,forcing_coords in test_generator:
-            time,depth = field_coords['time'].item(),field_coords['depth'].item()
-            print(time,depth)
+            time,depth,co2 = field_coords['time'].item(),field_coords['depth'].item(),field_coords['co2'].item()
+            print(time,depth,co2)
             kwargs = dict(contained = '' if not lsrp_flag else 'res', \
-                expand_dims = {'time':[time],'depth':[depth]})
+                expand_dims = {'co2':[co2],'time':[time],'depth':[depth]})
             fields_tensor = fromtorchdict2tensor(fields).type(torch.float32)
-            mean = fromtorchdict2tensor(forcings,**kwargs).type(torch.float32)
+            # mean = fromtorchdict2tensor(forcings,**kwargs).type(torch.float32)
             
-            # with torch.set_grad_enabled(False):
-            #     mean,_ =  net.forward(fields_tensor.to(device))
-            #     mean = mean.to("cpu")
+            with torch.set_grad_enabled(False):
+                mean,_ =  net.forward(fields_tensor.to(device))
+                mean = mean.to("cpu")
 
             predicted_forcings = fromtensor(mean,forcings,forcing_coords, forcing_mask,denormalize = True,**kwargs)
             true_forcings = fromtorchdict(forcings,forcing_coords,forcing_mask,denormalize = True,**kwargs)
@@ -183,7 +183,7 @@ def main():
         evs[lsrpid] = xr.merge([alst[lsrpid] for alst in allstats])
     for key in evs:
         fileame = os.path.join(VIEWS,key+'.nc')
-        evs[key].to_netcdf(fileame,mode = 'w')
+        evs[key].sel(lon = slice(-180,180),).to_netcdf(fileame,mode = 'w')
 
             
 

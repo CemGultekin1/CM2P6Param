@@ -51,8 +51,7 @@ def generate_eval_tasks():
         mem = "30GB",job_name = JOBNAME,\
         output = out,error = err,\
         cpus_per_task = str(NCPU),
-        nodes = "1",
-        gres="gpu:1",
+        nodes = "1",#gres="gpu:1",
         ntasks_per_node = "1")
 
 

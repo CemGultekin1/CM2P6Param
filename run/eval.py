@@ -1,5 +1,7 @@
 import os
 import sys
+from data.exceptions import RequestDoesntExist
+from run.train import Timer
 import torch
 from data.load import get_data
 from data.vars import get_var_mask_name
@@ -118,82 +120,94 @@ def lsrp_pred(respred,tr):
         tr = tr.drop(key)
     lsrp = xr.Dataset(data_vars =data_vars,coords = coords)
     return (respred,lsrp),tr
-def update_stats(stats,prd,tr,lsrp_flag):
-    if lsrp_flag:
-        cnn_prd,lsrp_prd = prd
-        if stats is None:
-            stats = [None,None]
-        stats[0] = update_stats(stats[0],cnn_prd,tr,False)
-        stats[1] = update_stats(stats[1],lsrp_prd,tr,False)
-        return stats
-    err = np.square(tr - prd)
-    sc2 = np.square(tr)
-    err = err.rename({key:f'{key}_mse' for key in err.data_vars})
-    sc2 = sc2.rename({key:f'{key}_sc2' for key in sc2.data_vars})
-    stats_ = xr.merge([err,sc2])
-    if stats is None:
-        stats = stats_
+def update_stats(stats,prd,tr,key):
+    evals = {}
+    evals['true_mom1'] = tr
+    evals['true_mom2'] = np.square(tr)
+    evals['pred_mom1'] = prd
+    evals['pred_mom2'] = np.square(prd)
+    evals['cross'] = tr*prd
+
+    for ev,val in evals.items():
+        evals[ev] = val.rename({key:f'{key}_{ev}' for key in val.data_vars})
+    stats_ = xr.merge(list(evals.values()))
+    if key not in stats:
+        stats[key] = stats_
     else:
-        stats = stats + stats_
+        stats[key] = stats[key] + stats_
     return stats
+def get_lsrp_modelid(args):
+    runargs,_ = options(args,key = "model")
+    lsrp_flag = runargs.lsrp > 0 and runargs.temperature
+    if not lsrp_flag:
+        return False, None
+    keys = ['model','sigma']
+    vals = [runargs.__getattribute__(key) for key in keys]
+    lsrpid = runargs.lsrp - 1
+    vals[0] = f'lsrp:{lsrpid}'
+    line =' '.join([f'--{k} {v}' for k,v in zip(keys,vals)])
+    _,lsrpid = options(line.split(),key = "model")
+    return True, lsrpid
+
 
 def main():
     args = sys.argv[1:]
+    runargs,_ = options(args,key = "run")
+
     modelid,_,net,_,_,_,_,runargs=load_model(args)
     device = get_device()
-    runargs,_ = options(args,key = "run")
-    lsrp_flag = runargs.lsrp > 0
+    lsrp_flag, lsrpid = get_lsrp_modelid(args)
+    
     kwargs = dict(contained = '' if not lsrp_flag else 'res')
     assert runargs.mode == "eval"
-    multidatargs = populate_data_options(args,non_static_params=["depth"],domain = 'global')
-    allstats = []
+    multidatargs = populate_data_options(args,non_static_params=['depth','co2'],domain = 'global')
+    allstats = {}
     for datargs in multidatargs:
         try:
             test_generator, = get_data(datargs,half_spread = net.spread, torch_flag = False, data_loaders = True,groups = ('test',))
-        except GroupNotFoundError:
+        except RequestDoesntExist:
             print('data not found!')
             test_generator = None
         if test_generator is None:
             continue
-        stats = None
+        stats = {}
         nt = 0
-
+        timer = Timer()
         for fields,forcings,forcing_mask,_,forcing_coords in test_generator:
             fields_tensor = fromtorchdict2tensor(fields).type(torch.float32)
             depth = forcing_coords['depth'].item()
-            if nt == 0:
-                flushed_print(depth)
-
+            co2 = forcing_coords['co2'].item()
+            kwargs = dict(contained = '' if not lsrp_flag else 'res', \
+                expand_dims = {'co2':[co2],'depth':[depth]})
+            if nt ==  0:
+                flushed_print(depth,co2)
+            # flushed_print(f'\t\t\t{nt}')
+            # timer.start('model')
             with torch.set_grad_enabled(False):
                 mean,_ =  net.forward(fields_tensor.to(device))
                 mean = mean.to("cpu")
+            # timer.end('model')
+            # print(timer)
             predicted_forcings = fromtensor(mean,forcings,forcing_coords, forcing_mask,denormalize = True,**kwargs)
-            true_forcings = fromtorchdict(forcings,forcing_coords,forcing_mask,denormalize = True)
+            true_forcings = fromtorchdict(forcings,forcing_coords,forcing_mask,denormalize = True,**kwargs)
             if lsrp_flag:
                 predicted_forcings,true_forcings = lsrp_pred(predicted_forcings,true_forcings)
-            stats = update_stats(stats,predicted_forcings,true_forcings,lsrp_flag)
+                predicted_forcings,lsrp_forcings = predicted_forcings
+                stats = update_stats(stats,lsrp_forcings,true_forcings,lsrpid)
+            stats = update_stats(stats,predicted_forcings,true_forcings,modelid)
             nt += 1
-            break
+            # break
 
-        if lsrp_flag:
-            for i in range(len(stats)):
-                stats[i] = stats[i].expand_dims(dim = {'depth':[depth]},axis= 0)
-                stats[i] = stats[i]/nt
-        else:
-            stats = stats.expand_dims(dim = {'depth':[depth]},axis= 0)
-            stats = stats/nt
-        
-        allstats.append(stats)
-    if lsrp_flag:
-        evs = xr.merge([alst[0] for alst in allstats])
-        lsrp_evs = xr.merge([alst[1] for alst in allstats])
-    else:
-        evs = xr.merge(allstats)
-    fileame = os.path.join(EVALS,modelid+'.nc')
-    evs.to_netcdf(fileame,mode = 'w')
-    if lsrp_flag:
-        fileame = os.path.join(EVALS,'lsrp.nc')
-        lsrp_evs.to_netcdf(fileame,mode = 'w')
+        for key in stats:
+            stats[key] = stats[key]/nt
+            if key not in allstats:
+                allstats[key] = []
+            allstats[key].append(stats[key])
+
+    for key in allstats:
+        filename = os.path.join(EVALS,key+'.nc')
+        print(filename)
+        xr.merge(allstats[key]).to_netcdf(filename,mode = 'w')
 
 
             

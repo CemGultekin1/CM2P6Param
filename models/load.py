@@ -71,11 +71,10 @@ def load_model(args):
         if runargs.mode == "train":
             net.load_state_dict(state_dict["last_model"])
             net.train()
-            print(f"Loaded the existing model")
         elif runargs.mode == "eval":
             net.load_state_dict(state_dict["best_model"])
             net.eval()
-        print(f"Loaded the existing model")
+        print(f"Loaded an existing model")
         if "optimizer" in state_dict:
             optimizer.load_state_dict(state_dict["optimizer"])
         if "scheduler" in state_dict:

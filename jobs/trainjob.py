@@ -54,8 +54,6 @@ def generate_training_tasks():
     base_kwargs = dict(
         num_workers = NCPU,
         disp = 50,
-        rerun = True,
-        relog = True
     )
     kwargs = dict(
         lsrp = [0],     

@@ -58,6 +58,8 @@ def convolutional_lsrp_weights_path(sigma:int,span :int = -1):
     else:
         return os.path.join(LSRP,f'compressed_conv_weights_{sigma}_{span}.nc')
 
+def all_eval_path():
+    return os.path.join(EVALS,'all.nc')
 def inverse_coarse_graining_weights_path(sigma:int):
     return os.path.join(LSRP,f'inv_weights_{sigma}.nc')
 def coarse_graining_projection_weights_path(sigma:int):

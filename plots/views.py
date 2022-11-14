@@ -1,6 +1,7 @@
 import itertools
 import os
 import matplotlib.pyplot as plt
+from data.load import pass_geo_grid
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from utils.paths import SLURM, VIEW_PLOTS, VIEWS
@@ -17,12 +18,12 @@ def main():
     lines = file1.readlines()
     file1.close()
     # lines = ['lsrp'] + lines
-    title_inc = ['depth','latitude','lsrp']
-    title_nam = ['train-depth','latitude','lsrp']
-    subplotkwargs = dict()
+    title_inc = ['sigma','domain','depth','latitude','lsrp']
+    title_nam = ['sigma','train-domain','train-depth','latitude','lsrp']
+    subplotkwargs = dict(projection=ccrs.PlateCarree(),)
         # projection =  ccrs.PlateCarree()
     # )
-    plotkwargs = dict()
+    plotkwargs = lambda a : dict(transform=ccrs.PlateCarree(),x = 'geolon' if a else 'lon',y = 'geolat' if a else 'lat',) 
         # cbar_kwargs = {'shrink':0.6},
     # )
     # ans = 'u v T'.split()
@@ -39,7 +40,9 @@ def main():
         if not os.path.exists(snfile):
             continue
         sn = xr.open_dataset(snfile)
-        print(sn)
+        runargs,_ = options(line.split(),key = "run")
+        sn = pass_geo_grid(sn,runargs.sigma)
+ 
         depthvals = sn.depth.values
         timevals = sn.time.values
         targetfolder = os.path.join(target,modelid)
@@ -47,29 +50,38 @@ def main():
             os.makedirs(targetfolder)
         for i,(time,depth) in enumerate(itertools.product(timevals,depthvals)):
             s = sn.sel(time = time,depth = depth)
+            s = s.drop('time').drop('depth')
             title_ = f"{title}\ntest-depth: {depth},    time: {time}"
-            names = list(s.data_vars)
-            print(names)
-            names = np.array(names)#[n for n in names if n in ans])
+            names = 'u v T'.split() + 'Su Sv ST'.split() + 'Su_true Sv_true ST_true'.split() + 'Su_err Sv_err ST_err'.split()
             ncol = 3
-            if len(names) % ncol != 0:
-                df = ncol - (len(names)%ncol)
-                names = np.concatenate([names,[None]*df])
-            names = names.reshape([ncol,-1]).T
-            print(names)
+            names = [n if n in list(s.data_vars) else None for n in names ]
+            kk = 0
+            for namei,name in enumerate(names):
+                if name is None:
+                    if kk == 0:
+                        names[namei] = 'geolon'
+                    elif kk==1:
+                        names[namei] = 'geolat'
+                    kk+=1
+            names = np.array(names)
+            names = names.reshape([-1,ncol])
+            # print(names)
             # names = names[:,[2,0,1]]
             targetfile = os.path.join(targetfolder,f'snapshot_{i}.png')
-            def replace_zero_with_nan(x):
-                return xr.where(x==0,np.nan,x)
             nrow = names.shape[0]
             plt.figure(figsize = (60,20))
             
             for ir,ic in itertools.product(range(nrow),range(ncol)):
 
                 ax = plt.subplot(nrow,ncol,ir*ncol + ic + 1,**subplotkwargs)
-
-                replace_zero_with_nan(\
-                    s[names[ir,ic]]).plot(ax = ax,**plotkwargs)
+                if names[ir,ic] is None:
+                    continue
+                # ax.coastlines()
+                # ax.gridlines()
+                # print(names[ir,ic],'geo' in names[ir,ic])
+                kwargs = plotkwargs(False)
+                s[names[ir,ic]].plot(ax = ax,**kwargs)
+                
                 
                 ax.set_title(names[ir,ic],fontsize=24)
 

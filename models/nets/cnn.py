@@ -30,7 +30,7 @@ class CNNLayer(nn.Module):
 
 
 class CNN(nn.Module):
-    def __init__(self,widths,kernels,batchnorm,skipconn,seed):#,**kwargs):
+    def __init__(self,widths = None,kernels = None,batchnorm = None,skipconn = None,seed = None,**kwargs):
         super(CNN, self).__init__()
         device = get_device()
         self.device = device

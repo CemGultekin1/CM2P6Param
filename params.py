@@ -1,4 +1,3 @@
-from typing import List
 from argparse import ArgumentTypeError
 
 USUAL_PARAMS = {
@@ -47,8 +46,8 @@ ARCH_PARAMS = {
     "skipconn" : {"type":int,"nargs":'+',"default":tuple([0]*8)},
     "batchnorm" : {"type":int,"nargs":'+',"default":tuple([1]*8)},
     "seed" : {"type":int,"default":0},
+    "model" : {"type":str, "choices":["fcnn","lsrp:0","lsrp:1"]}
 }
-
 
 
 RUN_PARAMS = {
@@ -63,12 +62,12 @@ RUN_PARAMS = {
     "mode" : {"type": str, "choices" : ["train","eval","data","scalars","view"],},
     "section" : {"type":int, "nargs": 2, "default":(0,1)},
     "sanity": {"type":bool, "default":False},
-    "lsrp_span": {"type":int,  "default": 12},
 }
 
 
 
 PARAMS = dict(TRAIN_PARAMS,**DATA_PARAMS,**RUN_PARAMS,**ARCH_PARAMS,**SCALAR_PARAMS)
+
 
 DATA_PARAMS = dict(DATA_PARAMS,**SCALAR_PARAMS)
 TRAIN_PARAMS = dict(TRAIN_PARAMS,**DATA_PARAMS)
@@ -91,7 +90,7 @@ def str2bool(v):
 
 
 
-for d in (DATA_PARAMS,ARCH_PARAMS,RUN_PARAMS,SCALAR_PARAMS,TRAIN_PARAMS,PARAMS):
+for d in (DATA_PARAMS,ARCH_PARAMS,RUN_PARAMS,SCALAR_PARAMS,TRAIN_PARAMS,MODEL_PARAMS,PARAMS):#
     for key in d:
         if "choices" in d[key]:
             d[key]["default"] = d[key]["choices"][0]

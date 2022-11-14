@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --time=1:00:00
-#SBATCH --array=6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28
+#SBATCH --time=1:30:00
+#SBATCH --array=1
 #SBATCH --mem=30GB
 #SBATCH --job-name=evaljob
 #SBATCH --output=/scratch/cg3306/climate/CM2P6Param/saves/slurm_logs/evaljob_%a_%A.out
