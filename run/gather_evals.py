@@ -1,7 +1,11 @@
+import itertools
 import os
+from plots.metrics import metrics_dataset
 from utils.paths import SLURM, EVALS, all_eval_path
+from utils.slurm import flushed_print
+from utils.xarray import plot_ds, skipna_mean
 import xarray as xr
-from utils.arguments import options
+from utils.arguments import args2dict, options
 import numpy as np
 
 def get_lsrp_modelid(args):
@@ -25,54 +29,17 @@ def turn_to_lsrp_models(lines):
             lsrplines.append(lsrpline)
     lsrplines = np.unique(lsrplines).tolist()
     return lsrplines 
-def getr2(sn,key):
-    tmom1 = sn[f"{key}_true_mom1"]
-    pmom1 = sn[f"{key}_pred_mom1"]
-    tmom2 = sn[f"{key}_true_mom2"]
-    pmom2 = sn[f"{key}_pred_mom2"]
-    cmom2 = sn[f"{key}_cross"]
-    reduckwargs = dict(dim = ['lat','lon'])
-    nonan = xr.where(np.isnan(tmom1),0,1)
-    def skipna_average(st):
-        return xr.where(np.isnan(st),0,st).sum(**reduckwargs)/nonan.sum(**reduckwargs)
-    tmom1 = skipna_average(tmom1)
-    pmom1 = skipna_average(pmom1)
-    tmom2 = skipna_average(tmom2)
-    pmom2 = skipna_average(pmom2)
-    cmom2 = skipna_average(cmom2)
 
-
-    mse = tmom2 + pmom2 - 2*cmom2
-    sc2 = tmom2
-    
-    tvar = tmom2 - np.square(tmom1)
-    pvar = pmom2 - np.square(pmom1)
-
-    r2 = 1 - mse/sc2
-    correlation = (cmom2 - pmom1*tmom1)/np.sqrt(tvar*pvar)
-    return dict(r2 = r2,correlation = correlation)
-    
-
-def append_statistics(stats,sn:xr.Dataset,coordvals):
-    # reduckwargs = dict(dim = ["lat","lon"],skipna = True)
-    model = {}
-    for key in 'Su Sv ST'.split():
-        if f"{key}_true_mom1" not in sn.data_vars.keys():
-            continue
-        for _key,_val in getr2(sn,key).items():
-            model[f"{key}_{_key}"] = _val
-    for key,val in model.items():
-        val.name = key
-        model[key] = val
-    modelev = xr.merge(list(model.values()))
-    for cname,cval in coordvals.items():
-        modelev = modelev.expand_dims(dim = {cname:cval},axis= 0)
-    if stats is None:
-        stats= modelev
-    else:
-        stats = xr.merge([stats,modelev])
-    return stats
-
+def append_statistics(sn:xr.Dataset,coordvals):
+    modelev = metrics_dataset(sn.sel(lat = slice(-80,80)),dim = [])
+    modelev = skipna_mean(modelev,dim = ['lat','lon'])
+    for c,v in coordvals.items():
+        if c not in modelev.coords:
+            modelev = modelev.expand_dims(dim = {c:v})
+    print(modelev.Su_r2.values.reshape([-1]))
+    return modelev
+def merge_and_save(stats):
+    xr.merge(list(stats.values())).to_netcdf(all_eval_path(),mode = 'w')
 def main():
     root = EVALS
     models = os.path.join(SLURM,'evaljob.txt')
@@ -83,24 +50,55 @@ def main():
 
     lines = lines + turn_to_lsrp_models(lines)
     coords = ['sigma','temperature','domain','latitude','lsrp','depth','seed','model']
-    coordnames = ['sigma','temperature','training_domain','latitude_features','lsrp','training_depth','seed','model']
-    stats = None
-    for line in lines:
-        modelargs,modelid = options(line.split(),key = "model")
-        coordvals = {}
-        for cn,coord in zip(coordnames,coords):
-            val = modelargs.__getattribute__(coord)
-            if isinstance(val,bool):
-                val = int(val)
-            coordvals[cn] = [val]
+    rename = dict(depth = 'training_depth')
+    data = {}
+    coord = {}
+    for i,line in enumerate(lines):
+        coordvals,(_,modelid) = args2dict(line.split(),key = 'model',coords = coords)
+        for rn,val in rename.items():
+            coordvals[val] = coordvals.pop(rn)
         snfile = os.path.join(root,modelid + '.nc')
         if not os.path.exists(snfile):
             continue
-        sn = xr.open_dataset(snfile)
-        stats = append_statistics(stats,sn,coordvals)
+        try:
+            sn = xr.open_dataset(snfile)
+        except:
+            continue
+        data[modelid] = append_statistics(sn,coordvals)
+        
+        flushed_print(i,snfile.split('/')[-1])
+        # if i == 32:
+        #     break
+    merged_coord = {}
+    for ds in data.values():
+        for key,val in ds.coords.items():
+            if key not in merged_coord:
+                merged_coord[key] = []
+            merged_coord[key].extend(val.values.tolist())
+            merged_coord[key] = np.unique(merged_coord[key]).tolist()
    
-    stats.to_netcdf(all_eval_path(),mode = 'w')
-    print(stats)
+    shape = [len(v) for v in merged_coord.values()]
+    def empty_arr():
+        return np.ones(np.prod(shape))*np.nan
+    data_vars = {}
+    for modelid,ds in data.items():
+        loc_coord = {key:val.values for key,val in ds.coords.items()}
+        lkeys = list(loc_coord.keys())
+        for valc in itertools.product(*loc_coord.values()):
+            inds = tuple([merged_coord[k].index(v) for k,v in zip(lkeys,valc)])
+            alpha = np.ravel_multi_index(inds,shape)
+            _ds = ds.sel(**{k:v for k,v in zip(lkeys,valc)})
+            for key in _ds.data_vars.keys():
+                if key not in data_vars:
+                    data_vars[key] = empty_arr()
+                data_vars[key][alpha] = _ds[key].values
+    for key,val in data_vars.items():
+        data_vars[key] = (list(merged_coord.keys()),val.reshape(shape))
+    ds = xr.Dataset(data_vars = data_vars,coords = merged_coord)
+    # print(ds.Su_r2.isel(training_depth = 0,model =0,seed = 0,lsrp = 0,latitude = 0,).values.reshape([-1]))
+    # return 
+   
+    ds.to_netcdf(all_eval_path(),mode = 'w')
 
 if __name__=='__main__':
     main()

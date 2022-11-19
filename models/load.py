@@ -68,10 +68,11 @@ def load_model(args):
     scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=0.5,patience=2)
     rerun_flag = runargs.rerun and runargs.mode == 'train'
     if state_dict is not None and not rerun_flag:
+        # net.load_state_dict(state_dict["last_model"])
         if runargs.mode == "train":
             net.load_state_dict(state_dict["last_model"])
             net.train()
-        elif runargs.mode == "eval":
+        else:
             net.load_state_dict(state_dict["best_model"])
             net.eval()
         print(f"Loaded an existing model")

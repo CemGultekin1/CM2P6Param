@@ -221,7 +221,7 @@ def get_data(args,torch_flag = False,data_loaders = True,**kwargs):
         if ns.mode != "train":
             minibatch = None
         params={'batch_size':minibatch,\
-            'shuffle':ns.mode == "train",\
+            'shuffle': False,#ns.mode == "train",\
             'num_workers':ns.num_workers,\
             'prefetch_factor':ns.prefetch_factor,\
             'persistent_workers':ns.persistent_workers,}
@@ -257,14 +257,14 @@ def preprocess_dataset(args,ds:xr.Dataset):
         return ds
     ds = add_co2(ds,prms)
 
-    if prms.mode == 'view':
-        np.random.seed(0)
-        t1 = get_time_values(True)
-        t0 = get_time_values(False)
-        t01 = np.array([t for t in t0 if t in t1])
-        tis = np.sort(np.random.randint(0,len(t01),size = 16))
-        time_vals = t01[tis]
-        ds = ds.sel(time = time_vals)
+    # if prms.mode == 'view':
+    #     np.random.seed(0)
+    #     t1 = get_time_values(True)
+    #     t0 = get_time_values(False)
+    #     t01 = np.array([t for t in t0 if t in t1])
+    #     tis = np.sort(np.random.randint(0,len(t01),size = 512))
+    #     time_vals = t01[tis]
+    #     ds = ds.sel(time = time_vals)
     if prms.depth > 1e-3:
         if 'depth' not in coord_names:
             raise RequestDoesntExist

@@ -111,3 +111,14 @@ def args2num(prms:dict,args:argparse.Namespace):
 
     s = tuple(s)
     return hashlib.sha224(str(s).encode()).hexdigest()
+
+
+def args2dict(args,key = 'model',coords = dict):
+    modelargs,modelid = options(args,key = key)
+    coordvals = {}
+    for coord in coords:
+        val = modelargs.__getattribute__(coord)
+        if isinstance(val,bool):
+            val = int(val)
+        coordvals[coord] = [val]
+    return coordvals,(modelargs,modelid)

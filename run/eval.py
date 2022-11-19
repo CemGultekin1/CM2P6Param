@@ -1,6 +1,8 @@
+import itertools
 import os
 import sys
 from data.exceptions import RequestDoesntExist
+from plots.metrics import metrics_dataset, moments_dataset
 from run.train import Timer
 import torch
 from data.load import get_data
@@ -121,16 +123,7 @@ def lsrp_pred(respred,tr):
     lsrp = xr.Dataset(data_vars =data_vars,coords = coords)
     return (respred,lsrp),tr
 def update_stats(stats,prd,tr,key):
-    evals = {}
-    evals['true_mom1'] = tr
-    evals['true_mom2'] = np.square(tr)
-    evals['pred_mom1'] = prd
-    evals['pred_mom2'] = np.square(prd)
-    evals['cross'] = tr*prd
-
-    for ev,val in evals.items():
-        evals[ev] = val.rename({key:f'{key}_{ev}' for key in val.data_vars})
-    stats_ = xr.merge(list(evals.values()))
+    stats_ = moments_dataset(prd,tr)
     if key not in stats:
         stats[key] = stats_
     else:
@@ -172,7 +165,7 @@ def main():
             continue
         stats = {}
         nt = 0
-        timer = Timer()
+        # timer = Timer()
         for fields,forcings,forcing_mask,_,forcing_coords in test_generator:
             fields_tensor = fromtorchdict2tensor(fields).type(torch.float32)
             depth = forcing_coords['depth'].item()
@@ -181,28 +174,71 @@ def main():
                 expand_dims = {'co2':[co2],'depth':[depth]})
             if nt ==  0:
                 flushed_print(depth,co2)
-            # flushed_print(f'\t\t\t{nt}')
-            # timer.start('model')
+
             with torch.set_grad_enabled(False):
                 mean,_ =  net.forward(fields_tensor.to(device))
                 mean = mean.to("cpu")
-            # timer.end('model')
-            # print(timer)
+
+            
+            # outfields = fromtorchdict2tensor(forcings).type(torch.float32)
+            # mask = fromtorchdict2tensor(forcing_mask).type(torch.float32)
+            # yhat = mean.numpy()[0]
+            # y = outfields.numpy()[0]
+            # m = mask.numpy()[0] < 0.5
+            # yhat[m] = np.nan
+            # y[m] = np.nan
+            # prst = lambda y: print(np.mean(y[y==y]),np.std(y[y==y]))
+            # prst(y),prst(yhat),prst(fields_tensor.numpy())
+            # nchan = yhat.shape[0]
+            # import matplotlib.pyplot as plt
+            # fig,axs = plt.subplots(nchan,2,figsize = (2*5,nchan*6))
+            # for chani in range(nchan):
+            #     ax = axs[chani,0]
+            #     ax.imshow(y[chani,::-1])
+            #     ax = axs[chani,1]
+            #     ax.imshow(yhat[chani,::-1])
+            # fig.savefig('eval_intervention.png')
+            # return
+
+
             predicted_forcings = fromtensor(mean,forcings,forcing_coords, forcing_mask,denormalize = True,**kwargs)
             true_forcings = fromtorchdict(forcings,forcing_coords,forcing_mask,denormalize = True,**kwargs)
             if lsrp_flag:
                 predicted_forcings,true_forcings = lsrp_pred(predicted_forcings,true_forcings)
                 predicted_forcings,lsrp_forcings = predicted_forcings
                 stats = update_stats(stats,lsrp_forcings,true_forcings,lsrpid)
+            
             stats = update_stats(stats,predicted_forcings,true_forcings,modelid)
             nt += 1
+
+            # break
+            # if nt == 16:
+            # for key,stats_ in stats.items():
+            #     stats__ = metrics_dataset(stats_/nt,reduckwargs = {})
+            #     names = list(stats__.data_vars.keys())
+            #     ncols = 2
+            #     nrows  = int(np.ceil(len(names)/ncols))
+                
+            #     fig,axs = plt.subplots(nrows,ncols,figsize = (ncols*5,nrows*5))
+            #     for z,(i,j)  in enumerate(itertools.product(range(nrows),range(ncols))):
+            #         ax = axs[i,j]
+            #         kwargs = dict(vmin =0.5,vmax = 1) if 'r2' in names[z] else dict()
+            #         kwargs = dict(vmin =-1,vmax = 1) if 'corr' in names[z] else kwargs
+            #         stats__[names[z]].isel(co2 = 0,depth = 0).plot(ax = ax,**kwargs)
+            #         ax.set_title(names[z])
+                    
+            #     fig.savefig(f'_{nt}_{key}.png')
+            #     plt.close()
+            # if nt == 16:
+            #     return
+            #     return
             # break
 
         for key in stats:
             stats[key] = stats[key]/nt
             if key not in allstats:
                 allstats[key] = []
-            allstats[key].append(stats[key])
+            allstats[key].append(stats[key].copy())
 
     for key in allstats:
         filename = os.path.join(EVALS,key+'.nc')

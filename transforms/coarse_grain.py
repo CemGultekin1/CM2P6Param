@@ -28,16 +28,16 @@ def hreslres(uvars,tvars,ugrid:xr.Dataset,tgrid:xr.Dataset,coarse_grain_u,coarse
     thres,tlres = subhres_lres(tvars,tgrid,coarse_grain_t)
     return uhres,ulres,thres,tlres
     
-# def get_gcm_filter(sigma):
-#     filter_scale = sigma/2*np.sqrt(12)
-#     dx_min = 1
-#     specs = {
-#         'filter_scale': filter_scale,
-#         'dx_min': dx_min,
-#         'grid_type': gcm_filters.GridType.REGULAR,
-#         'filter_shape':gcm_filters.FilterShape.GAUSSIAN,
-#     }
-#     return gcm_filters.Filter(**specs,)
+def get_gcm_filter(sigma):
+    filter_scale = sigma/2*np.sqrt(12)
+    dx_min = 1
+    specs = {
+        'filter_scale': filter_scale,
+        'dx_min': dx_min,
+        'grid_type': gcm_filters.GridType.REGULAR,
+        'filter_shape':gcm_filters.FilterShape.GAUSSIAN,
+    }
+    return gcm_filters.Filter(**specs,)
 
 def get_scipy_filter(sigma):
     '''

@@ -3,18 +3,18 @@ import os
 import matplotlib.pyplot as plt
 from plots.metrics import metrics_dataset
 from utils.paths import SLURM, R2_PLOTS, EVALS
+from utils.xarray import skipna_mean
 import xarray as xr
 from utils.arguments import options
 from utils.slurm import flushed_print
 import numpy as np
 def main():
     root = EVALS
-    models = os.path.join(SLURM,'trainjob.txt')
+    models = os.path.join(SLURM,'evaljob.txt')
     target = R2_PLOTS
     file1 = open(models, 'r')
     lines = file1.readlines()
     file1.close()
-    # lines = 'lsrp_0 lsrp_1'.split() + lines
     title_inc = ['sigma','domain','depth','latitude','lsrp']
     title_name = ['sigma','train-domain','train-depth','latitude','lsrp']
     for line in lines:
@@ -26,20 +26,25 @@ def main():
         snfile = os.path.join(root,modelid + '.nc')
         if not os.path.exists(snfile):
             continue
-        sn = xr.open_dataset(snfile)
-        msn = metrics_dataset(sn,reduckwargs = {})
+        sn = xr.open_dataset(snfile).sel(lat = slice(-85,85))#.isel(depth = [0],co2 = 0).drop(['co2'])
+        msn = metrics_dataset(sn,dim = [])
+        tmsn = metrics_dataset(sn,dim = ['lat','lon'])
+
         depthvals = msn.depth.values
         targetfolder = os.path.join(target,modelid)
         if not os.path.exists(targetfolder):
             os.makedirs(targetfolder)
         for i in range(len(depthvals)):
             s = msn.isel(depth = i)
+            ts = tmsn.isel(depth = i)
+
             depthval = depthvals[i]
+
             title_ = f"{title}\ntest-depth: {depthval}"
             names = "Su Sv ST".split()
             unames = np.unique([n.split('_')[0] for n in list(s.data_vars)])
             names = [n for n in names if n in unames]
-            ftypes = ['r2','mse','sc2']
+            ftypes = ['r2','mse','sc2','corr']
             
             nrows = len(names)
             ncols = len(ftypes)
@@ -50,19 +55,24 @@ def main():
         
             targetfile = os.path.join(targetfolder,f'maps_{i}.png')
 
-            fig,axs = plt.subplots(nrows,ncols,figsize = (50,30))
+            fig,axs = plt.subplots(nrows,ncols,figsize = (ncols*6,nrows*5))
             for ir,ic in itertools.product(range(nrows),range(ncols)):
-                pkwargs = dict(vmin = 0,vmax = 1)
-                var = s[_names[ir,ic]]
-                subtitle = _names[ir,ic]
+                name = _names[ir,ic]
+                var = s[name]
+                pkwargs = dict()
+                if 'r2' in name or 'corr' in name:
+                    pkwargs = dict(vmin = 0.5,vmax = 1)
+                else:
+                    var = np.log10(var)
                 var.plot(ax = axs[ir,ic],**pkwargs)
-                axs[ir,ic].set_title(subtitle,fontsize=24)
+                title = f"{name}:{'{:.2e}'.format(ts[name].values[0])}"
+                print(title)
+                axs[ir,ic].set_title(title,fontsize=24)
             fig.suptitle(title_,fontsize=24)
             fig.savefig(targetfile)
             flushed_print(title_,'\n\t',targetfile)
             plt.close()
-            if i==len(depthvals)-1:
-                break
+        # return
 
 
 

@@ -78,7 +78,33 @@ def cnn_train(args):
             infields,outfields,mask = infields.to(device),outfields.to(device),mask.to(device)
             timer.end('data')
             timer.start('model')
-            outputs = net.forward(infields)
+            
+            # outputs = net.forward(infields)
+
+            with torch.set_grad_enabled(False):
+                # net.eval()
+                outputs = net.forward(infields)
+            mean,_ = outputs
+            yhat = mean.numpy()[0]
+            y = outfields.numpy()[0]
+            m = mask.numpy()[0] < 0.5
+            yhat[m] = np.nan
+            y[m] = np.nan
+            
+            nchan = yhat.shape[0]
+            import matplotlib.pyplot as plt
+            fig,axs = plt.subplots(nchan,2,figsize = (2*5,nchan*6))
+            for chani in range(nchan):
+                ax = axs[chani,0]
+                ax.imshow(y[chani,::-1])
+                ax = axs[chani,1]
+                ax.imshow(yhat[chani,::-1])
+            fig.savefig('train_intervention.png')
+            return
+
+            
+
+            
             loss = criterion(outputs, outfields, mask)
             logs['train-loss'][-1].append(loss.item())
             optimizer.zero_grad()

@@ -126,18 +126,18 @@ def main():
     lsrpid = f'lsrp_{lsrp_flag}'
     assert runargs.mode == "view"
     
-    multidatargs = populate_data_options(args,non_static_params=["depth"])
+    multidatargs = populate_data_options(args,non_static_params=[])#"depth"])
     allstats = []
     for datargs in multidatargs:
         try:
-            test_generator, = get_data(datargs,half_spread = net.spread, torch_flag = False, data_loaders = True,groups = ('test',))
+            test_generator, = get_data(datargs,half_spread = net.spread, torch_flag = False, data_loaders = True,groups = ('train',))
         except RequestDoesntExist:
             print('data not found!')
             test_generator = None
         if test_generator is None:
             continue
         nt = 0
-        nt_limit = 2
+        nt_limit = 5
         
         for fields,forcings,field_mask,forcing_mask,field_coords,forcing_coords in test_generator:
             time,depth,co2 = field_coords['time'].item(),field_coords['depth'].item(),field_coords['co2'].item()
@@ -150,6 +150,28 @@ def main():
             with torch.set_grad_enabled(False):
                 mean,_ =  net.forward(fields_tensor.to(device))
                 mean = mean.to("cpu")
+            # outfields = fromtorchdict2tensor(forcings).type(torch.float32)
+            # mask = fromtorchdict2tensor(forcing_mask).type(torch.float32)
+
+            # yhat = mean.numpy()[0]
+            # y = outfields.numpy()[0]
+            # m = mask.numpy()[0] < 0.5
+            # yhat[m] = np.nan
+            # y[m] = np.nan
+            # prst = lambda y: print(np.mean(y[y==y]),np.std(y[y==y]))
+            # prst(y),prst(yhat),prst(fields_tensor.numpy())
+            # nchan = yhat.shape[0]
+            # import matplotlib.pyplot as plt
+            # fig,axs = plt.subplots(nchan,2,figsize = (2*5,nchan*6))
+            # for chani in range(nchan):
+            #     ax = axs[chani,0]
+            #     ax.imshow(y[chani,::-1])
+            #     ax = axs[chani,1]
+            #     ax.imshow(yhat[chani,::-1])
+            # fig.savefig('view_intervention.png')
+            # return
+
+
 
             predicted_forcings = fromtensor(mean,forcings,forcing_coords, forcing_mask,denormalize = True,**kwargs)
             true_forcings = fromtorchdict(forcings,forcing_coords,forcing_mask,denormalize = True,**kwargs)

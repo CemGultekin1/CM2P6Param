@@ -5,26 +5,43 @@ import torch
 import numpy as np
 import torch.nn as nn
 
-
-def plot_ds(ds,imname,ncols = 3):
+def skipna_mean(ds,dim):
+    _nancount= xr.where(np.isnan(ds),0,1)
+    _values = xr.where(np.isnan(ds),0,ds)
+    return _values.sum(dim = dim)/_nancount.sum(dim = dim)
+def plot_ds(ds,imname,ncols = 3,dims = ['lat','lon']):
     import matplotlib.pyplot as plt
     import itertools
-    flat_vars = {}
+    
     if isinstance(ds,list):
         for i,ds_ in enumerate(ds):
             imname_ = imname.replace('.png',f'-{i}.png')
             plot_ds(ds_,imname_,ncols = ncols)
         return
+    excdims = []
     for key in ds.data_vars.keys():
         u = ds[key]
-        if 'tr_depth'in u.dims:
-            for i in range(len(u.tr_depth)):
-                ui = u.isel(tr_depth = i)
-                if np.all(np.isnan(ui.values)):
-                    continue
-                flat_vars[f'{key}_tr_depth_{i}'] = u.isel(tr_depth = i)
-        else:
-            flat_vars[key] = u
+        dim = list(u.dims)
+        excdims.extend(dim)
+    excdims = np.unique(excdims).tolist()
+   
+    for d in dims:
+        if d not in excdims:
+            raise Exception
+        excdims.pop(excdims.index(d))
+
+    flat_vars = {}
+    for key in ds.data_vars.keys():
+        u = ds[key]
+        eds = [d for d in u.dims if d in excdims if len(ds.coords[d])>1]
+        base_sel = {d : 0 for d in u.dims if d in excdims if len(ds.coords[d])==1}
+        neds = [len(ds.coords[d]) for d in eds]
+        inds = [range(nd) for nd in neds]
+        for multi_index in itertools.product(*inds):
+            secseldict = {ed:mi for ed,mi in zip(eds,multi_index)}
+            seldict = dict(base_sel,**secseldict)
+            keyname = key + '_'.join([f"{sk}_{si}" for sk,si in secseldict.items()])
+            flat_vars[keyname] = u.isel(**seldict)
     vars = list(flat_vars.keys())
     nrows = int(np.ceil(len(vars)/ncols))
     fig,axs = plt.subplots(nrows,ncols,figsize=(ncols*6,nrows*5))

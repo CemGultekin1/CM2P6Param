@@ -9,6 +9,7 @@ import xarray as xr
 from utils.arguments import options
 import numpy as np
 import cartopy.crs as ccrs
+from data.coords import REGIONS
 
 def main():
     root = VIEWS
@@ -20,10 +21,10 @@ def main():
     # lines = ['lsrp'] + lines
     title_inc = ['sigma','domain','depth','latitude','lsrp']
     title_nam = ['sigma','train-domain','train-depth','latitude','lsrp']
-    subplotkwargs = dict(projection=ccrs.PlateCarree(),)
+    subplotkwargs = dict()#projection=ccrs.PlateCarree(),)
         # projection =  ccrs.PlateCarree()
     # )
-    plotkwargs = lambda a : dict(transform=ccrs.PlateCarree(),x = 'geolon' if a else 'lon',y = 'geolat' if a else 'lat',) 
+    plotkwargs = lambda a : dict()#transform=ccrs.PlateCarree(),x = 'geolon' if a else 'lon',y = 'geolat' if a else 'lat',) 
         # cbar_kwargs = {'shrink':0.6},
     # )
     # ans = 'u v T'.split()
@@ -55,22 +56,24 @@ def main():
             names = 'u v T'.split() + 'Su Sv ST'.split() + 'Su_true Sv_true ST_true'.split() + 'Su_err Sv_err ST_err'.split()
             ncol = 3
             names = [n if n in list(s.data_vars) else None for n in names ]
-            kk = 0
-            for namei,name in enumerate(names):
-                if name is None:
-                    if kk == 0:
-                        names[namei] = 'geolon'
-                    elif kk==1:
-                        names[namei] = 'geolat'
-                    kk+=1
+            # kk = 0
+            # for namei,name in enumerate(names):
+            #     if name is None:
+            #         if kk == 0:
+            #             names[namei] = 'geolon'
+            #         elif kk==1:
+            #             names[namei] = 'geolat'
+            #         kk+=1
             names = np.array(names)
             names = names.reshape([-1,ncol])
             # print(names)
             # names = names[:,[2,0,1]]
             targetfile = os.path.join(targetfolder,f'snapshot_{i}.png')
             nrow = names.shape[0]
-            plt.figure(figsize = (60,20))
+            plt.figure(figsize = (40,25))
             
+            sel = dict(lat = slice(REGIONS['custom'][0],REGIONS['custom'][1]),lon = slice(REGIONS['custom'][2],REGIONS['custom'][3]))
+            print(sel)
             for ir,ic in itertools.product(range(nrow),range(ncol)):
 
                 ax = plt.subplot(nrow,ncol,ir*ncol + ic + 1,**subplotkwargs)
@@ -80,7 +83,7 @@ def main():
                 # ax.gridlines()
                 # print(names[ir,ic],'geo' in names[ir,ic])
                 kwargs = plotkwargs(False)
-                s[names[ir,ic]].plot(ax = ax,**kwargs)
+                s[names[ir,ic]].sel(**sel).plot(ax = ax,**kwargs)
                 
                 
                 ax.set_title(names[ir,ic],fontsize=24)
@@ -90,8 +93,7 @@ def main():
             plt.savefig(targetfile)
             plt.close()
             print(targetfile)
-            if i==len(depthvals)-1:
-                break
+            
 
 
 
