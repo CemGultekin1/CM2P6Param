@@ -18,7 +18,7 @@ DATA_PARAMS = {
     "temperature" : {"type": bool, "default":False},
     "latitude" : {"type": bool, "default":False},
     "lsrp" :  {"type": int, "default":0},
-    "parts": {"type":int, "nargs": 2, "default":(1,1)},
+    "interior" : {"type":bool, "default":False},
 }
 
 

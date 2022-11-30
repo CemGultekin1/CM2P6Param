@@ -1,8 +1,8 @@
 
 
 
-FIELD_NAMES = 'u v T'.split()
-FORCING_NAMES = 'Su Sv ST'.split()
+FIELD_NAMES = 'u v temp'.split()
+FORCING_NAMES = 'Su Sv Stemp'.split()
 LSRP0_NAMES = [f+'0' for f in FORCING_NAMES]
 LSRP0_RES_NAMES = [f+'0_res'for f in FORCING_NAMES]
 LSRP1_NAMES = [f+'1' for f in FORCING_NAMES]
@@ -10,7 +10,6 @@ LSRP1_RES_NAMES = [f+'1_res'for f in FORCING_NAMES]
 LATITUDE_NAMES = ['abs_lat','sign_lat']
 
 def rename(ds):
-    # print(ds)
     varnames = list(ds.data_vars)
     for var in varnames:
         if 'temp' in var:
@@ -27,7 +26,6 @@ def rename(ds):
             ds = ds.rename(**{key:val})
     if 'st_ocean' in coord_names:
         ds = ds.rename({'st_ocean': 'depth'})
-    # print(ds)
     return ds
 def get_var_mask_name(key):
     return f"{key}_mask"

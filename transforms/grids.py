@@ -144,12 +144,14 @@ def ugrid2tgrid(u:xr.DataArray,v:xr.DataArray,ugrid:xr.Dataset,tgrid:xr.Dataset,
         )
     ut = xr.DataArray(
         data = udlat,
-        **coords
+        **coords,
+        name = 'ut'
     )
 
     vt = xr.DataArray(
         data = vdlon,
-        **coords
+        **coords,
+        name = 'vt'
     )
     return ut,vt
 
@@ -261,7 +263,8 @@ def logitudinal_expansion(u:xr.DataArray,expansion,prefix = '',stacked = False):
         return xr.DataArray(
             data = newuval,
             dims = tuple(dims),
-            coords = coords
+            coords = coords,
+            name = u.name
         )
     
     else:
@@ -274,7 +277,8 @@ def logitudinal_expansion(u:xr.DataArray,expansion,prefix = '',stacked = False):
             coords = {
                 slat : u[slat].values,
                 slon : newlon,
-            }
+            },
+            name = u.name
         )
 
 def logitudinal_expansion_dataset(ds:xr.Dataset,expansion,prefix = ''):

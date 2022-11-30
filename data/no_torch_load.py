@@ -11,7 +11,6 @@ import xarray as xr
 from data.coords import  DEPTHS, REGIONS, TIMES
 from utils.arguments import options
 import numpy as np
-import torch
 
 
 def load_grid(ds:xr.Dataset,):
@@ -64,14 +63,6 @@ def pass_geo_grid(ds,sigma):
             return g[ldf:-rdf]
         else:
             return g
-
-    
-    # geolon = match_shape(geolon,rlon,1)
-    # geolon = match_shape(geolon,rlat,0)
-
-    # geolat = match_shape(geolat,rlon,1)
-    # geolat = match_shape(geolat,rlat,0)
-
     ds = ds.assign_coords(
         dict(
             geolon = (['lat','lon'],(geolon + 180 ) % 360 - 180),
@@ -156,7 +147,9 @@ def dataset_arguments(args,**kwargs_):
     else:
         boundaries = REGIONS['global']
         
-    kwargs = ['lsrp','latitude','temperature','section','interior']
+    kwargs = ['lsrp','parts','latitude','temperature','section']
+    if runprms.mode == 'eval':
+        kwargs.pop(1)
     kwargs = {key:runprms.__dict__[key] for key in kwargs}
     kwargs['boundaries'] = boundaries
     kwargs['scalars'] = scalars
@@ -178,15 +171,7 @@ def dataset_arguments(args,**kwargs_):
     args = (ds_zarr,prms.sigma)
     return args,kwargs
 
-class Dataset(torch.utils.data.Dataset):
-    mdm:MultiDomainDataset
-    def __init__(self,mdm:MultiDomainDataset):
-        self.mdm = mdm
-    def __len__(self,):
-        return len(self.mdm)
-    def __getitem__(self,i):
-        outs =  self.mdm[i]
-        return self.mdm.outs2numpydict(outs)
+
 
 def load_lowres_dataset(args,**kwargs)->List[MultiDomainDataset]:
     _args,_kwargs = dataset_arguments(args,**kwargs)
@@ -199,35 +184,16 @@ def load_highres_dataset(args,**kwargs)->HighResCm2p6:
     ds = HighResCm2p6(*_args, **_kwargs)
     return (ds,)
 
-class TorchDatasetWrap(torch.utils.data.Dataset):
-    def __init__(self,mdm):
-        self.mdm = mdm
-    def __len__(self,):
-        return self.mdm.__len__()
-    def __getitem__(self,i):
-        return self.mdm[i]
 
-def get_data(args,torch_flag = False,data_loaders = True,**kwargs):
+
+def get_data(args,**kwargs):
     ns,_ = options(args,key = "run")
     if ns.mode != "data":
-        dsets = load_lowres_dataset(args,torch_flag = torch_flag,**kwargs)
+        dsets = load_lowres_dataset(args,**kwargs)
     else:
-        dsets = load_highres_dataset(args,torch_flag = torch_flag,**kwargs)
+        dsets = load_highres_dataset(args,**kwargs)
 
-    if data_loaders:
-        minibatch = ns.minibatch
-        if ns.mode != "train":
-            minibatch = None
-        params={'batch_size':minibatch,\
-            'shuffle': False,#ns.mode == "train",\
-            'num_workers':ns.num_workers,\
-            'prefetch_factor':ns.prefetch_factor,\
-            'persistent_workers':ns.persistent_workers,
-            'pin_memory': True}
-        torchdsets = (TorchDatasetWrap(dset_) for dset_ in dsets)
-        return [torch.utils.data.DataLoader(tset_, **params) for tset_ in torchdsets]
-    else:
-        return dsets
+    return dsets
 
 
 def populate_dataset(dataset:MultiDomainDataset,groups = ("train","validation"),**kwargs):
@@ -243,8 +209,7 @@ def get_time_values(deep):
 
 def preprocess_dataset(args,ds:xr.Dataset):
     prms,_ = options(args,key = "run")
-    if prms.mode == 'data':
-        ds = rename(ds)
+    ds = rename(ds)
     coord_names = list(ds.coords.keys())
 
     def add_co2(ds,prms):
@@ -255,15 +220,6 @@ def preprocess_dataset(args,ds:xr.Dataset):
         ds = ds.isel(co2 = 0)
         return ds
     ds = add_co2(ds,prms)
-
-    # if prms.mode == 'view':
-    #     np.random.seed(0)
-    #     t1 = get_time_values(True)
-    #     t0 = get_time_values(False)
-    #     t01 = np.array([t for t in t0 if t in t1])
-    #     tis = np.sort(np.random.randint(0,len(t01),size = 512))
-    #     time_vals = t01[tis]
-    #     ds = ds.sel(time = time_vals)
     if prms.depth > 1e-3:
         if 'depth' not in coord_names:
             raise RequestDoesntExist
@@ -282,7 +238,7 @@ def preprocess_dataset(args,ds:xr.Dataset):
         ds['depth'] = [0]
         if prms.mode != 'data':
             ds = ds.isel(depth = 0)
-    if prms.mode in ['train','eval','view'] and 'tr_depth' in ds.coords:
+    if prms.mode in ['train','eval','view']:
         depthval = ds.depth.values
         trd = ds.tr_depth.values
         tr_ind = np.argmin(np.abs(depthval - trd))

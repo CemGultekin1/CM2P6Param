@@ -108,11 +108,11 @@ class MultiDomainDataset(MultiDomain):
         return data_vars
     def group_variables(self,data_vars):
         groups = []
-        # normalization_groups = []
         for vargroup in self.var_grouping:
             valdict = {}
-            # valnormalization = {}
             for varname in vargroup:
+                if varname not in data_vars:
+                    continue
                 valdict[varname] = data_vars[varname]
                 for suff in '_mean _std'.split():
                     nvarname = varname + suff

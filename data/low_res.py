@@ -20,13 +20,10 @@ class CM2p6Dataset:
         self.half_spread = half_spread
         self.global_hres_coords = [None]*4
         def flatten_tuple_list(l_):
-            # varnames = list(ds.data_vars)
             l = []
             for n in l_:
-                # if n in varnames:
                 l.append(n)
             return l
-        # if boundaries is None:
         self.requested_boundaries = None if isinstance(boundaries,tuple) else boundaries
     
         varnames = kwargs.get('var_grouping',None)
@@ -37,7 +34,7 @@ class CM2p6Dataset:
             self.field_names = None
             self.forcing_names  = None
         
-        self.global_lres_coords = self.ds.ulat.values,larger_longitude_grid(self.ds.ulon.values)
+        self.global_lres_coords = self.ds.lat.values,larger_longitude_grid(self.ds.lon.values)
         self.preboundaries = (-90,90,-180,180)
         
 
@@ -85,6 +82,7 @@ class SingleDomain(CM2p6Dataset):
         self.all_land = None
         self._wetmask = None
         self._forcingmask = None
+        self.interior = kwargs.get('interior')
         
 
     @property
@@ -94,8 +92,6 @@ class SingleDomain(CM2p6Dataset):
     def set_half_spread(self,addsp):
         self.half_spread = addsp
         self.confine(*self.preboundaries)
-        if self.initiated and self.coarse_grain_needed:
-            self.coarse_grain = self.init_coarse_graining()
 
     def confine(self,latmin,latmax,lonmin,lonmax):
         ulat,ulon = self.global_lres_coords
@@ -116,33 +112,38 @@ class SingleDomain(CM2p6Dataset):
     def fieldwetmask(self,):
         if self._wetmask is None:
             ds = self.ds.isel(time =0).load()
-            ds = lose_tgrid(ds)
             ds = self.get_grid_fixed_lres(ds)
-            wetmask = ds.ugrid_wetmask + ds.tgrid_wetmask
-            wetmask = xr.where(wetmask > 0,1,0)
-            if self.requested_boundaries is not None:
-                wmask = wetmask.values
-                bmask = wmask*0 + 1
-                lat = wetmask.lat.values 
-                lon = wetmask.lon.values
-                for lat0,lat1,lon0,lon1 in self.requested_boundaries:
-                    latmask = (lat >= lat0)*(lat <= lat1)
-                    lonmask = (lon >= lon0)*(lon <= lon1)
-                    mask = latmask.reshape([-1,1])@lonmask.reshape([1,-1])
-                    bmask = mask  + bmask
-                bmask = (bmask > 1).astype(float)
-                wmask = wmask*bmask
-                wetmask = xr.DataArray(
-                    data = wmask,
-                    dims = ['lat','lon'],
-                    coords = {'lat':lat,'lon':lon},
-                    name = 'wetmask'
-                )
-            self._wetmask = wetmask
-            # import matplotlib.pyplot as plt
-            # self._wetmask.plot()
-            # plt.savefig('wetmask.png')
-            # plt.close()
+            if self.interior:
+                self._wetmask = ds.wetmask
+            else:
+                wetmask = None
+                for key in ds.data_vars.keys():
+                    mask_ = np.isnan(ds[key])
+                    if wetmask is None:
+                        wetmask  = mask_
+                    else:
+                        wetmask += mask_
+                wetmask = xr.where(wetmask > 0,0,1)
+                wetmask.name = 'wetmask'
+                if self.requested_boundaries is not None:
+                    wmask = wetmask.values
+                    bmask = wmask*0 + 1
+                    lat = wetmask.lat.values 
+                    lon = wetmask.lon.values
+                    for lat0,lat1,lon0,lon1 in self.requested_boundaries:
+                        latmask = (lat >= lat0)*(lat <= lat1)
+                        lonmask = (lon >= lon0)*(lon <= lon1)
+                        mask = latmask.reshape([-1,1])@lonmask.reshape([1,-1])
+                        bmask = mask  + bmask
+                    bmask = (bmask > 1).astype(float)
+                    wmask = wmask*bmask
+                    wetmask = xr.DataArray(
+                        data = wmask,
+                        dims = ['lat','lon'],
+                        coords = {'lat':lat,'lon':lon},
+                        name = 'wetmask'
+                    )
+                self._wetmask = wetmask
         return self._wetmask
     @property
     def forcingwetmask(self,):
@@ -153,8 +154,7 @@ class SingleDomain(CM2p6Dataset):
             
     def get_dataset(self,t):
         ds = self.ds.isel(time =t).load()
-        # print(ds)
-        ds = lose_tgrid(ds)
+        
         ds = self.get_grid_fixed_lres(ds)
         for prefix in '0 1'.split():
             lsrp_vars = [v for v in list(ds.data_vars) if prefix in v]
@@ -165,8 +165,6 @@ class SingleDomain(CM2p6Dataset):
                     forcing = np.stack([forcing],axis = 0)
                 lsrp_res_forcing = forcing - lsrp_forcing
                 ds[lv.replace(prefix,f'{prefix}_res')] = (ds[lv].dims,lsrp_res_forcing)
-        
-
 
         def apply_mask(ds,wetmaskv,keys):
             for name in keys:
@@ -177,8 +175,8 @@ class SingleDomain(CM2p6Dataset):
                 v = v.reshape(vshp)
                 ds[name] = (ds[name].dims,v)
             return ds
-
-        ds = ds.drop('tgrid_wetmask').drop('ugrid_wetmask')
+        ds = ds.drop('wetmask')
+        # ds = ds.drop('tgrid_wetmask').drop('ugrid_wetmask')
         # forcing_mask = no_nan_input_mask(wetmask,self.half_spread,lambda x: x==0,same_size = True)
         # forcing_mask = xr.where(forcing_mask==0,1,0)
         ds = apply_mask(ds,self.fieldwetmask.values,list(ds.data_vars))

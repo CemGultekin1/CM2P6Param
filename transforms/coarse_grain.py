@@ -1,11 +1,12 @@
 from transforms.grids import forward_difference
 import xarray as xr
 import numpy as np
-import gcm_filters
+import gcm_filters as gcm
 from scipy.ndimage import gaussian_filter
+# import cupy as cp
+# import scipy as cp
 
-
-def hreslres(uvars,tvars,ugrid:xr.Dataset,tgrid:xr.Dataset,coarse_grain_u,coarse_grain_t):
+def hreslres(uvars,ugrid:xr.Dataset,coarse_grain_u,):
     '''
     Takes high resolution U-grid variables in dictionary uvars and T-grid variables in dictionary tvars
     Takes their fine-grid derivatives across latitude and longitude
@@ -25,19 +26,33 @@ def hreslres(uvars,tvars,ugrid:xr.Dataset,tgrid:xr.Dataset,coarse_grain_u,coarse
         return hres,lres
 
     uhres,ulres = subhres_lres(uvars,ugrid,coarse_grain_u)
-    thres,tlres = subhres_lres(tvars,tgrid,coarse_grain_t)
-    return uhres,ulres,thres,tlres
+    return uhres,ulres
     
-def get_gcm_filter(sigma):
+def get_gcm_filter(sigma,wet,area,tripolar = False):
     filter_scale = sigma/2*np.sqrt(12)
     dx_min = 1
+    if not tripolar:
+        gtype = gcm.GridType.REGULAR_WITH_LAND_AREA_WEIGHTED
+    else:
+        gtype = gcm.GridType.TRIPOLAR_REGULAR_WITH_LAND_AREA_WEIGHTED
     specs = {
         'filter_scale': filter_scale,
         'dx_min': dx_min,
-        'grid_type': gcm_filters.GridType.REGULAR,
-        'filter_shape':gcm_filters.FilterShape.GAUSSIAN,
+        'filter_shape':gcm.FilterShape.GAUSSIAN,
+        'grid_type':gtype,
+        'grid_vars':{'wet_mask': wet,'area': area},
     }
-    return gcm_filters.Filter(**specs,)
+    area_weighted_filter = gcm.Filter(**specs,)
+
+    specs = {
+        'filter_scale': filter_scale,
+        'dx_min': dx_min,
+        'filter_shape':gcm.FilterShape.GAUSSIAN,
+        'grid_type':gcm.GridType.REGULAR,
+    }
+    nonweighted_filter = gcm.Filter(**specs,)
+    return area_weighted_filter,nonweighted_filter
+
 
 def get_scipy_filter(sigma):
     '''
@@ -66,39 +81,50 @@ def get_1d_scipy_filter(sigma):
     '''
     class filter:
         def apply(self,x:np.ndarray):
-            return gaussian_filter(x,sigma = sigma,mode= 'constant',cval = 0)
+            return gaussian_filter(x,sigma = sigma,mode= 'wrap')#,cval = 0)
     return filter()
-
-def coarse_graining_2d_generator(grid:xr.Dataset,sigma,wetmask :bool= False):
+# def togpu(wet_mask):
+#     wet_mask_gpu = wet_mask.copy()
+#     wet_mask_gpu = wet_mask_gpu.map_blocks(cp.asarray)
+#     return wet_mask_gpu
+# def tocpu(filtered_gpu):
+#     filtered_gpu = filtered_gpu.map_blocks(cp.asnumpy)
+#     return filtered_gpu
+def coarse_graining_2d_generator(grid:xr.Dataset,sigma,wetmask,greedy_coarse_graining = True,gpu = True,**kwargs):
     '''
     given a 2d rectangular grid :grid: and coarse-graining factor :sigma:
     it returns a Callable that coarse-grains
     '''
-    gaussian = get_scipy_filter(sigma)
+    # if gpu:
+    #     area = togpu(grid.area)
+    #     wetmask = togpu(wetmask)
+    # else:
+    #     area = grid.area
+    area = grid.area
+    _weighted_gaussian,_nonweighted_gaussian = get_gcm_filter(sigma,wetmask,area,**kwargs)
+    # carea = tocpu(_nonweighted_gaussian.apply(area,dims=['lat','lon']))
+    carea = _nonweighted_gaussian.apply(area,dims=['lat','lon'])
     def _gaussian_apply(xx:xr.Dataset):
         x = xx.copy()
         x = x.load().compute()
-        y = x.assign_coords(lat = np.arange(len(x.lat)),lon = np.arange(len(x.lon)))
-        y = gaussian.apply(y,dims=['lat','lon'])
-        y = y.assign_coords(lon = x.lon,lat = x.lat)
+        # if gpu:
+        #     y = tocpu(_weighted_gaussian.apply(togpu(x),dims=['lat','lon']))
+        # else:
+        #     y = _weighted_gaussian.apply(x,dims=['lat','lon'])
+        y = _weighted_gaussian.apply(x,dims=['lat','lon'])
+        y = y * grid.area / carea
         return y
 
-    def area2d(wetmask:bool):
-        if not wetmask:
-            dA = grid.area
-        else:
-            dA = grid.area*grid.wetmask
-             
-        dAbar = _gaussian_apply(dA,)
-        return dA,dAbar
 
-    dA,dAbar = area2d(wetmask)
-
-
+    barwetmask = wetmask.coarsen(lat=sigma,lon=sigma,boundary="trim").mean()
     def weighted_gaussian(x:xr.DataArray):
-        cx = _gaussian_apply(dA*x)/dAbar
-        cx = cx.coarsen(lat=sigma,lon=sigma,boundary="trim").mean()
-        return cx
+        cx = _gaussian_apply(x)
+        if greedy_coarse_graining:
+            cxw = wetmask*cx.fillna(0)
+            cxw = cxw.coarsen(lat=sigma,lon=sigma,boundary="trim").mean()/barwetmask
+        else:
+            cxw = cx.coarsen(lat=sigma,lon=sigma,boundary="trim").mean()
+        return cxw
     return weighted_gaussian
 
 

@@ -1,15 +1,9 @@
 from transforms.coarse_grain import coarse_graining_1d_generator, coarse_graining_2d_generator
 from utils.paths import inverse_coarse_graining_weights_path#coarse_graining_projection_weights_path, 
-from scipy import linalg
 import xarray as xr
 import numpy as np
 
-
-
-
-
 def coarse_grain_inversion_weights(ugrid,tgrid,sigma,):
-    
     data_vars = {}
     coords = {}
     grids = dict(u = ugrid,t = tgrid)
@@ -43,22 +37,33 @@ def coarse_grain_inversion_weights(ugrid,tgrid,sigma,):
         clonv = xlon[lon].values
         yhats = xlat.values
         xhats = xlon.values.transpose()
+        
+        def inv_and_projection(yhats):
+            '''
+            Q@R = Y.T
+            B = Q@inv(R)
+            Y@B = R.T @ Q.T @ Q inv(R).T = I
+            '''
+            qlat,rlat = np.linalg.qr(yhats.T)
+            rlatinv = np.linalg.inv(rlat)
+            rinv = qlat @ rlatinv.T
+            return rinv,qlat
 
-        u,s,vh_ = linalg.svd(yhats,full_matrices = False)
-        pseudoinv_lat = u@np.diag(1/s)@vh_
-        latproj = vh_
-
-        u,s,vh = linalg.svd(xhats,full_matrices = False)
-        pseudoinv_lon = u@np.diag(1/s)@vh
-        lonproj = vh
-
+        right_inv_lat,latproj = inv_and_projection(yhats)
+        right_inv_lon,lonproj = inv_and_projection(xhats)
+        def square_matrix(a):
+            return a.T@a
+        hess_lat = square_matrix(right_inv_lat)
+        hess_lon = square_matrix(right_inv_lon)
         data_vars_ = {
             f'{ut}_forward_lat' :  ([clat,lat],yhats),
-            f'{ut}_inv_lat' :  ([clat,lat],pseudoinv_lat),
+            f'{ut}_inv_lat' :  ([clat,lat],right_inv_lat.T),
             f'{ut}_forward_lon' : ([clon,lon],xhats),
-            f'{ut}_inv_lon' :  ([clon,lon],pseudoinv_lon),
-            f'{ut}_proj_lat' : ([clat,lat],latproj),
-            f'{ut}_proj_lon' : ([clon,lon],lonproj),
+            f'{ut}_inv_lon' :  ([clon,lon],right_inv_lon.T),
+            f'{ut}_proj_lat' : ([clat,lat],latproj.T),
+            f'{ut}_proj_lon' : ([clon,lon],lonproj.T),
+            f'{ut}_hess_lon' : ([clon,clon],hess_lon),
+            f'{ut}_hess_lat' : ([clat,clat],hess_lat),
         }
         coords_ = {
             clat : clatv,
@@ -73,6 +78,81 @@ def coarse_grain_inversion_weights(ugrid,tgrid,sigma,):
         coords = coords,
     )
     return filters
+
+
+def coarse_grain_forward(u,filters,prefix = 'u',stacked = False):
+    plat = f'{prefix}_forward_lat'
+    plon = f'{prefix}_forward_lon'
+    latproj = filters[plat].values
+    lonproj = filters[plon].values
+    uval = u.values.copy()
+
+    # print(uval.shape,len(latproj),len(lonproj))
+    mask = np.isnan(uval)
+    uval[mask] = 0
+    if stacked:
+        puval = uval*0
+        for i in range(uval.shape[0]):
+            uval_ = uval[i]
+            puval_ = (latproj.T@uval_)@lonproj
+            puval[i] = puval_
+    else:
+        puval = (latproj@uval)@lonproj.T
+    coords = {k:v for k,v in u.coords.items()}
+    for key in coords.keys():
+        if 'lat' in key:
+            coords[key] = filters[f'{prefix}lat'].values
+        elif 'lon' in key:
+            coords[key] = filters[f'{prefix}lon'].values
+
+    return xr.DataArray(
+        data = puval,
+        dims = u.dims,
+        coords = coords,
+        name = u.name
+    )
+
+
+def coarse_grain_invert(u,filters,prefix = 'u',stacked = False):
+    plat = f'{prefix}_inv_lat'
+    plon = f'{prefix}_inv_lon'
+    hlat = f'{prefix}_half_hess_lat'
+    hlon = f'{prefix}_half_hess_lon'
+
+    latproj = filters[plat].values
+    lonproj = filters[plon].values
+    hhesslat = filters[hlat].values
+    hhesslon = filters[hlon].values
+
+    uval = u.values.copy()
+
+    # print(uval.shape,len(latproj),len(lonproj))
+    mask = np.isnan(uval)
+    uval[mask] = 0
+    if stacked:
+        puval = uval*0
+        for i in range(uval.shape[0]):
+            uval_ = uval[i]
+            puval_ = (latproj.T@uval_)@lonproj
+            # puval_ = (latproj.T@puval_)@lonproj
+            puval[i] = puval_
+    else:
+        hhesslat @ uval @hlonn
+        hhesslon
+        puval = (latproj.T@uval)@lonproj
+    coords = {k:v for k,v in u.coords.items()}
+    for key in coords.keys():
+        if 'lat' in key:
+            coords[key] = filters[f'{prefix}lat'].values
+        elif 'lon' in key:
+            coords[key] = filters[f'{prefix}lon'].values
+
+    return xr.DataArray(
+        data = puval,
+        dims = u.dims,
+        coords = coords,
+        name = u.name
+    )
 def coarse_grain_projection(u,filters,prefix = 'u',stacked = False):
     plat = f'{prefix}_proj_lat'
     plon = f'{prefix}_proj_lon'

@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --time=12:00:00
-#SBATCH --array=3-7
+#SBATCH --array=1
 #SBATCH --mem=20GB
 #SBATCH --job-name=datagather
 #SBATCH --output=/scratch/cg3306/climate/CM2P6Param/saves/slurm_logs/datagather_%a_%A.out

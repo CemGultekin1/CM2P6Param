@@ -1,11 +1,9 @@
-import itertools
 from typing import Callable
 from data.coords import TIMES
-from transforms.coarse_grain_inversion import coarse_grain_inversion_weights, coarse_grain_projection
+from transforms.coarse_grain_inversion import coarse_grain_inversion_weights, coarse_grain_invert, coarse_grain_projection
 from utils.paths import average_highres_fields_path, average_lowhres_fields_path, coarse_graining_projection_weights_path
 from utils.slurm import flushed_print
-# from utils.slurm import flushed_print
-from utils.xarray import tonumpydict
+from utils.no_torch_xarray import concat, plot_ds, tonumpydict
 import xarray as xr
 from transforms.coarse_grain import coarse_graining_2d_generator, hreslres
 from transforms.grids import get_grid_vars, logitudinal_expansion, logitudinal_expansion_dataset, trim_expanded_longitude, ugrid2tgrid
@@ -18,11 +16,21 @@ class HighResCm2p6:
     half_spread : int
     coarse_grain : Callable
     initiated : bool
-    def __init__(self,ds:xr.Dataset,sigma,*args,**kwargs):
+    def __init__(self,ds:xr.Dataset,sigma,*args,section = [0,1],gpu = False,**kwargs):
         self.ds = ds.copy()
         self.sigma = sigma
         self.coarse_grain = None
         self.initiated = False
+        self.wetmask = None
+        
+        self.gpu = gpu
+        a,b = section
+        nt = len(self.ds.time)
+        time_secs = np.linspace(0,nt,b+1).astype(int)
+        t0 = int(time_secs[a])
+        t1 = int(time_secs[a+1])
+        self.ds = self.ds.isel(time = slice(t0,t1))
+
     @property
     def depth(self,):
         return self.ds.depth
@@ -31,75 +39,138 @@ class HighResCm2p6:
         return self.depth[0] > 1e-3
     def __len__(self,):
         return len(self.ds.time)
-    @property
-    def coarse_graining_half_spread(self,):
-        return int(self.sigma*6)
-    
-    @property
-    def coarse_graining_crop(self,):
-        return 5
     def time_depth_indices(self,i):
         di = i%len(self.ds.depth)
         ti = i//len(self.ds.depth)
         return ti,di
-    def get_hres(self,i,fillna = False):
-        _,di,ti = self.time_depth_indices(i)
-        ds = self.ds.isel(time = ti,depth = di)
-        # ds = ds.isel(ulon = slice(1000,1300),ulat = slice(1000,1300),tlon = slice(1000,1300),tlat = slice(1000,1300))
-        
-        if fillna:
-            ds = ds.fillna(0)
-        u,v,T = ds.u,ds.v,ds.T
+    def _base_get_hres(self,i,):
+        ti,di = self.time_depth_indices(i)
+        ds = self.ds.isel(time = ti,depth = di) 
+        # sl = slice(500,1000)
+        # ds = ds.isel(ulon = sl,ulat = sl,tlon = sl,tlat = sl)
+        u,v,temp = ds.u.load(),ds.v.load(),ds.T.load()
         ugrid,tgrid = get_grid_vars(ds)
         u = u.rename(ulat = "lat",ulon = "lon")
         v = v.rename(ulat = "lat",ulon = "lon")
-        T = T.rename(tlat = "lat",tlon = "lon")
-        return ds.time.values,ds.depth.values,u.load(),v.load(),T.load(),ugrid,tgrid
-    def get_gridvars(self,):
-        return None,None
+        temp = temp.rename(tlat = "lat",tlon = "lon")
+        u.name = 'u'
+        v.name = 'v'
+        temp.name = 'temp'
+        return u,v,temp,ugrid,tgrid
+    def get_hres(self,i,):
+        if not self.initiated:
+            return self.init_coarse_graining(i)            
+        else:
+            return self._base_get_hres(i,)
     def init_coarse_graining(self,i):
-        time,depth,u,v,T,ugrid,tgrid=self.get_hres(i)
-
-        u = logitudinal_expansion(u,self.coarse_graining_half_spread)
-        v = logitudinal_expansion(v,self.coarse_graining_half_spread)
-        T = logitudinal_expansion(T,self.coarse_graining_half_spread)
-
-        ugrid = logitudinal_expansion_dataset(ugrid,self.coarse_graining_half_spread)
-        tgrid = logitudinal_expansion_dataset(tgrid,self.coarse_graining_half_spread)
-
-        cgu = coarse_graining_2d_generator(ugrid,self.sigma,wetmask = True)
-        cgt = coarse_graining_2d_generator(tgrid,self.sigma,wetmask = True)
+        u,v,temp,ugrid,tgrid=self._base_get_hres(i)
+        uwetmask = xr.where(np.isnan(u),0,1)
+        twetmask = xr.where(np.isnan(temp),0,1)
+        cgu = coarse_graining_2d_generator(ugrid,self.sigma,uwetmask ,tripolar = True,greedy_coarse_graining = True,gpu = self.gpu)
+        cgt = coarse_graining_2d_generator(tgrid,self.sigma,twetmask ,tripolar = True,greedy_coarse_graining = True,gpu = self.gpu)
 
 
-        dry_cgu = coarse_graining_2d_generator(ugrid,self.sigma,wetmask = False)
-        dry_cgt = coarse_graining_2d_generator(tgrid,self.sigma,wetmask = False)
+        wet_cgu = coarse_graining_2d_generator(ugrid,self.sigma,uwetmask*0 + 1,tripolar = False,greedy_coarse_graining = False,gpu = self.gpu)
+        wet_cgt = coarse_graining_2d_generator(tgrid,self.sigma,twetmask*0 + 1,tripolar = False,greedy_coarse_graining = False,gpu = self.gpu)
 
         self.coarse_grain =  (cgu,cgt)
-        self.dry_coarse_grain =  (dry_cgu,dry_cgt)
-        return time,depth,u,v,T,ugrid,tgrid
-    def subgrid_forcing(self,u,v,T):
-        sfds = subgrid_forcing(u,v,T,*self.coarse_grain)
-        sfds = trim_expanded_longitude(sfds,expansion = self.coarse_graining_crop)
-        return sfds
-    def hres2lres(self,i):
-        if not self.initiated:
-            time,depth,u,v,T = self.init_coarse_graining(i)            
+        self.wet_coarse_grain =  (wet_cgu,wet_cgt)
+        return u,v,temp,ugrid,tgrid
+
+    def get_mask(self,i):
+        _,di = self.time_depth_indices(i)
+        depthval = self.ds.depth.values[di]
+        if self.wetmask is None:
+            return self.build_mask(i)
         else:
-            time,depth,u,v,T = self.get_hres(i,)
-            u = logitudinal_expansion(u,self.coarse_graining_half_spread)
-            v = logitudinal_expansion(v,self.coarse_graining_half_spread)
-            T = logitudinal_expansion(T,self.coarse_graining_half_spread)
+            if depthval in self.wetmask.depth.values:
+                return self.wetmask.isel(depth = di)
+            else:
+                return self.build_mask(i)
+    def join_wetmask(self,mask):
+        if self.wetmask is None:
+            self.wetmask = mask
+        else:
+            self.wetmask = xr.merge([self.wetmask,mask]).wetmask
+            
+
+    def build_mask(self,i):
+        u,v,temp,ugrid,tgrid = self.get_hres(i)
+        u = xr.where(np.isnan(u),1,0)
+        v = xr.where(np.isnan(v),1,0)
+        temp = xr.where(np.isnan(temp),1,0)
+        cg = self.wet_coarse_grain
+        fields = self.hres2lres(u,v,temp,ugrid,tgrid,cg)
+        mask_ = None
+        for key,val in fields.items():
+            mask__ = xr.where(np.abs(val)>0,1,0)
+            mask__ = mask__ + xr.where(np.isnan(val),1,0)
+            if mask_ is None:
+                mask_ = mask__
+            else:
+                mask_ += mask__
+        mask_.name = 'wetmask'
+        mask_ = xr.where(mask_>0,0,1)
+        self.join_wetmask(self.expand_dims(i,mask_,time = False,depth = True))
+        return mask_
+    def get_forcings(self,i):
+        if not self.initiated:
+            u,v,temp,ugrid,tgrid = self.init_coarse_graining(i)            
+        else:
+            u,v,temp,ugrid,tgrid = self.get_hres(i,)
+        cg = self.coarse_grain
+        return self.hres2lres(u,v,temp,ugrid,tgrid,cg)
+    def hres2lres(self,u,v,temp,ugrid,tgrid,cg):
+        u_t,v_t = ugrid2tgrid(u,v,ugrid,tgrid)
+        uvars = dict(u=u,v=v)
+        tvars = dict(u = u_t, v = v_t,temp = temp,)
+
         
+        uhres,ulres = hreslres(uvars,ugrid,cg[0])
+        thres,tlres = hreslres(tvars,tgrid,cg[1])
 
-        sfds = subgrid_forcing(u,v,T,*self.coarse_grain)
-        sfds = trim_expanded_longitude(sfds,expansion = self.coarse_graining_crop)
-
-        sfds = sfds.expand_dims(dim = {"time": [time]},axis=0)
-        sfds = sfds.expand_dims(dim = {"depth": [depth]},axis=1)
-        sfds.to_netcdf('forcings.nc')
-        return sfds
+        uforcings = subgrid_forcing(uhres,ulres,uhres,ulres,'u v'.split(),'Su Sv'.split(),cg[0])
+        tforcings = subgrid_forcing(thres,tlres,thres,tlres,['temp'],['Stemp'],cg[1])
+        
+        def pass_gridvals(tgridvaldict,ugridval):
+            for key,tgridval in tgridvaldict.items():
+                for key_ in 'lat lon'.split():
+                    tgridval[key_] = ugridval[key_]
+                tgridvaldict[key] = tgridval
+            return tgridvaldict
+        def subdict(d,keys):
+            return {key:val for key,val in d.items() if key in keys}
+        tforcings = pass_gridvals(dict(tforcings,**tlres),ulres['u']) 
+        ulres = subdict(ulres,'u v'.split())
+        tforcings = subdict(tforcings,'temp Stemp'.split())
+        fields = dict(uforcings,**tforcings, **ulres)
+        return fields
+    def expand_dims(self,i,fields,time = True,depth = True):
+        ti,di = self.time_depth_indices(i)
+        _time = self.ds.time.values[ti]
+        _depth = self.ds.depth.values[di]
+        dd = dict()
+        if time:
+            dd['time'] = [_time]
+        if depth:
+            dd['depth'] = [_depth]
+        
+        if isinstance(fields,dict):
+            fields = {key:val.expand_dims(dd).compute() for key,val in fields.items()}
+        else:
+            fields = fields.expand_dims(dd)
+        return fields
+    def get_forcings_with_mask(self,i):
+        fields = self.get_forcings(i)
+        fields = self.expand_dims(i,fields,time = True,depth = True)
+        mask = self.get_mask(i)
+        mask = self.expand_dims(i,mask,time = False,depth = True)
+        fields = dict(**fields,wetmask = mask)
+        fields = concat(**fields)
+        return fields
     def __getitem__(self,i):
-        ds = self.hres2lres(i)
+        ds = self.get_forcings_with_mask(i)
+        # plot_ds(ds,imname = f'outputs_{i}',ncols = 3)
         return tonumpydict(ds)
 
 class HighResProjection:
@@ -132,6 +203,9 @@ class HighResProjection:
 
     def project(self,v,**kwargs):
         return coarse_grain_projection(v,self.projections,**kwargs)
+    
+    def inverse(self,v,**kwargs):
+        return coarse_grain_invert(v,self.projections,**kwargs)
 
 
 def fillnarandom(x:xr.DataArray):
@@ -144,9 +218,7 @@ def fillnarandom(x:xr.DataArray):
         coords = x.coords,
         name = x.name
     )
-class SubgridForcingInputs:
-    def __init__(self,uvars,tvars):
-        return
+
 class ProjectedHighResCm2p6(HighResCm2p6):
     def __init__(self, ds: xr.Dataset, sigma, *args, **kwargs):
         super().__init__(ds, sigma, *args, **kwargs)
@@ -158,14 +230,11 @@ class ProjectedHighResCm2p6(HighResCm2p6):
         t0 = int(time_secs[a])
         t1 = int(time_secs[a+1])
         self.ds = self.ds.isel(time = slice(t0,t1))
-        # print(self.ds.time.values[[0,-1]])
-        # raise Exception
+
     def __len__(self,):
         return len(self.ds.depth)*len(self.ds.time)
-        # return len(self.projections.avg_fields.depth)*len(self.ds.depth)*len(self.ds.time)
+
     def time_depth_indices(self,i):
-        # pdi = i%len(self.projections.avg_fields.depth)
-        # i = i//len(self.projections.avg_fields.depth)
         
         di = i%len(self.ds.depth)
         ti = i//len(self.ds.depth)
@@ -188,56 +257,61 @@ class ProjectedHighResCm2p6(HighResCm2p6):
             T = fillnarandom(T)
 
         pdi,_,_ = self.time_depth_indices(i)
-        u0,v0,T0 = self.projections.project(u,prefix = 'u'),self.projections.project(v,prefix = 'u'),self.projections.project(T,prefix = 't')
-
+        
         u_t,v_t = ugrid2tgrid(u,v,ugrid,tgrid)
-        u0_t,v0_t = ugrid2tgrid(u0,v0,ugrid,tgrid)
-        
-        avgf = self.projections.avg_fields.isel(depth = [pdi]).load()
-        
-        avgf_dict = {}
-        avgf_dict['u_res'] = avgf['avg_u_res'].rename(ulat = 'lat',ulon = 'lon')
-        avgf_dict['v_res'] = avgf['avg_v_res'].rename(ulat = 'lat',ulon = 'lon')
-        avgf_dict['u_res_t'] = avgf['avg_u_t_res'].rename(tlat = 'lat',tlon = 'lon')
-        avgf_dict['v_res_t'] = avgf['avg_v_t_res'].rename(tlat = 'lat',tlon = 'lon')
-        avgf_dict['T_res'] = avgf['avg_T_res'].rename(tlat = 'lat',tlon = 'lon')
-        pastkeys = list(avgf_dict.keys())
-        def depth_naming(key,i):
-            return f"{key}_depth_{i}"
-        def depth_reading(key):
-            if '_depth_' in key:
-                j0 = key.find('_depth_') 
-                j = j0 + len('_depth_')
-                depthind = int(key[j:])
-                return key[:j0],depthind,depthvals[depthind]
-            return key,None,None
-        
-        for key in pastkeys:
-            val = avgf_dict[key]
-            depthvals = val.depth.values
-            for i in range(len(depthvals)):
-                avgf_dict[depth_naming(key,i)] = val.isel(depth = i)
-            avgf_dict.pop(key)
-        for key,val in avgf_dict.items():
-            avgf_dict[key] = logitudinal_expansion(val,self.coarse_graining_half_spread)
 
 
-        if maskpurposed:
-            for key,val in avgf_dict.items():
-                avgf_dict[key] = fillnarandom(val)
+
         
-        avgf_tgrid = {key:val for key,val in avgf_dict.items() if 'T_res' in key or '_t_' in key}
-        avgf_ugrid = {key:val for key,val in avgf_dict.items() if not ('T_res' in key or '_t_' in key)}
-        uvars = dict(u=u,v=v,u_0 = u0, v_0=v0,**avgf_ugrid)
-        tvars = dict(u_t = u_t, v_t = v_t,u_0_t = u0_t,v_0_t=v0_t,T_0 = T0, T = T,**avgf_tgrid)
+        uvars = dict(u=u,v=v)
+        tvars = dict(u_t = u_t, v_t = v_t,T = T,)
+        cg = self.coarse_grain# if not maskpurposed else self.dry_coarse_grain
+        
+        uhres,ulres = hreslres(uvars,ugrid,cg[0])
+        thres,tlres = hreslres(tvars,tgrid,cg[1])
 
-        uvars = {f'__{key}__':val for key,val in uvars.items()}
-        tvars = {f'__{key}__':val for key,val in tvars.items()}
-        cg = self.coarse_grain if not maskpurposed else self.dry_coarse_grain
 
-        uhres,ulres,thres,tlres = hreslres(uvars,tvars,ugrid,tgrid,*cg)
+        
+
+
+
+        fields = 'u v u_t v_t T'.split()
+        # fields = [f'__{key}__' for key in fields]
+        u,v,u_t,v_t,T = [ulres[key] for key in fields if key in ulres] + [tlres[key] for key in fields if key in tlres]
+
+        u0,v0 = [self.projections.inverse(x,prefix = 'u') for x in [u,v]]
+        u0_t,v0_t,T0 = [self.projections.inverse(x,prefix = 't') for x in [u_t,v_t,T]]
+
+        uvars = dict(u_0 = u0, v_0=v0)#,**avgf_ugrid)
+        tvars = dict(u_t_0 = u0_t,v_t_0=v0_t,T_0 = T0)#, **avgf_tgrid)
+        # uvars = {f'__{key}__':val for key,val in uvars.items()}
+        # tvars = {f'__{key}__':val for key,val in tvars.items()}
+
+        uhres0,ulres0 = hreslres(uvars,ugrid,cg[0])
+        thres0,tlres0 = hreslres(tvars,tgrid,cg[1])
+        
+        uhres = dict(uhres,**uhres0)
+        ulres = dict(ulres,**ulres0)
+        thres = dict(thres,**thres0)
+        tlres = dict(tlres,**tlres0)
+
+        for d in [uhres,ulres,thres,tlres]:
+            for key in d:
+                if f"{key}_0" in d:
+                    d[f"{key}_0"] = xr.where(np.isnan(d[key]),np.nan,d[f"{key}_0"])
+
+
+
+        plot_ds(uhres,'ugrid-vars-hres',ncols = 3)
+        plot_ds(ulres,'ugrid-vars-lres',ncols = 3)
+        plot_ds(thres,'tgrid-vars-hres',ncols = 3)
+        plot_ds(thres,'tgrid-vars-lres',ncols = 3)
+        raise Exception
+
+
         fields = 'u v T'.split()
         fields = [f'__{key}__' for key in fields]
+
         u,v,T = [ulres[key] for key in fields if key in ulres] + [tlres[key] for key in fields if key in tlres]
         u.name = 'u'
         v.name = 'v'

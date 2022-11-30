@@ -21,5 +21,5 @@ def subgrid_forcing(hres_left,lres_left,hres_right,lres_right,root_names,target_
     '''
     ugridforcings = {tgt: _subgrid_forcing_formula(hres_left,lres_left,hres_right,lres_right,key,coarse_grain,) for tgt,key in zip(target_names,root_names)}
 
-    return concat(**ugridforcings)
+    return ugridforcings
 

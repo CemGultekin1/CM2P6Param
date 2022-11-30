@@ -17,7 +17,10 @@ def get_filename(sigma,depth,co2,locdir = root):
         filename = f'{surf}_{co2}.zarr'
         filename = filename.replace('_.zarr','.zarr')
     path = os.path.join(locdir,filename)
-    return path.replace('.zarr','_.zarr')
+    if sigma > 1:
+        return path.replace('.zarr','_.zarr')
+    else:
+        return path
 
 def get_high_res_grid_location():
     return GRID_INFO
@@ -34,7 +37,7 @@ def get_low_res_data_location(args):
 def get_preliminary_low_res_data_location(args):
     prms,_ = options(args,key = "run")
     a,b = prms.section
-    filename = get_filename(prms.sigma,prms.depth,prms.co2,locdir = '/scratch/cg3306/climate/CM2P6Param/saves')
+    filename = get_filename(prms.sigma,prms.depth,prms.co2,locdir = '/scratch/cg3306/climate/CM2P6Param/saves/data')
     filename = filename.replace('.zarr',f'_{a}_{b}.zarr')
     return filename
 

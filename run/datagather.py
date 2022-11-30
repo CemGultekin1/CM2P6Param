@@ -22,7 +22,7 @@ def append_zarr(path0,path1,overwrite):
             dst.to_zarr(path0,mode = 'a',append_dim = 'time')
         flushed_print(path0.split('/')[-1],path1.split('/')[-1],i)
 def run():
-    arg = int(sys.argv[1])
+    arg = int(sys.argv[1]) - 1
 
     path = '/scratch/cg3306/climate/CM2P6Param/jobs/datagen.txt'
     with open(path) as f:
