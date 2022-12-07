@@ -212,57 +212,49 @@ def main():
     root = '/scratch/zanna/data/cm2.6/'
     file = 'surface.zarr'
     path = os.path.join(root,file)
-    u_v_dataset = xr.open_zarr(path).isel(time = 0)
+    sl = dict(xu_ocean = slice(3000,3500),yu_ocean = slice(2000,2500))
+    u_v_dataset = xr.open_zarr(path).isel(time = 0).isel(**sl)
     u_v_dataset = u_v_dataset.drop('surface_temp')
     path = os.path.join(root,'GFDL_CM2_6_grid.nc')
-    grid_data = xr.open_dataset(path)
+    grid_data = xr.open_dataset(path).isel(**sl)
     grid_data['wet_mask'] = xr.where(np.isnan(u_v_dataset.usurf),0,1)
     grid_data['area'] = grid_data.dxu*grid_data.dyu
 
     gsbf = gcm_lsrp_subgrid_forcing(scale,grid_data,dims = ['yu_ocean','xu_ocean'],grid_separation = 'dyu dxu'.split(),momentum = 'usurf vsurf'.split())
-    from utils.xarray import plot_ds
-    gcm_forcing = gsbf(u_v_dataset,'usurf vsurf'.split(),'S_x S_y'.split())
-    plot_ds(gcm_forcing,'gcm_forcing',ncols = 2, dims = ['xu_ocean','yu_ocean'])
-   
-    return
-    # print(gcm_forcing)
-    
-    
-    # return
 
     org_forcing = eddy_forcing(u_v_dataset, grid_data,scale = scale)
 
     forcings_list = []
-    # forcings_list.append(eddy_forcing(u_v_dataset,grid_data,scale = scale,periodic_diff = True))
-    forcings_list.append(eddy_forcing(u_v_dataset,grid_data,scale = scale,periodic_diff = True,gcm_filtering = True,greedy_coarse_grain = True))
     forcings_list.append(gsbf(u_v_dataset,'usurf vsurf'.split(),'S_x S_y'.split()))
-    # average_scales = np.abs(org_forcing.fillna(0)).sum(dim = ('xu_ocean','yu_ocean'),skipna = True)
-    # average_scales = average_scales/len(org_forcing.xu_ocean)/len(org_forcing.yu_ocean)
-    diff_forcings = None
+
     cmpr_forcings = org_forcing
     for type_num,forcings in enumerate(forcings_list):
-        dforcings = np.log10(np.abs(forcings - org_forcing))
-        names = list(dforcings.data_vars.keys())
-        dforcings = dforcings.rename({n:f"log10(|{n}_{type_num+1} - {n}|)" for n in names})
+        names = list(forcings.data_vars.keys())
+        # dforcings = dforcings.rename({n:f"log10(|{n}_{type_num+1} - {n}|)" for n in names})
         forcings = forcings.rename({n:f"{n}_{type_num+1}" for n in names})
         cmpr_forcings = xr.merge([cmpr_forcings,forcings])
-        if diff_forcings is None:
-            diff_forcings = dforcings
-        else:
-            diff_forcings = xr.merge([diff_forcings,dforcings])
+        # print(names)
             
 
     
-
-
-
     from utils.xarray import plot_ds,drop_unused_coords
-    def plot_forcing(forcing,name):
+    def plot_forcing(forcing,root):
         forcing = drop_unused_coords(forcing)
-        # print(forcing)
-        plot_ds(forcing,name,ncols = 2,dims = ['xu','yu'])
-    plot_forcing(cmpr_forcings,'cmpr_forcings')
-    plot_forcing(diff_forcings,'diff_forcings')
+        nms = list(forcing.data_vars.keys())
+        nms = np.unique([n.replace('_1','').replace('_res','') for n in nms])
+        for nm in nms:
+            nm1 = f"{nm}_1"
+            nm2 = f"{nm}_res_1"
+            u = forcing[nm]
+            u1 = forcing[nm1]
+            if nm2 in forcing.data_vars:
+                ulsrp = forcing[nm2] + forcing[nm1]
+                fs = {nm:u,f"{nm}-gcm":u1,f"{nm}-lsrp":ulsrp}
+                plot_ds(fs,root + nm,ncols = 3,dims = ['xu','yu'])
+            else:
+                fs = {nm:u,f"{nm}-gcm":u1}
+                plot_ds(fs,root + nm,ncols = 2,dims = ['xu','yu'])
+    plot_forcing(cmpr_forcings,'saves/plots/filtering/local4_')
 
 if __name__ == '__main__':
     main()

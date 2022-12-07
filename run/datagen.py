@@ -4,7 +4,7 @@ from data.load import get_data
 from run.train import Timer
 from utils.arguments import options
 from utils.slurm import flushed_print
-from utils.xarray import plot_ds
+# from utils.xarray import plot_ds
 import xarray as xr
 import torch
 def torch2numpy(data_vars,coords):

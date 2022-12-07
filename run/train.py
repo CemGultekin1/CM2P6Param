@@ -25,7 +25,7 @@ class Timer:
         t1 = self.times[label][-1]
         self.times[label][-1] = time.time() - t1
     def __repr__(self) -> str:
-        keys = [f"\t{lbl} : {np.mean(vals[-5:])}" for lbl, vals in self.times.items()]
+        keys = [f"\t{lbl} : {np.mean(vals[-10:])}" for lbl, vals in self.times.items()]
         return "\n".join(keys)
     def reset(self,):
         self.times = {}

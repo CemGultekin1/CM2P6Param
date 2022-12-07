@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --time=13:00:00
-#SBATCH --array=7-8
-#SBATCH --mem=20GB
+#SBATCH --time=5:00:00
+#SBATCH --array=2
+#SBATCH --mem=10GB
 #SBATCH --job-name=datagather
 #SBATCH --output=/scratch/cg3306/climate/CM2P6Param/saves/slurm_logs/datagather_%a_%A.out
 #SBATCH --error=/scratch/cg3306/climate/CM2P6Param/saves/slurm_logs/datagather_%a_%A.err
