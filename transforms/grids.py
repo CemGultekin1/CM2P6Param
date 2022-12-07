@@ -90,71 +90,39 @@ def longitudinal_nan_cut_values(sfd):
     lonslice = slice(lon0,lon1)
     return lonslice
 
-
-
-def forward_difference(x:xr.DataArray,dx:xr.DataArray,field):
-    dx = x.diff(field)/dx
-    f0 = x[field][0]
-    dx = dx.pad({field : (1,0)},constant_values = np.nan)
+def forward_difference(x:xr.DataArray,dx:xr.DataArray,field:xr.DataArray):
+    dx = ( x - x.roll({field : 1}))/dx
     dxf = dx[field].values
-    dxf[0] = f0
     dx[field] = dxf
     return dx
 
-def ugrid2tgrid(u:xr.DataArray,v:xr.DataArray,ugrid:xr.Dataset,tgrid:xr.Dataset,stacked = False):
-    uval = u.values
-    vval = v.values
-    dlat = ugrid.dy.values
-    dlon = ugrid.dx.values
     
-    if stacked:
-        vdlon_ = vval*0
-        udlat_ = uval*0
-        for i,(uval_,vval_) in enumerate(zip(uval,vval)):
-            udlat = uval_*dlat
-            vdlon = vval_*dlon
-            udlat = (udlat[:,1:] + udlat[:,:-1])/(2*dlat[:,1:])
-            vdlon = (vdlon[:,1:] + vdlon[:,:-1])/(dlon[:,1:]+dlon[:,:-1])
-            udlat = np.concatenate([np.zeros((udlat.shape[0],1)),udlat],axis =1)
-            vdlon = np.concatenate([np.zeros((vdlon.shape[0],1)),vdlon],axis =1)
-            vdlon_[i] = vdlon
-            udlat_[i] = udlat
+class ugrid2tgrid_interpolation:
+    def __init__(self,ugrid:xr.Dataset,tgrid:xr.Dataset):
+        self.ugrid = ugrid
+        self.tgrid = tgrid
+    def __call__(self,u,v):
+        dlat = self.ugrid.dy*self.ugrid.wet_mask
+        dlon = self.ugrid.dx*self.ugrid.wet_mask
 
-        udlat = udlat_
-        vdlon = vdlon_
-        coords = dict(dims = ['depth','lat','lon'],
-            coords = dict(
-                depth = u.depth.values,
-                lat = tgrid.lat.values,
-                lon = tgrid.lon.values,
-            )
-        )
-    else:
-        udlat = uval*dlat
-        vdlon = vval*dlon
-        udlat = (udlat[:,1:] + udlat[:,:-1])/(2*dlat[:,1:])
-        vdlon = (vdlon[:,1:] + vdlon[:,:-1])/(dlon[:,1:]+dlon[:,:-1])
-        udlat = np.concatenate([np.zeros((udlat.shape[0],1)),udlat],axis =1)
-        vdlon = np.concatenate([np.zeros((vdlon.shape[0],1)),vdlon],axis =1)
-        coords = dict(dims = ['lat','lon'],
-            coords = dict(
-                lat = tgrid.lat.values,
-                lon = tgrid.lon.values,
-            )
-        )
-    ut = xr.DataArray(
-        data = udlat,
-        **coords,
-        name = 'ut'
-    )
+        mdlat = dlat + dlat.roll(lon = -1 )
+        mdlon = dlon + dlon.roll(lon = -1 )
 
-    vt = xr.DataArray(
-        data = vdlon,
-        **coords,
-        name = 'vt'
-    )
-    return ut,vt
+        wu = dlat*u.fillna(0)
+        wv = dlon*v.fillna(0)
 
+        ut = (wu + wu.roll(lon = -1))/mdlat
+        vt = (wv + wv.roll(lon = -1))/mdlon
+
+
+        coords = {key:val for key,val in self.tgrid.coords.items() if key in 'lat lon'.split()}
+        ut = ut.assign_coords(**coords)
+        vt = vt.assign_coords(**coords)
+        
+        ut = xr.where(self.tgrid.wet_mask,ut,np.nan)
+        vt = xr.where(self.tgrid.wet_mask,vt,np.nan)
+        
+        return ut,vt
 
 
 def get_separated_grid_vars(grid:xr.Dataset,prefix = "u"):
@@ -167,9 +135,7 @@ def get_separated_grid_vars(grid:xr.Dataset,prefix = "u"):
     dlat = np.concatenate([dlat,dlat[-1:]])
     dlon = np.concatenate([dlon,dlon[-1:]])
     area_y =  dlat
-    area_x = np.cos(radlat)*dlon 
-    
-
+    area_x = np.cos(radlat)*dlon
     area_x = xr.DataArray(
         data = area_x,
         dims = [f"{prefix}lon"],
@@ -186,14 +152,13 @@ def get_separated_grid_vars(grid:xr.Dataset,prefix = "u"):
         },
         name = 'area_lat',
     )
-   
     return xr.merge([area_x,area_y])
 
 
 
 def get_grid_vars(grid:xr.Dataset,):
     vars = []
-    for prefix,wetvar in zip('u t'.split(),'u T'.split()):
+    for prefix,wetvar in zip('u t'.split(),'u temp'.split()):
         dlon = f"dx{prefix}"
         dlat = f"dy{prefix}"
         name_lon = f"{prefix}lon"
@@ -213,16 +178,73 @@ def get_grid_vars(grid:xr.Dataset,):
         )
         area = dx*dy
         area.name = 'area'
-        wetmask = xr.DataArray(
+        wet_mask = xr.DataArray(
             data = xr.where(np.isnan(grid[wetvar]), 0,1).values,
-            **kwargs,name = 'wetmask'
+            **kwargs,name = 'wet_mask'
         )
-        var1 =  xr.merge([dx,dy,area,wetmask])
+        var1 =  xr.merge([dx,dy,area,wet_mask])
         vars.append(var1)
     return vars
 
+def get_coarse_grids(grid,sigma):
+    dybar = grid.dy.coarsen(lat = sigma,lon = sigma,boundary = 'trim').mean()*sigma
+    dxbar = grid.dx.coarsen(lat = sigma,lon = sigma,boundary = 'trim').mean()*sigma
+    dxbar.name = 'dx'
+    dybar.name = 'dy'
+    cgrid = xr.merge([dxbar,dybar])
+    return cgrid
+
+def periodic_expansion(u, lat_exp = [0,0],lon_exp = [0,0],prefix = ''):
+    if isinstance(u, xr.Dataset):
+        us = []
+        for key in u.data_vars.keys():
+            us.append(periodic_expansion(u[key],lat_exp= lat_exp,lon_exp=lon_exp,prefix=prefix))
+        return xr.merge(us)
+    uval = u.values.copy()
+    slon = f"{prefix}lon"
+    slat = f"{prefix}lat"
+    def new_coord(slon,ex,):
+        lon =u[slon].values
+        period = (lon[-1]*2 - lon[-2] - lon[0])
+        if ex[1]>0:
+            lon0 = lon[:ex[1]] + period
+        else:
+            lon0 = np.array([])
+        if ex[0]>0:
+            lon1 = lon[-ex[0]:] - period
+        else:
+            lon1 = np.array([])
+        return np.concatenate([lon1,lon,lon0])
+    newlon = new_coord(slon,lon_exp)
+    newlat = new_coord(slat,lat_exp)
+    def numpy_axis_periodic(x,ax,lsp,rsp,periodic = True):
+        if periodic:
+            xl = x.take(np.arange(-lsp,0),axis= ax)
+            xr = x.take(np.arange(0,rsp),axis= ax) 
+        else:
+            xl = x.take(np.arange(lsp,0,-1),axis= ax)
+            xr = x.take(np.arange(-2,-rsp-2,-1),axis= ax) 
+        x = np.concatenate([xl,x,xr],axis = ax)
+        return x
+    
+    uval = numpy_axis_periodic(uval,list(u.dims).index(slat),*lat_exp,periodic=False)
+    uval = numpy_axis_periodic(uval,list(u.dims).index(slon),*lon_exp,periodic=True)
+    newcoords = {key:val for key,val in u.coords.items()}
+    newcoords[slat] = newlat
+    newcoords[slon] = newlon
+    return xr.DataArray(
+        data = uval,
+        dims = u.dims,
+        coords = newcoords,
+        name = u.name
+    )
 
 def logitudinal_expansion(u:xr.DataArray,expansion,prefix = '',stacked = False):
+    if not isinstance(expansion,list):
+        assert isinstance(expansion,int)
+        expansion = [expansion,expansion]
+    exps0,exps1 = expansion
+    
     slon = f"{prefix}lon"
     slat = f"{prefix}lat"
 
@@ -230,8 +252,8 @@ def logitudinal_expansion(u:xr.DataArray,expansion,prefix = '',stacked = False):
     uval = u.values
 
 
-    lon0 = lon[:expansion] + 360
-    lon1 = lon[-expansion:]- 360
+    lon0 = lon[:exps1] + 360
+    lon1 = lon[-exps0:]- 360
     newlon = np.concatenate([lon1,lon,lon0])
 
     
@@ -240,8 +262,8 @@ def logitudinal_expansion(u:xr.DataArray,expansion,prefix = '',stacked = False):
         newuval = []
         for i in range(uval.shape[0]):
             uval_ = uval[i]
-            u0 = uval_[:,:expansion]
-            u1 = uval_[:,-expansion:]
+            u0 = uval_[:,:exps1]
+            u1 = uval_[:,-exps0:]
             newuval_ = np.concatenate([u1,uval_,u0],axis = 1)
             newuval.append(newuval_)
         newuval = np.stack(newuval,axis =0)
@@ -268,8 +290,8 @@ def logitudinal_expansion(u:xr.DataArray,expansion,prefix = '',stacked = False):
         )
     
     else:
-        u0 = uval[:,:expansion]
-        u1 = uval[:,-expansion:]
+        u0 = uval[:,:exps1]
+        u1 = uval[:,-exps0:]
         newuval = np.concatenate([u1,uval,u0],axis = 1)
         return xr.DataArray(
             data = newuval,

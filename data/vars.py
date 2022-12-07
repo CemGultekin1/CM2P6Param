@@ -3,17 +3,14 @@
 
 FIELD_NAMES = 'u v temp'.split()
 FORCING_NAMES = 'Su Sv Stemp'.split()
-LSRP0_NAMES = [f+'0' for f in FORCING_NAMES]
-LSRP0_RES_NAMES = [f+'0_res'for f in FORCING_NAMES]
-LSRP1_NAMES = [f+'1' for f in FORCING_NAMES]
-LSRP1_RES_NAMES = [f+'1_res'for f in FORCING_NAMES]
+LSRP_RES_NAMES = [f+'_res'for f in FORCING_NAMES]
 LATITUDE_NAMES = ['abs_lat','sign_lat']
 
 def rename(ds):
     varnames = list(ds.data_vars)
     for var in varnames:
         if 'temp' in var:
-            ds = ds.rename({var:'T'})
+            ds = ds.rename({var:'temp'})
         elif var == 'usurf':
             ds = ds.rename({var:'u'})
         elif var == 'vsurf':

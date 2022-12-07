@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --time=24:00:00
+#SBATCH --time=16:00:00
 #SBATCH --array=1-10
 #SBATCH --mem=180GB
 #SBATCH --job-name=datagen

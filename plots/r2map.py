@@ -10,7 +10,7 @@ from utils.slurm import flushed_print
 import numpy as np
 def main():
     root = EVALS
-    models = os.path.join(SLURM,'evaljob.txt')
+    models = os.path.join(SLURM,'cheng_train.txt')
     target = R2_PLOTS
     file1 = open(models, 'r')
     lines = file1.readlines()

@@ -31,8 +31,6 @@ def main():
         mom1 = update_value(mom1,mom1_)
         mom2 = update_value(mom2,mom2_)
         flushed_print(i)
-        # if i==4:
-        #     break
     
     mean_ = mom1/mom0
     std_ = np.sqrt(mom2/mom0 - mean_**2)

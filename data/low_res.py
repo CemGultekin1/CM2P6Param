@@ -82,7 +82,7 @@ class SingleDomain(CM2p6Dataset):
         self.all_land = None
         self._wetmask = None
         self._forcingmask = None
-        self.interior = kwargs.get('interior')
+        # self.interior = kwargs.get('interior')
         
 
     @property
@@ -113,37 +113,34 @@ class SingleDomain(CM2p6Dataset):
         if self._wetmask is None:
             ds = self.ds.isel(time =0).load()
             ds = self.get_grid_fixed_lres(ds)
-            if self.interior:
-                self._wetmask = ds.wetmask
-            else:
-                wetmask = None
-                for key in ds.data_vars.keys():
-                    mask_ = np.isnan(ds[key])
-                    if wetmask is None:
-                        wetmask  = mask_
-                    else:
-                        wetmask += mask_
-                wetmask = xr.where(wetmask > 0,0,1)
-                wetmask.name = 'wetmask'
-                if self.requested_boundaries is not None:
-                    wmask = wetmask.values
-                    bmask = wmask*0 + 1
-                    lat = wetmask.lat.values 
-                    lon = wetmask.lon.values
-                    for lat0,lat1,lon0,lon1 in self.requested_boundaries:
-                        latmask = (lat >= lat0)*(lat <= lat1)
-                        lonmask = (lon >= lon0)*(lon <= lon1)
-                        mask = latmask.reshape([-1,1])@lonmask.reshape([1,-1])
-                        bmask = mask  + bmask
-                    bmask = (bmask > 1).astype(float)
-                    wmask = wmask*bmask
-                    wetmask = xr.DataArray(
-                        data = wmask,
-                        dims = ['lat','lon'],
-                        coords = {'lat':lat,'lon':lon},
-                        name = 'wetmask'
-                    )
-                self._wetmask = wetmask
+            wetmask = None
+            for key in ds.data_vars.keys():
+                mask_ = np.isnan(ds[key])
+                if wetmask is None:
+                    wetmask  = mask_
+                else:
+                    wetmask += mask_
+            wetmask = xr.where(wetmask > 0,0,1)
+            wetmask.name = 'wetmask'
+            if self.requested_boundaries is not None:
+                wmask = wetmask.values
+                bmask = wmask*0 
+                lat = wetmask.lat.values 
+                lon = wetmask.lon.values
+                for lat0,lat1,lon0,lon1 in self.requested_boundaries:
+                    latmask = (lat >= lat0)*(lat <= lat1)
+                    lonmask = (lon >= lon0)*(lon <= lon1)
+                    mask = latmask.reshape([-1,1])@lonmask.reshape([1,-1])
+                    bmask = mask  + bmask
+                bmask = (bmask > 0).astype(float)
+                wmask = wmask*bmask
+                wetmask = xr.DataArray(
+                    data = wmask,
+                    dims = ['lat','lon'],
+                    coords = {'lat':lat,'lon':lon},
+                    name = 'wetmask'
+                )
+            self._wetmask = wetmask
         return self._wetmask
     @property
     def forcingwetmask(self,):
@@ -154,17 +151,7 @@ class SingleDomain(CM2p6Dataset):
             
     def get_dataset(self,t):
         ds = self.ds.isel(time =t).load()
-        
         ds = self.get_grid_fixed_lres(ds)
-        for prefix in '0 1'.split():
-            lsrp_vars = [v for v in list(ds.data_vars) if prefix in v]
-            for lv in lsrp_vars:
-                lsrp_forcing = ds[lv].values
-                forcing = ds[lv.replace(prefix,'')].values
-                if 'tr_depth' in ds[lv].dims:
-                    forcing = np.stack([forcing],axis = 0)
-                lsrp_res_forcing = forcing - lsrp_forcing
-                ds[lv.replace(prefix,f'{prefix}_res')] = (ds[lv].dims,lsrp_res_forcing)
 
         def apply_mask(ds,wetmaskv,keys):
             for name in keys:
@@ -175,14 +162,9 @@ class SingleDomain(CM2p6Dataset):
                 v = v.reshape(vshp)
                 ds[name] = (ds[name].dims,v)
             return ds
-        ds = ds.drop('wetmask')
-        # ds = ds.drop('tgrid_wetmask').drop('ugrid_wetmask')
-        # forcing_mask = no_nan_input_mask(wetmask,self.half_spread,lambda x: x==0,same_size = True)
-        # forcing_mask = xr.where(forcing_mask==0,1,0)
+        # ds = ds.drop('wetmask')
         ds = apply_mask(ds,self.fieldwetmask.values,list(ds.data_vars))
         ds = apply_mask(ds,self.forcingwetmask.values,[field for field in list(ds.data_vars) if 'S' in field])
-        # ds['time'] = self.ds.time.values[t]
-        # ds['depth'] = self.ds.depth.values
 
         return ds
 

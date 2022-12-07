@@ -2,7 +2,7 @@ import os
 from typing import List, Tuple
 from data.exceptions import RequestDoesntExist
 from data.low_res_dataset import MultiDomainDataset
-from data.generate import  HighResCm2p6, ProjectedHighResCm2p6
+from data.high_res import  HighResCm2p6, ProjectedHighResCm2p6
 from data.paths import get_high_res_data_location, get_high_res_grid_location, get_low_res_data_location
 import copy
 from data.vars import FIELD_NAMES, FORCING_NAMES, LATITUDE_NAMES, LSRP0_RES_NAMES, LSRP1_RES_NAMES, get_var_mask_name, rename

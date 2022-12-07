@@ -1,5 +1,5 @@
 import sys
-from data.generate import HighResCm2p6
+from data.high_res import HighResCm2p6
 from data.load import dataset_arguments
 from data.paths import get_preliminary_low_res_data_location
 from data.no_torch_load import get_data

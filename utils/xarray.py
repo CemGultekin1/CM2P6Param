@@ -55,9 +55,14 @@ def plot_ds(ds,imname,ncols = 3,dims = ['lat','lon'],cmap = 'seismic'):
         excdims.extend(dim)
     excdims = np.unique(excdims).tolist()
     for d in dims:
-        if d not in excdims:
+        flag = -1
+        for ii,excd in enumerate(excdims):
+            if d in excd:
+                flag = ii
+                break        
+        if flag == -1:
             raise Exception
-        excdims.pop(excdims.index(d))
+        excdims.pop(flag)
 
     flat_vars = {}
     for key in ds.data_vars.keys():
@@ -340,6 +345,13 @@ def concat(**kwargs):
         coords_ = {key:coo for key,coo in var.coords.items() if key in var.dims}
         coords = dict(coords,**coords_)
     return xr.Dataset(data_vars = data_vars,coords = coords)
+
+def unbind(ds):
+    d = dict()
+    for key in ds.data_vars.keys():
+        d[key] = ds[key]
+    return d
+
 
 
 def totorch(*args,**kwargs):

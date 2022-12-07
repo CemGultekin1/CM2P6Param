@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --time=3:00:00
-#SBATCH --array=1-32
+#SBATCH --array=1
 #SBATCH --mem=72GB
 #SBATCH --job-name=scalars
 #SBATCH --output=/scratch/cg3306/climate/CM2P6Param/saves/slurm_logs/scalars_%a_%A.out

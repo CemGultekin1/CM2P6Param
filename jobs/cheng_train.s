@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --time=12:00:00
+#SBATCH --time=36:00:00
 #SBATCH --array=1
 #SBATCH --mem=150GB
 #SBATCH --job-name=chengt

@@ -2,10 +2,10 @@ import os
 from typing import List, Tuple
 from data.exceptions import RequestDoesntExist
 from data.low_res_dataset import MultiDomainDataset
-from data.generate import  HighResCm2p6, ProjectedHighResCm2p6
+from data.high_res import  HighResCm2p6
 from data.paths import get_high_res_data_location, get_high_res_grid_location, get_low_res_data_location
 import copy
-from data.vars import FIELD_NAMES, FORCING_NAMES, LATITUDE_NAMES, LSRP0_RES_NAMES, LSRP1_RES_NAMES, get_var_mask_name, rename
+from data.vars import FIELD_NAMES, FORCING_NAMES, LATITUDE_NAMES,LSRP_RES_NAMES, get_var_mask_name, rename
 from data.scalars import load_scalars
 import xarray as xr
 from data.coords import  DEPTHS, REGIONS, TIMES
@@ -101,12 +101,12 @@ def load_xr_dataset(args):
 def get_var_grouping(args)-> Tuple[Tuple[List[str],...],Tuple[List[str],...]]:
     runprms,_=options(args,key = "run")
     fields,forcings = FIELD_NAMES.copy(),FORCING_NAMES.copy()
-    lsrp_res = [LSRP0_RES_NAMES.copy(),LSRP1_RES_NAMES.copy()]
+    lsrp_res = LSRP_RES_NAMES.copy()
     
     if not runprms.temperature and not runprms.mode == 'scalars':
         fields = fields[:2]
         forcings = forcings[:2]
-        lsrp_res = [lr[:2] for lr in lsrp_res]
+        lsrp_res = lsrp_res[:2]
     if runprms.latitude:
         fields.extend(LATITUDE_NAMES)
     varnames = [fields]
@@ -116,19 +116,18 @@ def get_var_grouping(args)-> Tuple[Tuple[List[str],...],Tuple[List[str],...]]:
     fieldmask_names = [fieldmasks]
 
     forcingmasks = [get_var_mask_name(f) for f in forcings]
-    lsrpforcingmasks = [[get_var_mask_name(f) for f in lr] for lr in lsrp_res]
+    lsrpforcingmasks = [get_var_mask_name(f) for f in lsrp_res] 
     if runprms.mode == 'scalars':
-        varnames[0].extend(forcings + lsrp_res[0] + lsrp_res[1])
+        varnames[0].extend(forcings + lsrp_res)
         forcingmask_names.append(fieldmasks)
-        forcingmask_names[0].extend(forcingmasks + lsrpforcingmasks[0] + lsrpforcingmasks[1])
+        forcingmask_names[0].extend(forcingmasks + lsrpforcingmasks)
     elif runprms.lsrp>0:
-        lsrpi = runprms.lsrp - 1
         if runprms.mode != 'train':
-            varnames.append(forcings + lsrp_res[lsrpi])
-            forcingmask_names.append(forcingmasks + lsrpforcingmasks[lsrpi])
+            varnames.append(forcings + lsrp_res)
+            forcingmask_names.append(forcingmasks + lsrpforcingmasks)
         else:
-            varnames.append(lsrp_res[lsrpi])
-            forcingmask_names.append(lsrpforcingmasks[lsrpi])
+            varnames.append(lsrp_res)
+            forcingmask_names.append(lsrpforcingmasks)
     else:
         varnames.append(forcings)
         forcingmask_names.append(forcingmasks)
@@ -156,7 +155,7 @@ def dataset_arguments(args,**kwargs_):
     else:
         boundaries = REGIONS['global']
         
-    kwargs = ['lsrp','latitude','temperature','section','interior']
+    kwargs = ['lsrp','latitude','temperature','section']
     kwargs = {key:runprms.__dict__[key] for key in kwargs}
     kwargs['boundaries'] = boundaries
     kwargs['scalars'] = scalars
@@ -219,11 +218,9 @@ def get_data(args,torch_flag = False,data_loaders = True,**kwargs):
         if ns.mode != "train":
             minibatch = None
         params={'batch_size':minibatch,\
-            'shuffle': False,#ns.mode == "train",\
+            'shuffle': ns.mode == "train",\
             'num_workers':ns.num_workers,\
-            'prefetch_factor':ns.prefetch_factor,\
-            'persistent_workers':ns.persistent_workers,
-            'pin_memory': True}
+            'prefetch_factor':ns.prefetch_factor}
         torchdsets = (TorchDatasetWrap(dset_) for dset_ in dsets)
         return [torch.utils.data.DataLoader(tset_, **params) for tset_ in torchdsets]
     else:
@@ -291,12 +288,13 @@ def preprocess_dataset(args,ds:xr.Dataset):
         ds = ds.isel(tr_depth = tr_ind)
     scs = load_scalars(args)
     if prms.mode != 'scalars' and scs is not None and prms.mode != 'data' :
-        depthval = ds.depth.values
-        trd = scs.tr_depth.values
-        tr_ind = np.argmin(np.abs(depthval - trd))
-        if np.abs(trd[tr_ind] - depthval)>1:
-            raise RequestDoesntExist
-        scs = scs.isel(tr_depth = tr_ind)
+        if 'tr_depth' in scs:
+            depthval = ds.depth.values
+            trd = scs.tr_depth.values
+            tr_ind = np.argmin(np.abs(depthval - trd))
+            if np.abs(trd[tr_ind] - depthval)>1:
+                raise RequestDoesntExist
+            scs = scs.isel(tr_depth = tr_ind)
     return ds,scs
 
 def physical_domains(domain:str,):

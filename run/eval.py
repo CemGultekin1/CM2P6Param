@@ -14,7 +14,7 @@ from utils.parallel import get_device
 from utils.paths import EVALS
 from utils.slurm import flushed_print
 import numpy as np
-from utils.xarray import fromtensor, fromtorchdict, fromtorchdict2tensor
+from utils.xarray import fromtensor, fromtorchdict, fromtorchdict2tensor, plot_ds
 import xarray as xr
 
 def change_scale(d0,normalize = False,denormalize = False):
@@ -153,7 +153,8 @@ def main():
     
     kwargs = dict(contained = '' if not lsrp_flag else 'res')
     assert runargs.mode == "eval"
-    multidatargs = populate_data_options(args,non_static_params=['depth','co2'],domain = 'global')
+    # multidatargs = populate_data_options(args,non_static_params=['depth','co2'],domain = 'global')
+    multidatargs = [args]
     allstats = {}
     for datargs in multidatargs:
         try:
@@ -208,6 +209,13 @@ def main():
                 predicted_forcings,lsrp_forcings = predicted_forcings
                 stats = update_stats(stats,lsrp_forcings,true_forcings,lsrpid)
             
+            # err = np.log10(np.abs(true_forcings - predicted_forcings))
+            # plot_ds(predicted_forcings,'predicted_forcings',ncols = 1)
+            # plot_ds(true_forcings,'true_forcings',ncols = 1)           
+            # plot_ds(err,'err',ncols = 1)
+            
+
+            # return
             stats = update_stats(stats,predicted_forcings,true_forcings,modelid)
             nt += 1
 

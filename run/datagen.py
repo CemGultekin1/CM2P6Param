@@ -1,8 +1,10 @@
 import sys
 from data.paths import get_preliminary_low_res_data_location
 from data.load import get_data
+from run.train import Timer
 from utils.arguments import options
 from utils.slurm import flushed_print
+from utils.xarray import plot_ds
 import xarray as xr
 import torch
 def torch2numpy(data_vars,coords):
@@ -30,20 +32,20 @@ def run():
     datargs,_ = options(datargs,key = "data")
     initflag = False
     dst = None
+    time = Timer()
+    time.start('data')
     for data_vars,coords in generator:
-        # print(data_vars,coords)
-        # return
+        time.end('data')
         data_vars,coords = torch2numpy(data_vars,coords)
         ds = xr.Dataset(data_vars = data_vars,coords = coords)
+        # plot_ds(ds,'ds')
+        # return 
         if dst is not None:
             if ds.time.values[0] != dst.time.values[0]:
-                flushed_print(ds.time.values[0])
+                flushed_print(ds.time.values[0],time)
                 chk = {k:len(dst[k]) for k in list(dst.coords)}
-
                 if not initflag:
                     dst = dst.chunk(chunks=chk)
-                    # print(dst)
-                    # return
                     dst.to_zarr(filename,mode='w')
                     initflag = True
                 else:
@@ -55,6 +57,7 @@ def run():
             dst = ds
         else:
             dst = xr.merge([dst,ds])
+        time.start('data')
 
 if __name__=='__main__':
     run()
