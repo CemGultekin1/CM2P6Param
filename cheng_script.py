@@ -19,14 +19,10 @@ nn_load_file='/scratch/cimes/cz3321/MOM6/MOM6-examples/src/MOM6/config_src/exter
 filters=[5, 5, 3, 3, 3, 3, 3, 3]
 widths=[128, 64, 32, 32, 32, 32, 32, 4]
 
-u_mean = 0.0034875364215994496
-v_mean = 0.007210605600670082
-Su_mean = -3.295922385966653e-09
-Sv_mean = -2.3527577051049015e-09
-u_std = 0.14829305614256524
-v_std = 0.11504171804571237
-Su_std = 2.946418050111846e-07
-Sv_std = 2.9923333217317883e-07
+u_scale = 0.09366456674147008
+v_scale = 0.07199937308403034
+Su_scale = 4.760835219400542e-08
+Sv_scale = 4.713789845633698e-08
 
 #load the neural network
 class CNN(nn.Module):
@@ -72,8 +68,8 @@ def MOM6_testNN(u,v,pe,pe_num):
    # print('PE is',pe)
    # print(u.shape,v.shape)
    #normalize the input by training scaling
-   u= (u - u_mean)/u_std #u*u_scale
-   v= (v - v_mean)/v_std #v*v_scale
+   u= u/u_scale
+   v= v/v_scale
    x = np.array([np.squeeze(u),np.squeeze(v)])
    if x.ndim==3:
      x = x[:,:,:,np.newaxis]
@@ -121,8 +117,8 @@ def MOM6_testNN(u,v,pe,pe_num):
    Sxy[1,:,:,:] = (epsilon_y/out[3,:,:,:])*Sv_scale
    """
    # full output
-   Sxy[0,:,:,:] = (out[0,:,:,:] + epsilon_x*np.sqrt(1/out[2,:,:,:]))*Su_std + Su_mean#*Su_scale
-   Sxy[1,:,:,:] = (out[1,:,:,:] + epsilon_y*np.sqrt(1/out[3,:,:,:]))*Sv_std + Sv_mean#*Sv_scale
+   Sxy[0,:,:,:] = (out[0,:,:,:] + epsilon_x*np.sqrt(1/out[2,:,:,:]))*Su_scale
+   Sxy[1,:,:,:] = (out[1,:,:,:] + epsilon_y*np.sqrt(1/out[3,:,:,:]))*Sv_scale
    """
    # scaling the parameters for upper and lower layers
    Sxy[:,:,:,0]=Sxy[:,:,:,0]*0.8

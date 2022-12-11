@@ -5,7 +5,7 @@ Created on Wed Feb 19 12:15:35 2020
 @author: arthur
 """
 
-from transforms.subgrid_forcing import gcm_lsrp_subgrid_forcing, gcm_subgrid_forcing
+from transforms.subgrid_forcing import gcm_lsrp_subgrid_forcing, gcm_subgrid_forcing, scipy_subgrid_forcing
 
 import xarray as xr
 from scipy.ndimage import gaussian_filter
@@ -28,7 +28,7 @@ def advections(u_v_field: xr.Dataset, grid_data: xr.Dataset,**kwargs):
         Advection components, under variable names adv_x and adv_y.
     """
     
-    if kwargs.get('periodic_diff',False):
+    if kwargs.get('periodic_diff',True):
         gradient_x = u_v_field - u_v_field.roll(xu_ocean = 1)
         gradient_y = u_v_field - u_v_field.roll(yu_ocean = 1)
     else:
@@ -123,12 +123,12 @@ def spatial_filter_dataset(dataset: xr.Dataset, grid_info: xr.Dataset,
         filtered = gf.apply(dataset,dims = ['yu_ocean','xu_ocean'])*area_u
     else:
         filter_fun = lambda x : gaussian_filter(x, filter_scale, mode='wrap')
-        dataset = dataset * area_u
         # Normalisation term, so that if the quantity we filter is constant
         # over the domain, the filtered quantity is constant with the same value
+        dataset = dataset* area_u
         norm = xr.apply_ufunc(lambda x: filter_fun(x),
                             area_u, dask='parallelized', output_dtypes=[float, ])
-        filtered = xr.apply_ufunc(lambda x: spatial_filter(x, filter_fun), dataset,
+        filtered = xr.apply_ufunc(lambda x: filter_fun(x), dataset,
                                 dask='parallelized', output_dtypes=[float, ])
     return filtered / norm
 
@@ -212,7 +212,7 @@ def main():
     root = '/scratch/zanna/data/cm2.6/'
     file = 'surface.zarr'
     path = os.path.join(root,file)
-    sl = dict(xu_ocean = slice(3000,3500),yu_ocean = slice(2000,2500))
+    sl = dict(xu_ocean = slice(800,1800),yu_ocean = slice(800,1800))
     u_v_dataset = xr.open_zarr(path).isel(time = 0).isel(**sl)
     u_v_dataset = u_v_dataset.drop('surface_temp')
     path = os.path.join(root,'GFDL_CM2_6_grid.nc')
@@ -220,12 +220,14 @@ def main():
     grid_data['wet_mask'] = xr.where(np.isnan(u_v_dataset.usurf),0,1)
     grid_data['area'] = grid_data.dxu*grid_data.dyu
 
-    gsbf = gcm_lsrp_subgrid_forcing(scale,grid_data,dims = ['yu_ocean','xu_ocean'],grid_separation = 'dyu dxu'.split(),momentum = 'usurf vsurf'.split())
+    gsbf = gcm_subgrid_forcing(scale,grid_data,dims = ['yu_ocean','xu_ocean'],grid_separation = 'dyu dxu'.split(),momentum = 'usurf vsurf'.split())
+    ssbf = scipy_subgrid_forcing(scale,grid_data,dims = ['yu_ocean','xu_ocean'],grid_separation = 'dyu dxu'.split(),momentum = 'usurf vsurf'.split())
 
     org_forcing = eddy_forcing(u_v_dataset, grid_data,scale = scale)
 
     forcings_list = []
     forcings_list.append(gsbf(u_v_dataset,'usurf vsurf'.split(),'S_x S_y'.split()))
+    forcings_list.append(ssbf(u_v_dataset,'usurf vsurf'.split(),'S_x S_y'.split()))
 
     cmpr_forcings = org_forcing
     for type_num,forcings in enumerate(forcings_list):
@@ -254,7 +256,25 @@ def main():
             else:
                 fs = {nm:u,f"{nm}-gcm":u1}
                 plot_ds(fs,root + nm,ncols = 2,dims = ['xu','yu'])
-    plot_forcing(cmpr_forcings,'saves/plots/filtering/local4_')
+    def plot_forcing_(forcing,root):
+        forcing = drop_unused_coords(forcing)
+        nms = list(forcing.data_vars.keys())
+        n = len(forcings_list)
+        for i in range(n):
+            nms = [n.replace(f'_{i+1}','') for n in nms]
+        nms = np.unique(nms)
+        for nm in nms:
+            fs = {}
+            fs[nm] = forcing[nm]
+            fs = dict(fs,**{f"{nm}_{i+1}":\
+                forcing[f"{nm}_{i+1}"] for i in range(n)})
+                # np.log10(np.abs(forcing[nm] - forcing[f"{nm}_{i+1}"])) - \
+                # np.log10(np.mean(np.abs(forcing[nm].fillna(0))))
+                    # for i in range(n)})
+                
+            
+            plot_ds(fs,root + nm,ncols = n+1,dims = ['xu','yu'])
+    plot_forcing_(cmpr_forcings,'saves/plots/filtering/local4_')
 
 if __name__ == '__main__':
     main()

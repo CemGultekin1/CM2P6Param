@@ -122,7 +122,7 @@ def main():
     perr = torch.sum(torch.square(p - p0)).item()
     ys2 = torch.sum(torch.square(y)).item()
     ps2 = torch.sum(torch.square(p)).item()
-    print(yerr/ys2,perr/ps2)
+    print('errors:\t',yerr/ys2,perr/ps2)
     
     # Specify a path
     PATH = "cheng_global_model.pt"

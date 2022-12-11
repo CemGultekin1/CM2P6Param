@@ -164,9 +164,9 @@ def fromtorchdict(data_vars,coords,masks,normalize = False,denormalize = False,f
     dsmasks = fromtorchdict2dataset(masks,coords)
     ds = mask_dataset(ds,dsmasks,fillvalue = fillvalue)
     if normalize:
-        ds = normalize_dataset(ds,denormalize=False)
+        ds = normalize_dataset(ds,denormalize=False,**kwargs)
     elif denormalize:
-        ds = normalize_dataset(ds,denormalize=True)
+        ds = normalize_dataset(ds,denormalize=True,**kwargs)
     ds = remove_normalization(ds)
     return drop_unused_coords(ds,**kwargs)
 def drop_unused_coords(ds,expand_dims = {},**kwargs):
@@ -194,14 +194,17 @@ def fromtorchdict2dataset(data_vars,coords):
     ds = xr.Dataset(data_vars = data_vars,coords = coords)
     return ds
 
-def normalize_dataset(ds,denormalize = False):
+def normalize_dataset(ds,denormalize = False,drop_normalization = False):
+    # print(list(ds.data_vars.keys()))
     for key in ds.data_vars.keys():
-        if 'mean' in key or 'std' in key:
+        if '_scale' in key : # if 'mean' in key or 'std' in key:
             continue
-        mkey = f"{key}_mean"
-        skey = f"{key}_std"
-
-        a,b = ds[mkey].values,ds[skey].values
+        # mkey = f"{key}_mean"
+        # skey = f"{key}_std"
+        mkey = f"{key}_scale"
+        sc = ds[mkey].values
+        
+        # a,b = ds[mkey].values,ds[skey].values
 
         dims1 = ds[key].dims
         dims0 = ds[mkey].dims
@@ -211,11 +214,13 @@ def normalize_dataset(ds,denormalize = False):
                 shp.append(len(ds[d]))
             else:
                 shp.append(1)
-        a,b = a.reshape(shp),b.reshape(shp)
+        # a,b = a.reshape(shp),b.reshape(shp)
         if denormalize:
-            ds[key] = ds[key] *b + a
+            ds[key] = ds[key] * sc #b + a
         else:
-            ds[key] = (ds[key] - a)/b
+            ds[key] = ds[key]/sc #(ds[key] - a)/b
+        if drop_normalization:
+            ds = ds.drop(mkey)
     return ds
 def mask_dataset(ds,maskds,fillvalue = np.nan):
     for key in ds.data_vars.keys():

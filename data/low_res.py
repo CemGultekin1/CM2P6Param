@@ -82,7 +82,7 @@ class SingleDomain(CM2p6Dataset):
         self.all_land = None
         self._wetmask = None
         self._forcingmask = None
-        # self.interior = kwargs.get('interior')
+        self.interior = kwargs.get('interior')
         
 
     @property
@@ -113,7 +113,10 @@ class SingleDomain(CM2p6Dataset):
         if self._wetmask is None:
             ds = self.ds.isel(time =0).load()
             ds = self.get_grid_fixed_lres(ds)
-            wetmask = None
+            if self.interior:
+                wetmask = 1 - ds.wet_mask
+            else:
+                wetmask = None
             for key in ds.data_vars.keys():
                 mask_ = np.isnan(ds[key])
                 if wetmask is None:
@@ -121,7 +124,7 @@ class SingleDomain(CM2p6Dataset):
                 else:
                     wetmask += mask_
             wetmask = xr.where(wetmask > 0,0,1)
-            wetmask.name = 'wetmask'
+            wetmask.name = 'wet_mask'
             if self.requested_boundaries is not None:
                 wmask = wetmask.values
                 bmask = wmask*0 
@@ -138,7 +141,7 @@ class SingleDomain(CM2p6Dataset):
                     data = wmask,
                     dims = ['lat','lon'],
                     coords = {'lat':lat,'lon':lon},
-                    name = 'wetmask'
+                    name = 'wet_mask'
                 )
             self._wetmask = wetmask
         return self._wetmask
@@ -162,7 +165,8 @@ class SingleDomain(CM2p6Dataset):
                 v = v.reshape(vshp)
                 ds[name] = (ds[name].dims,v)
             return ds
-        # ds = ds.drop('wetmask')
+        if self.interior:
+            ds = ds.drop('wet_mask')
         ds = apply_mask(ds,self.fieldwetmask.values,list(ds.data_vars))
         ds = apply_mask(ds,self.forcingwetmask.values,[field for field in list(ds.data_vars) if 'S' in field])
 

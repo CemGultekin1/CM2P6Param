@@ -114,7 +114,8 @@ class MultiDomainDataset(MultiDomain):
                 if varname not in data_vars:
                     continue
                 valdict[varname] = data_vars[varname]
-                for suff in '_mean _std'.split():
+                # for suff in '_mean _std'.split():
+                for suff in '_scale '.split():
                     nvarname = varname + suff
                     if nvarname in data_vars:
                         valdict[nvarname] = data_vars[nvarname]
@@ -153,21 +154,25 @@ class MultiDomainDataset(MultiDomain):
             shp1 = list(shp.values())
             newdims = list(newdims.keys())
             
-            
-            a,b = np.zeros(shp0),np.ones(shp0)
+            # a,b = np.zeros(shp0),np.ones(shp0)
+            a = np.ones(shp0)
             if self.scalars is not None:
-                if f"{key}_mean" in self.scalars:
-                    a = self.scalars[f"{key}_mean"].values
-                    b = self.scalars[f"{key}_std"].values
+                # if f"{key}_mean" in self.scalars:
+                #     a = self.scalars[f"{key}_mean"].values
+                #     b = self.scalars[f"{key}_std"].values
+                #     a = a.reshape(shp0)
+                #     b = b.reshape(shp0)
+                if f"{key}_scale" in self.scalars:
+                    a = self.scalars[f"{key}_scale"].values
                     a = a.reshape(shp0)
-                    b = b.reshape(shp0)
 
             
-
             if not self.torch_flag:
-                data_vars[f"{key}_mean"] = (newdims,a)
-                data_vars[f"{key}_std"] = (newdims,b)
-            vals = (vals - a.reshape(shp1))/b.reshape(shp1)
+                data_vars[f"{key}_scale"] = (newdims,a)
+                # data_vars[f"{key}_mean"] = (newdims,a)
+                # data_vars[f"{key}_std"] = (newdims,b)
+            # vals = (vals - a.reshape(shp1))/b.reshape(shp1)
+            vals = vals/a.reshape(shp1)
             data_vars[key] = (dims,vals)
         return data_vars,coords
 

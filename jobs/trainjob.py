@@ -58,7 +58,7 @@ def generate_training_tasks():
     kwargs = dict(
         lsrp = [0],     
         depth = [0],
-        sigma = [4,8,12,16],
+        sigma = [8,12,16],
         temperature = False,
         lossfun = 'MSE',
         latitude = [False],
@@ -68,9 +68,9 @@ def generate_training_tasks():
 
 
     kwargs = dict(
-        lsrp = [0,1,2],     
+        lsrp = [0,1],     
         depth = [0],
-        sigma = [4,8,12,16],
+        sigma = [8,12,16],
         temperature = True,
         lossfun = 'MSE',
         latitude = [False,True],
@@ -78,16 +78,16 @@ def generate_training_tasks():
     )
     argslist = argslist + python_args(**kwargs,**base_kwargs)
 
-    kwargs = dict(
-        lsrp = [0,1,2],     
-        depth =[int(d) for d in DEPTHS],
-        sigma = [8],
-        temperature = True,
-        lossfun = 'MSE',
-        latitude = [False,True],
-        domain = 'global',
-    )
-    argslist = argslist + python_args(**kwargs,**base_kwargs)
+    # kwargs = dict(
+    #     lsrp = [0,1],     
+    #     depth =[int(d) for d in DEPTHS],
+    #     sigma = [8],
+    #     temperature = True,
+    #     lossfun = 'MSE',
+    #     latitude = [False,True],
+    #     domain = 'global',
+    # )
+    # argslist = argslist + python_args(**kwargs,**base_kwargs)
     import numpy as np
     _,idx = np.unique(np.array(argslist),return_index=True)
     argslist = np.array(argslist)

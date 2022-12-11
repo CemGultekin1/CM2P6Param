@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --time=5:00:00
-#SBATCH --array=2
-#SBATCH --mem=10GB
+#SBATCH --time=1:00:00
+#SBATCH --array=1,6,7,8
+#SBATCH --mem=30GB
 #SBATCH --job-name=datagather
 #SBATCH --output=/scratch/cg3306/climate/CM2P6Param/saves/slurm_logs/datagather_%a_%A.out
 #SBATCH --error=/scratch/cg3306/climate/CM2P6Param/saves/slurm_logs/datagather_%a_%A.err
-#SBATCH --cpus-per-task=1
+#SBATCH --cpus-per-task=3
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 module purge

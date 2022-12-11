@@ -3,7 +3,7 @@ from typing import List, Tuple
 from data.exceptions import RequestDoesntExist
 from data.low_res_dataset import MultiDomainDataset
 from data.high_res import  HighResCm2p6
-from data.paths import get_high_res_data_location, get_high_res_grid_location, get_low_res_data_location
+from data.paths import get_high_res_data_location, get_high_res_grid_location, get_low_res_data_location,get_low_res_data_wet_mask_location
 import copy
 from data.vars import FIELD_NAMES, FORCING_NAMES, LATITUDE_NAMES,LSRP_RES_NAMES, get_var_mask_name, rename
 from data.scalars import load_scalars
@@ -24,7 +24,15 @@ def load_grid(ds:xr.Dataset,):
     for key in passkeys:
         ds[key] = grid_loc[key]
     return ds
-
+def load_wet_mask(ds,args):
+    path = get_low_res_data_wet_mask_location(args)
+    print(path)
+    if not os.path.exists(path):
+        print('wet_mask path doesnt exist:\t',path)
+        return ds
+    wet_mask = xr.open_zarr(path)
+    ds['wet_mask'] = wet_mask['wet_mask']
+    return ds
 def pass_geo_grid(ds,sigma):
     grid = xr.open_dataset(get_high_res_grid_location())
     lon = grid.xt_ocean.values
@@ -93,6 +101,8 @@ def load_xr_dataset(args):
     ds_zarr= xr.open_zarr(data_address,consolidated=False )
     if runargs.mode == 'data':  
         ds_zarr = load_grid(ds_zarr)
+    else:
+        ds_zarr = load_wet_mask(ds_zarr,args)
     if runargs.sanity:
         ds_zarr = ds_zarr.isel(time = slice(0,1))
     ds_zarr,scs=  preprocess_dataset(args,ds_zarr)
@@ -155,7 +165,7 @@ def dataset_arguments(args,**kwargs_):
     else:
         boundaries = REGIONS['global']
         
-    kwargs = ['lsrp','latitude','temperature','section']
+    kwargs = ['lsrp','latitude','temperature','section','interior']
     kwargs = {key:runprms.__dict__[key] for key in kwargs}
     kwargs['boundaries'] = boundaries
     kwargs['scalars'] = scalars

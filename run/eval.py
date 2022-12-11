@@ -17,15 +17,15 @@ import numpy as np
 from utils.xarray import fromtensor, fromtorchdict, fromtorchdict2tensor, plot_ds
 import xarray as xr
 
-def change_scale(d0,normalize = False,denormalize = False):
-    for key,val in d0.items():
-        f = val['val']
-        n = val['normalization']
-        if normalize:
-            d0[key]['val'] = (f - n[:,0].reshape([-1,1,1]))/n[:,1].reshape([-1,1,1])
-        elif denormalize:
-            d0[key]['val'] = f*n[:,1].reshape([-1,1,1]) + n[:,0].reshape([-1,1,1])
-    return d0
+# def change_scale(d0,normalize = False,denormalize = False):
+#     for key,val in d0.items():
+#         f = val['val']
+#         n = val['normalization']
+#         if normalize:
+#             d0[key]['val'] = (f - n[:,0].reshape([-1,1,1]))/n[:,1].reshape([-1,1,1])
+#         elif denormalize:
+#             d0[key]['val'] = f*n[:,1].reshape([-1,1,1]) + n[:,0].reshape([-1,1,1])
+#     return d0
 
 def torch_stack(*dicts):
     dicts = list(dicts)
@@ -172,7 +172,9 @@ def main():
             depth = forcing_coords['depth'].item()
             co2 = forcing_coords['co2'].item()
             kwargs = dict(contained = '' if not lsrp_flag else 'res', \
-                expand_dims = {'co2':[co2],'depth':[depth]})
+                expand_dims = {'co2':[co2],'depth':[depth]},\
+                drop_normalization = True,
+                )
             if nt ==  0:
                 flushed_print(depth,co2)
 

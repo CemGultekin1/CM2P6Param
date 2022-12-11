@@ -3,7 +3,7 @@ from utils.no_torch_xarray import concat, tonumpydict
 from utils.xarray import unbind
 import xarray as xr
 from transforms.grids import get_grid_vars, ugrid2tgrid_interpolation
-from transforms.subgrid_forcing import gcm_lsrp_subgrid_forcing
+from transforms.subgrid_forcing import gcm_lsrp_subgrid_forcing, scipy_subgrid_forcing
 import numpy as np
 
 
@@ -21,6 +21,8 @@ class HighResCm2p6:
         self.wet_mask = None
         self._ugrid_subgrid_forcing = None
         self._tgrid_subgrid_forcing = None
+        self._ugrid_scipy_forcing = None
+        self._tgrid_scipy_forcing = None
         self._grid_interpolation = None
         a,b = section
         nt = len(self.ds.time)
@@ -48,6 +50,19 @@ class HighResCm2p6:
         ds = self.ds.isel(time = ti,depth = di) 
         # ds = ds.isel(**{f"{k0}{k1}":slice(1000,1960) for k0 in 'u t'.split() for k1 in 'lat lon'.split()})
         return ds
+
+    @property
+    def ugrid_scipy_forcing(self,):
+        if self._ugrid_scipy_forcing is None:
+            self._ugrid_scipy_forcing = scipy_subgrid_forcing(self.sigma,self.ugrid)
+        return self._ugrid_scipy_forcing
+
+    @property
+    def tgrid_scipy_forcing(self,):
+        if self._tgrid_scipy_forcing is None:
+            self._tgrid_scipy_forcing = scipy_subgrid_forcing(self.sigma,self.tgrid)
+        return self._tgrid_scipy_forcing
+        
     @property
     def ugrid(self,):
         ds = self.get_hres_dataset(0)
@@ -113,7 +128,7 @@ class HighResCm2p6:
 
     def build_mask(self,i):
         u,v,temp = self._base_get_hres(i)
-        fields = self.fields2forcings(i,u,v,temp,wet_masked = False)
+        fields = self.fields2forcings(i,u,v,temp,scipy_filtering = True)
         mask_ = None
         for val in fields.values():
             mask__ = xr.where(np.isnan(val),1,0)
@@ -129,20 +144,16 @@ class HighResCm2p6:
     def get_forcings(self,i):
         u,v,temp = self._base_get_hres(i)
         return self.fields2forcings(i,u,v,temp)
-    def fields2forcings(self,i,u,v,temp):
-        # if lsrp:
-        #     def project(var,cg):
-        #         cvar = cg(var)
-        #         return cg(cvar,inverse = True)
-        #     u = project(u,self.ugrid_subgrid_forcing.coarse_grain)
-        #     v = project(v,self.ugrid_subgrid_forcing.coarse_grain)
-        #     temp = project(temp,self.tgrid_subgrid_forcing.coarse_grain)
-
+    def fields2forcings(self,i,u,v,temp,scipy_filtering = False):
         u_t,v_t = self.grid_interpolation(u,v)
         uvars = dict(u=u,v=v)
         tvars = dict(u = u_t, v = v_t,temp = temp,)
-        uvars = unbind(self.ugrid_subgrid_forcing(uvars,'u v'.split(),'Su Sv'.split()))
-        tvars = unbind(self.tgrid_subgrid_forcing(tvars,'temp '.split(),'Stemp '.split()))
+        if scipy_filtering:
+            uvars = unbind(self.ugrid_scipy_forcing(uvars,'u v'.split(),'Su Sv'.split()))
+            tvars = unbind(self.tgrid_scipy_forcing(tvars,'temp '.split(),'Stemp '.split()))
+        else:
+            uvars = unbind(self.ugrid_subgrid_forcing(uvars,'u v'.split(),'Su Sv'.split()))
+            tvars = unbind(self.tgrid_subgrid_forcing(tvars,'temp '.split(),'Stemp '.split()))
         def pass_gridvals(tgridvaldict,ugridvaldict):
             assert len(ugridvaldict) > 0
             ugridval = list(ugridvaldict.values())[0]
@@ -172,14 +183,14 @@ class HighResCm2p6:
         else:
             fields = fields.expand_dims(dd)
         return fields
-    # def get_forcings_with_mask(self,i,):
-    #     fields = self.get_forcings(i,)
-    #     fields = concat(**fields)
-    #     return fields
+    def append_mask(self,ds,i):
+        wetmask = self.get_mask(i)
+        # ds = xr.merge([ds,wetmask])
+        ds = xr.merge([wetmask])
+        ti,_ = self.time_depth_indices(i)
+        ds = ds.expand_dims(dim = {"time":[ti]},axis = 0)
+        return ds
     def __getitem__(self,i):
-        ds = self.get_forcings(i,)
-        # ds_lsrp = ds_lsrp.rename(**{f"S{key}":f"S{key}_res" for key in 'u v temp'.split()})
-        # for key in 'u v temp'.split():
-        #     ds_lsrp = ds_lsrp.drop(key)
-        # ds = xr.merge([ds,ds_lsrp])
+        # ds = self.get_forcings(i,)
+        ds = self.append_mask(None,i)
         return tonumpydict(ds)

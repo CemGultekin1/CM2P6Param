@@ -12,8 +12,9 @@ def python_args():
     def givearg(sigma,depth):
         st =  f"--domain global --prefetch_factor 1 --depth {depth} --sigma {sigma} --mode scalars --num_workers {NCPU}"
         return st
-    sigmas = [4,8,12,16]
+    sigmas = [8,12,16]
     depths = [int(d) for d in DEPTHS]
+    depths = [depths[0]]
     prods = (sigmas,depths)
     lines = []
     for args in itertools.product(*prods):

@@ -25,7 +25,7 @@ class Timer:
         t1 = self.times[label][-1]
         self.times[label][-1] = time.time() - t1
     def __repr__(self) -> str:
-        keys = [f"\t{lbl} : {np.mean(vals[-10:])}" for lbl, vals in self.times.items()]
+        keys = [f"\t{lbl} : {np.mean(vals[-30:])}" for lbl, vals in self.times.items()]
         return "\n".join(keys)
     def reset(self,):
         self.times = {}
@@ -80,10 +80,14 @@ def cnn_train(args):
             # mask = mask[0].numpy()
             # import matplotlib.pyplot as plt
             # def plot_method(field,name):
+                
             #     nchan = field.shape[0]
             #     fig,axs = plt.subplots(nchan,1,figsize = (10,10*nchan))
             #     for i in range(nchan):
-            #         axs[i].imshow(field[i])
+            #         print(name,i,np.mean(np.abs(field[i])))
+            #         ff = field[i]#.numpy()
+            #         ff = ff[::-1]
+            #         axs[i].imshow(ff)
             #     fig.savefig(name)
             #     plt.close()
             # plot_method(infields,'infields.png')
