@@ -131,7 +131,7 @@ def fromnumpydict(data_vars,coords):
 def fromtorchdict2tensor(data_vars,contained = '',**kwargs):
     vecs = []
     for key in data_vars:
-        if '_mean' in key or '_std' in key:
+        if '_scale' in key:
             continue
         if contained not in key:
             continue
@@ -148,7 +148,7 @@ def fromtensor2dict(tts,data_vars0,contained = '',**kwargs):
     i= 0 
     for key in data_vars0:
         dims,vec = data_vars0[key]
-        if '_mean' in key or '_std' in key:
+        if '_scale' in key:
             data_vars[key] = dims,vec
         elif contained in key:
             data_vars[key] = dims, tts[0,i]
@@ -194,7 +194,7 @@ def fromtorchdict2dataset(data_vars,coords):
     ds = xr.Dataset(data_vars = data_vars,coords = coords)
     return ds
 
-def normalize_dataset(ds,denormalize = False,drop_normalization = False):
+def normalize_dataset(ds,denormalize = False,drop_normalization = False,**kwargs):
     # print(list(ds.data_vars.keys()))
     for key in ds.data_vars.keys():
         if '_scale' in key : # if 'mean' in key or 'std' in key:
@@ -233,7 +233,7 @@ def remove_normalization(ds):
     data_vars = {}
     coords = ds.coords
     for key,val in ds.data_vars.items():
-        if '_mean' not in key and '_std' not in key:
+        if '_scale' not in key:
             data_vars[key] = val
     return xr.Dataset(data_vars = data_vars,coords = coords)
 

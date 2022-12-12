@@ -143,6 +143,7 @@ class SingleDomain(CM2p6Dataset):
                     coords = {'lat':lat,'lon':lon},
                     name = 'wet_mask'
                 )
+            
             self._wetmask = wetmask
         return self._wetmask
     @property
@@ -165,7 +166,7 @@ class SingleDomain(CM2p6Dataset):
                 v = v.reshape(vshp)
                 ds[name] = (ds[name].dims,v)
             return ds
-        if self.interior:
+        if 'wet_mask' in ds.data_vars.keys():
             ds = ds.drop('wet_mask')
         ds = apply_mask(ds,self.fieldwetmask.values,list(ds.data_vars))
         ds = apply_mask(ds,self.forcingwetmask.values,[field for field in list(ds.data_vars) if 'S' in field])

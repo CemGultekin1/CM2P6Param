@@ -182,6 +182,7 @@ def main():
                 mean,_ =  net.forward(fields_tensor.to(device))
                 mean = mean.to("cpu")
 
+
             
             # outfields = fromtorchdict2tensor(forcings).type(torch.float32)
             # mask = fromtorchdict2tensor(forcing_mask).type(torch.float32)
