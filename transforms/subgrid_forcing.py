@@ -73,7 +73,7 @@ class gcm_subgrid_forcing(base_subgrid_forcing,):
     def __init__(self, *args,**kwargs):
         super().__init__(*args, **kwargs)
         self.filtering = gcm_filtering(*args,**kwargs)
-        self.coarse_grain = greedy_coarse_grain(*args,**kwargs)
+        self.coarse_grain = plain_coarse_grain(*args,**kwargs)#greedy_coarse_grain(*args,**kwargs)
 
 class scipy_subgrid_forcing(base_subgrid_forcing,):
     def __init__(self, *args,**kwargs):

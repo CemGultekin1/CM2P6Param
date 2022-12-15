@@ -50,17 +50,13 @@ class filtering(base_transform):
 class gcm_filtering(filtering):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
-        self._no_land_no_area_gcm = gcm.Filter(**filter_specs(self.sigma,self.grid,area_weighted=False,wet_masked=False))
-        self._no_land_gcm = gcm.Filter(**filter_specs(self.sigma,self.grid,area_weighted=True,wet_masked=False))
-        self._gcm = gcm.Filter(**filter_specs(self.sigma,self.grid,area_weighted=True,wet_masked=True,tripolar = False))
-    def base_filter(self,x,area_weighting = False):
-        if not area_weighting:
-            return self._no_land_no_area_gcm.apply(x,dims = self.dims)
-        else:
-            return self._no_land_gcm.apply(x,dims = self.dims)
+        n_steps = kwargs.get('n_steps')
+        self._no_area_gcm = gcm.Filter(**filter_specs(self.sigma,self.grid,area_weighted=False,wet_masked=False,n_steps = n_steps))
+        self._gcm = gcm.Filter(**filter_specs(self.sigma,self.grid,area_weighted=False,wet_masked=False,tripolar = False,n_steps = n_steps))
+    def base_filter(self,x):
+        return self._no_area_gcm.apply(x,dims = self.dims)
     def filter(self,x):
-        return self._gcm.apply(x,dims =  self.dims)*self.grid.area
-
+        return self._gcm.apply(self.grid.area*x,dims =  self.dims)
 class scipy_filtering(filtering):
     def filter(self,x):
         return xr.apply_ufunc(\
@@ -73,7 +69,7 @@ class scipy_filtering(filtering):
 
 
 
-def filter_specs(sigma,grid, area_weighted = False, wet_masked= False,tripolar = False):
+def filter_specs(sigma,grid, area_weighted = False, wet_masked= False,tripolar = False,n_steps = 16):
     wetmask,area = grid.wet_mask.copy(),grid.area.copy()
     filter_scale = sigma/2*np.sqrt(12)
     dx_min = 1
@@ -97,5 +93,6 @@ def filter_specs(sigma,grid, area_weighted = False, wet_masked= False,tripolar =
         'filter_shape':gcm.FilterShape.GAUSSIAN,
         'grid_type':grid_type,
         'grid_vars':grid_vars,
+        'n_steps' : n_steps
     }
     return specs

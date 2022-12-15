@@ -100,7 +100,7 @@ def spatial_filter_dataset(dataset: xr.Dataset, grid_info: xr.Dataset,
     filt_dataset : xarray dataset
         Filtered dataset.
     """
-    area_u = grid_info['dxu'] * grid_info['dyu'] / 1e8
+    area_u = grid_info['area']
     if kwargs.get('gcm_filtering',False):
         # wet_mask = xr.where(np.isnan(dataset.usurf),1,0)
         specs = {
@@ -212,69 +212,75 @@ def main():
     root = '/scratch/zanna/data/cm2.6/'
     file = 'surface.zarr'
     path = os.path.join(root,file)
-    sl = dict(xu_ocean = slice(800,1800),yu_ocean = slice(800,1800))
+    sl = dict(xu_ocean = slice(800,841),yu_ocean = slice(800,841))
     u_v_dataset = xr.open_zarr(path).isel(time = 0).isel(**sl)
     u_v_dataset = u_v_dataset.drop('surface_temp')
+    u_v_dataset = u_v_dataset.fillna(0)
+
+    # mask = u_v_dataset.usurf.values*0
+    # mask[20,20]= 1
+
+    # dv = u_v_dataset.data_vars
+    # dv1 = {}
+    # for name,varib in dv.items():
+    #     data = mask
+    #     dims = varib.dims
+    #     dv1[name] = (dims,data)
+    # u_v_dataset = xr.Dataset(
+    #     data_vars = dv1,
+    #     coords = u_v_dataset.coords
+    # )
+
+    
+
     path = os.path.join(root,'GFDL_CM2_6_grid.nc')
     grid_data = xr.open_dataset(path).isel(**sl)
     grid_data['wet_mask'] = xr.where(np.isnan(u_v_dataset.usurf),0,1)
-    grid_data['area'] = grid_data.dxu*grid_data.dyu
+    grid_data['area'] = grid_data.dxu*grid_data.dyu*0 + 1
 
-    gsbf = gcm_subgrid_forcing(scale,grid_data,dims = ['yu_ocean','xu_ocean'],grid_separation = 'dyu dxu'.split(),momentum = 'usurf vsurf'.split())
-    ssbf = scipy_subgrid_forcing(scale,grid_data,dims = ['yu_ocean','xu_ocean'],grid_separation = 'dyu dxu'.split(),momentum = 'usurf vsurf'.split())
-
+    forcings_list = {}
     org_forcing = eddy_forcing(u_v_dataset, grid_data,scale = scale)
+    forcings_list['Arthur'] = org_forcing
+    ssbf = scipy_subgrid_forcing(scale,grid_data,dims = ['yu_ocean','xu_ocean'],grid_separation = 'dyu dxu'.split(),momentum = 'usurf vsurf'.split())
+    forcings_list[f"control_Cem"] = ssbf(u_v_dataset,'usurf vsurf'.split(),'S_x S_y'.split())
+    
+    n_steps = [12,16,32]
+    
+    for n_step in n_steps:
+        gsbf = gcm_subgrid_forcing(scale,grid_data,dims = ['yu_ocean','xu_ocean'],grid_separation = 'dyu dxu'.split(),momentum = 'usurf vsurf'.split(),n_steps = n_step)
+        forcings_list[f"gcm_n_step({n_step})"]  = gsbf(u_v_dataset,'usurf vsurf'.split(),'S_x S_y'.split())
+    
 
-    forcings_list = []
-    forcings_list.append(gsbf(u_v_dataset,'usurf vsurf'.split(),'S_x S_y'.split()))
-    forcings_list.append(ssbf(u_v_dataset,'usurf vsurf'.split(),'S_x S_y'.split()))
-
-    cmpr_forcings = org_forcing
-    for type_num,forcings in enumerate(forcings_list):
+    
+    subgrid_forcing_names = list(forcings_list.keys())
+    cmpr_forcings = None
+    for typenum,(name,forcings) in enumerate(forcings_list.items()):
         names = list(forcings.data_vars.keys())
-        # dforcings = dforcings.rename({n:f"log10(|{n}_{type_num+1} - {n}|)" for n in names})
-        forcings = forcings.rename({n:f"{n}_{type_num+1}" for n in names})
-        cmpr_forcings = xr.merge([cmpr_forcings,forcings])
-        # print(names)
-            
+        forcings = forcings.rename({n:f"{n}_{subgrid_forcing_names[typenum]}" for n in names})
+        if cmpr_forcings is not None:
+            cmpr_forcings = xr.merge([cmpr_forcings,forcings])
+        else:
+            cmpr_forcings = forcings
+    
 
     
     from utils.xarray import plot_ds,drop_unused_coords
-    def plot_forcing(forcing,root):
-        forcing = drop_unused_coords(forcing)
-        nms = list(forcing.data_vars.keys())
-        nms = np.unique([n.replace('_1','').replace('_res','') for n in nms])
-        for nm in nms:
-            nm1 = f"{nm}_1"
-            nm2 = f"{nm}_res_1"
-            u = forcing[nm]
-            u1 = forcing[nm1]
-            if nm2 in forcing.data_vars:
-                ulsrp = forcing[nm2] + forcing[nm1]
-                fs = {nm:u,f"{nm}-gcm":u1,f"{nm}-lsrp":ulsrp}
-                plot_ds(fs,root + nm,ncols = 3,dims = ['xu','yu'])
-            else:
-                fs = {nm:u,f"{nm}-gcm":u1}
-                plot_ds(fs,root + nm,ncols = 2,dims = ['xu','yu'])
     def plot_forcing_(forcing,root):
         forcing = drop_unused_coords(forcing)
-        nms = list(forcing.data_vars.keys())
+        nms = names
         n = len(forcings_list)
-        for i in range(n):
-            nms = [n.replace(f'_{i+1}','') for n in nms]
-        nms = np.unique(nms)
+        name_fun = lambda nm,j : f"{nm}_{subgrid_forcing_names[j]}"
         for nm in nms:
             fs = {}
-            fs[nm] = forcing[nm]
-            fs = dict(fs,**{f"{nm}_{i+1}":\
-                forcing[f"{nm}_{i+1}"] for i in range(n)})
-                # np.log10(np.abs(forcing[nm] - forcing[f"{nm}_{i+1}"])) - \
-                # np.log10(np.mean(np.abs(forcing[nm].fillna(0))))
-                    # for i in range(n)})
+            fs = {name_fun(nm,i):\
+                forcing[name_fun(nm,i)] for i in range(n)}
                 
-            
-            plot_ds(fs,root + nm,ncols = n+1,dims = ['xu','yu'])
-    plot_forcing_(cmpr_forcings,'saves/plots/filtering/local4_')
+            fs = dict(fs,**{f"log10(relative err {name_fun(nm,0)},{name_fun(nm,i)})":\
+                np.log10(np.abs(forcing[name_fun(nm,0)] - forcing[name_fun(nm,i)])/np.amax(forcing[name_fun(nm,0)]))
+                    for i in range(n)})
+                
+            plot_ds(fs,root + nm,ncols = n,dims = ['xu','yu'])
+    plot_forcing_(cmpr_forcings,'saves/plots/filtering/local5_')
 
 if __name__ == '__main__':
     main()

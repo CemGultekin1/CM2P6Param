@@ -75,6 +75,12 @@ def append_names(stats):
 def basiplot(stats):
     # stats = stats.isel(training_depth = 0,depth = 0, co2 = 0,lsrp = [0,1],model = [0,1]).drop(['training_depth','depth','co2'])
     stats = stats.isel(lsrp = [0,1],model = [0,1])#.drop(['training_depth','depth','co2'])
+    # print(stats)
+    # sc2 = stats.isel(sigma = 0).Su_sc2.values.reshape([-1])
+    # names = stats.isel(sigma = 0).name.values.reshape([-1])
+    # for i in range(len(sc2)):
+    #     print(names[i],sc2[i])
+    # return
     cnames ={k:0 for k in stats.coords.keys()}
     dropcoords = ['training_depth','depth','co2','sigma']
     for dc in dropcoords:
@@ -98,7 +104,7 @@ def basiplot(stats):
     for name in stats_ns.name.values:
         ranks[name] = 0
         if 'R4' in name:
-            ranks[name] -= 1e3
+            ranks[name] -= 1e6
         if 'lsr' in name:
             ranks[name] += 1e4
         if 'lsrp' in name:

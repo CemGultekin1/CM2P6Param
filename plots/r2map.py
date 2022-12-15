@@ -10,15 +10,18 @@ from utils.slurm import flushed_print
 import numpy as np
 def main():
     root = EVALS
-    models = os.path.join(SLURM,'cheng_train.txt')
+    models = os.path.join(SLURM,'trainjob.txt')
     target = R2_PLOTS
     file1 = open(models, 'r')
     lines = file1.readlines()
     file1.close()
     title_inc = ['sigma','domain','depth','latitude','lsrp']
     title_name = ['sigma','train-domain','train-depth','latitude','lsrp']
+    # skip_lines = [
+    #     '--lsrp 1 --depth 0 --sigma 4 --temperature True --lossfun MSE --latitude True --domain global --num_workers 16 --disp 50 --widths 5 128 64 32 32 32 32 32 6 --kernels 5 5 3 3 3 3 3 3 --minibatch 2',
+    # ]
     for line in lines:
-        print(line)
+        # line = '--lsrp 1 --depth 0 --sigma 4 --temperature True --lossfun MSE --latitude True --domain global --num_workers 16 --disp 50 --widths 5 128 64 32 32 32 32 32 6 --kernels 5 5 3 3 3 3 3 3 --minibatch 2'
         modelargs,modelid = options(line.split(),key = "model")
         vals = [modelargs.__getattribute__(key) for key in title_inc]
         vals = [int(val) if isinstance(val,float) else val for val in vals]
@@ -26,7 +29,9 @@ def main():
         snfile = os.path.join(root,modelid + '.nc')
         if not os.path.exists(snfile):
             continue
+        print(line)
         sn = xr.open_dataset(snfile).sel(lat = slice(-85,85))#.isel(depth = [0],co2 = 0).drop(['co2'])
+        print(sn)
         msn = metrics_dataset(sn,dim = [])
         tmsn = metrics_dataset(sn,dim = ['lat','lon'])
 

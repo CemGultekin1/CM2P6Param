@@ -31,18 +31,31 @@ def turn_to_lsrp_models(lines):
     return lsrplines 
 
 def append_statistics(sn:xr.Dataset,coordvals):
-    modelev = metrics_dataset(sn.sel(lat = slice(-80,80)),dim = [])
+    modelev = metrics_dataset(sn.sel(lat = slice(-85,85)),dim = [])
+    # print(modelev)
+    # raise Exception
     modelev = skipna_mean(modelev,dim = ['lat','lon'])
+    # print(modelev)
+
+    # raise Exception
+    # modelev = modelev.fillna(0).mean()
     for c,v in coordvals.items():
         if c not in modelev.coords:
             modelev = modelev.expand_dims(dim = {c:v})
-    print(modelev.Su_r2.values.reshape([-1]))
+    for key in 'Su Sv Stemp'.split():
+        r2key = f"{key}_r2"
+        msekey = f"{key}_mse"
+        sc2key = f"{key}_sc2"
+        if r2key not in modelev.data_vars:
+            continue
+        modelev[r2key] = 1 - modelev[msekey]/modelev[sc2key]
+    # print(modelev.Su_r2.values.item(),1- modelev.Su_mse.values.item()/modelev.Su_sc2.values.item())
     return modelev
 def merge_and_save(stats):
     xr.merge(list(stats.values())).to_netcdf(all_eval_path(),mode = 'w')
 def main():
     root = EVALS
-    models = os.path.join(SLURM,'evaljob.txt')
+    models = os.path.join(SLURM,'trainjob.txt')
     file1 = open(models, 'r')
     lines = file1.readlines()
     file1.close()
@@ -76,7 +89,7 @@ def main():
                 merged_coord[key] = []
             merged_coord[key].extend(val.values.tolist())
             merged_coord[key] = np.unique(merged_coord[key]).tolist()
-   
+    # print(merged_coord)
     shape = [len(v) for v in merged_coord.values()]
     def empty_arr():
         return np.ones(np.prod(shape))*np.nan
@@ -85,13 +98,16 @@ def main():
         loc_coord = {key:val.values for key,val in ds.coords.items()}
         lkeys = list(loc_coord.keys())
         for valc in itertools.product(*loc_coord.values()):
+            print({k:v for k,v in zip(lkeys,valc)})
             inds = tuple([merged_coord[k].index(v) for k,v in zip(lkeys,valc)])
             alpha = np.ravel_multi_index(inds,shape)
-            _ds = ds.sel(**{k:v for k,v in zip(lkeys,valc)})
+            _ds = ds.sel(**{k:v for k,v in zip(lkeys,valc)}).copy()
             for key in _ds.data_vars.keys():
                 if key not in data_vars:
                     data_vars[key] = empty_arr()
+                assert np.all(np.isnan(data_vars[key][alpha] ))
                 data_vars[key][alpha] = _ds[key].values
+                print(f'data_vars[{key}][{alpha}] = {_ds[key].values}')
     for key,val in data_vars.items():
         data_vars[key] = (list(merged_coord.keys()),val.reshape(shape))
     ds = xr.Dataset(data_vars = data_vars,coords = merged_coord)

@@ -107,17 +107,16 @@ def err_scale_dataset(mean,truef):
     return xr.merge([err,sc2])
 
 def expand_depth(evs,depthval):
-    print(depthval)
     return evs.expand_dims(dims = dict(depth = depthval),axis=0)
 def lsrp_pred(respred,tr):
     keys= list(respred.data_vars.keys())
     data_vars = {}
     coords = {key:val for key,val in tr.coords.items()}
     for key in  keys:
-        trkey = key.replace('0_res','').replace('1_res','')
-        err = tr[trkey] - tr[key]
-        data_vars[trkey] = (err.dims,err.values)
-        respred[key] = err + respred[key]
+        trkey = key.replace('_res','')
+        trval = tr[trkey] - tr[key] # true - (true - lsrp) = lsrp
+        data_vars[trkey] = (trval.dims,trval.values)
+        respred[key] = trval + respred[key]
         respred = respred.rename({key:trkey})
         tr = tr.drop(key)
     lsrp = xr.Dataset(data_vars =data_vars,coords = coords)
@@ -189,8 +188,8 @@ def main():
             # yhat = mean.numpy()[0]
             # y = outfields.numpy()[0]
             # m = mask.numpy()[0] < 0.5
-            # yhat[m] = np.nan
             # y[m] = np.nan
+            # yhat[m[:3]] = np.nan
             # prst = lambda y: print(np.mean(y[y==y]),np.std(y[y==y]))
             # prst(y),prst(yhat),prst(fields_tensor.numpy())
             # nchan = yhat.shape[0]
@@ -207,19 +206,20 @@ def main():
 
             predicted_forcings = fromtensor(mean,forcings,forcing_coords, forcing_mask,denormalize = True,**kwargs)
             true_forcings = fromtorchdict(forcings,forcing_coords,forcing_mask,denormalize = True,**kwargs)
+
             if lsrp_flag:
                 predicted_forcings,true_forcings = lsrp_pred(predicted_forcings,true_forcings)
                 predicted_forcings,lsrp_forcings = predicted_forcings
                 stats = update_stats(stats,lsrp_forcings,true_forcings,lsrpid)
             
-            # err = np.log10(np.abs(true_forcings - predicted_forcings))
-            # plot_ds(predicted_forcings,'predicted_forcings',ncols = 1)
-            # plot_ds(true_forcings,'true_forcings',ncols = 1)           
-            # plot_ds(err,'err',ncols = 1)
+            err = np.log10(np.abs(true_forcings - predicted_forcings))
+            plot_ds(predicted_forcings,'predicted_forcings_2',ncols = 1)
+            plot_ds(true_forcings,'true_forcings_2',ncols = 1)           
+            plot_ds(err,'err_2',ncols = 1)
             
-
-            # return
             stats = update_stats(stats,predicted_forcings,true_forcings,modelid)
+
+            return
             nt += 1
 
             # break

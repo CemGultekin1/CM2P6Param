@@ -37,10 +37,10 @@ def metrics_dataset(sn, dim = ['lat','lon']):
 
 
         mse = moms[(2,0)] + moms[(0,2)] - 2*moms[(1,1)]
-        sc2 = moms[(2,0)] 
+        sc2 = moms[(0,2)] 
         
-        tvar = moms[(2,0)] - np.square(moms[(1,0)])
-        pvar = moms[(0,2)] - np.square(moms[(0,1)])
+        pvar = moms[(2,0)] - np.square(moms[(1,0)])
+        tvar = moms[(0,2)] - np.square(moms[(0,1)])
 
         r2 = 1 - mse/sc2
         correlation = (moms[(1,1)] - moms[(1,0)]*moms[(0,1)])/np.sqrt(tvar*pvar)

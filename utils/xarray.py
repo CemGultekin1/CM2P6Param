@@ -7,9 +7,11 @@ import torch.nn as nn
 from scipy.ndimage import gaussian_filter
 
 def skipna_mean(ds,dim):
-    _nancount= xr.where(np.isnan(ds),0,1)
-    _values = xr.where(np.isnan(ds),0,ds)
-    return _values.sum(dim = dim)/_nancount.sum(dim = dim)
+    _nonancount= xr.where(np.isnan(ds) + (np.abs(ds) == np.inf  ),0,1)
+    _values = xr.where(np.isnan(ds) + (np.abs(ds) == np.inf ),0,ds)
+    mean_val =  _values.sum(dim = dim)/_nonancount.sum(dim = dim)
+    assert np.all(1 - np.isnan(mean_val))
+    return mean_val
 
 def land_fill(u_:xr.DataArray,factor,ntimes,zero_tendency = False):
     u = u_.copy()
@@ -96,6 +98,7 @@ def plot_ds(ds,imname,ncols = 3,dims = ['lat','lon'],cmap = 'seismic'):
         cmap.set_bad('black',.4)
         u.plot(ax = ax,cmap = cmap)
         ax.set_title(vars[z])
+        ax.set_ylabel('')
     fig.savefig(imname)
     plt.close()
 
