@@ -5,7 +5,7 @@ Created on Wed Feb 19 12:15:35 2020
 @author: arthur
 """
 
-from transforms.subgrid_forcing import gcm_lsrp_subgrid_forcing, gcm_subgrid_forcing, scipy_subgrid_forcing
+from transforms.subgrid_forcing import gcm_lsrp_subgrid_forcing, gcm_subgrid_forcing, greedy_scipy_lsrp_subgrid_forcing, greedy_scipy_subgrid_forcing, scipy_subgrid_forcing
 
 import xarray as xr
 from scipy.ndimage import gaussian_filter
@@ -101,35 +101,14 @@ def spatial_filter_dataset(dataset: xr.Dataset, grid_info: xr.Dataset,
         Filtered dataset.
     """
     area_u = grid_info['area']
-    if kwargs.get('gcm_filtering',False):
-        # wet_mask = xr.where(np.isnan(dataset.usurf),1,0)
-        specs = {
-            'filter_scale': filter_scale*np.sqrt(12),
-            'dx_min': 1,
-            'filter_shape':gcm.FilterShape.GAUSSIAN,
-            'grid_type':gcm.GridType.TRIPOLAR_REGULAR_WITH_LAND_AREA_WEIGHTED,
-            'grid_vars':dict(area = area_u,wet_mask = grid_info['wet_mask']),
-        }
-        gf = gcm.Filter(**specs)
-
-        specs = {
-            'filter_scale': filter_scale*np.sqrt(12),
-            'dx_min': 1,
-            'filter_shape':gcm.FilterShape.GAUSSIAN,
-            'grid_type':gcm.GridType.REGULAR,
-        }
-        gf0 = gcm.Filter(**specs)
-        norm = gf0.apply(area_u,dims = ['yu_ocean','xu_ocean'])
-        filtered = gf.apply(dataset,dims = ['yu_ocean','xu_ocean'])*area_u
-    else:
-        filter_fun = lambda x : gaussian_filter(x, filter_scale, mode='wrap')
-        # Normalisation term, so that if the quantity we filter is constant
-        # over the domain, the filtered quantity is constant with the same value
-        dataset = dataset* area_u
-        norm = xr.apply_ufunc(lambda x: filter_fun(x),
-                            area_u, dask='parallelized', output_dtypes=[float, ])
-        filtered = xr.apply_ufunc(lambda x: filter_fun(x), dataset,
-                                dask='parallelized', output_dtypes=[float, ])
+    filter_fun = lambda x : gaussian_filter(x, filter_scale, mode='wrap')
+    # Normalisation term, so that if the quantity we filter is constant
+    # over the domain, the filtered quantity is constant with the same value
+    dataset = dataset* area_u
+    norm = xr.apply_ufunc(lambda x: filter_fun(x),
+                        area_u, dask='parallelized', output_dtypes=[float, ])
+    filtered = xr.apply_ufunc(lambda x: filter_fun(x), dataset,
+                            dask='parallelized', output_dtypes=[float, ])
     return filtered / norm
 
 
@@ -177,81 +156,55 @@ def eddy_forcing(u_v_dataset : xr.Dataset, grid_data: xr.Dataset,**kwargs) -> xr
     forcing = forcing.merge(u_v_filtered)
     # Coarsen
     print('scale factor: ', scale)
-    
-    if not kwargs.get('greedy_coarse_grain',False):
-        forcing_coarse = forcing.coarsen({'xu_ocean': int(scale),
-                                        'yu_ocean': int(scale)},
-                                        boundary='trim').mean()
-
-    else:
-        forcing_coarse = forcing.fillna(0).coarsen({'xu_ocean': int(scale),
-                                        'yu_ocean': int(scale)},
-                                        boundary='trim').mean()
-
-        cwet_mask = grid_data.wet_mask.coarsen({'xu_ocean': int(scale),
-                                        'yu_ocean': int(scale)},
-                                        boundary='trim').mean()
-        forcing_coarse = forcing_coarse/cwet_mask
+    landmask = xr.where(np.isnan(forcing),1,0)
+    forcing_coarse = forcing.fillna(0).coarsen({'xu_ocean': int(scale),
+                                    'yu_ocean': int(scale)},
+                                    boundary='trim').mean()
+    coarse_landmask = landmask.coarsen({'xu_ocean': int(scale),
+                                    'yu_ocean': int(scale)},
+                                    boundary='trim').mean()
+    forcing_coarse = xr.where(coarse_landmask>0,np.nan,forcing_coarse)
     return forcing_coarse
+    # return forcing
     
-def get_coarse_grid_data(grid_data,scale):
-    coarse_grid_data = None
-    for typ in 'x y'.split():
-        cgsep = grid_data[f'd{typ}u'].coarsen(xu_ocean = scale,yu_ocean = scale).sum()/scale
-        cgsep.name = f'cd{typ}u'
-        if coarse_grid_data is None:
-            coarse_grid_data = cgsep
-        else:
-            coarse_grid_data = xr.merge([coarse_grid_data,cgsep])
-    # plot_ds(coarse_grid_data,'coarse_grid_data',dims = ['xu_ocean','yu_ocean'])
-    # raise Exception
-    return coarse_grid_data
+
 def main():
     import os
     scale = 4
     root = '/scratch/zanna/data/cm2.6/'
     file = 'surface.zarr'
     path = os.path.join(root,file)
-    sl = dict(xu_ocean = slice(800,841),yu_ocean = slice(800,841))
-    u_v_dataset = xr.open_zarr(path).isel(time = 0).isel(**sl)
+    sl = dict(xu_ocean = slice(1000,2500),yu_ocean = slice(1000,2500))
+    u_v_dataset = xr.open_zarr(path,).isel(time = 0).isel(**sl).load()
     u_v_dataset = u_v_dataset.drop('surface_temp')
-    u_v_dataset = u_v_dataset.fillna(0)
-
-    # mask = u_v_dataset.usurf.values*0
-    # mask[20,20]= 1
-
-    # dv = u_v_dataset.data_vars
-    # dv1 = {}
-    # for name,varib in dv.items():
-    #     data = mask
-    #     dims = varib.dims
-    #     dv1[name] = (dims,data)
-    # u_v_dataset = xr.Dataset(
-    #     data_vars = dv1,
-    #     coords = u_v_dataset.coords
-    # )
-
-    
 
     path = os.path.join(root,'GFDL_CM2_6_grid.nc')
-    grid_data = xr.open_dataset(path).isel(**sl)
+    grid_data = xr.open_dataset(path,).isel(**sl)
     grid_data['wet_mask'] = xr.where(np.isnan(u_v_dataset.usurf),0,1)
-    grid_data['area'] = grid_data.dxu*grid_data.dyu*0 + 1
+    grid_data['area'] = grid_data.dxu*grid_data.dyu
 
     forcings_list = {}
     org_forcing = eddy_forcing(u_v_dataset, grid_data,scale = scale)
+    org_forcing['S_x_res'] = org_forcing['S_x']*0
+    org_forcing['S_y_res'] = org_forcing['S_y']*0
+
     forcings_list['Arthur'] = org_forcing
-    ssbf = scipy_subgrid_forcing(scale,grid_data,dims = ['yu_ocean','xu_ocean'],grid_separation = 'dyu dxu'.split(),momentum = 'usurf vsurf'.split())
-    forcings_list[f"control_Cem"] = ssbf(u_v_dataset,'usurf vsurf'.split(),'S_x S_y'.split())
-    
-    n_steps = [12,16,32]
-    
-    for n_step in n_steps:
-        gsbf = gcm_subgrid_forcing(scale,grid_data,dims = ['yu_ocean','xu_ocean'],grid_separation = 'dyu dxu'.split(),momentum = 'usurf vsurf'.split(),n_steps = n_step)
-        forcings_list[f"gcm_n_step({n_step})"]  = gsbf(u_v_dataset,'usurf vsurf'.split(),'S_x S_y'.split())
+
+    ssbf = greedy_scipy_lsrp_subgrid_forcing(scale,grid_data,\
+        dims = ['yu_ocean','xu_ocean'],\
+        grid_separation = 'dyu dxu'.split(),momentum = 'usurf vsurf'.split())   
+
+    forcings_list[f"greedy_gaussian"] = ssbf(u_v_dataset,'usurf vsurf'.split(),'S_x S_y'.split())
+
+    gsbf = gcm_lsrp_subgrid_forcing(scale,grid_data,\
+        dims = ['yu_ocean','xu_ocean'],\
+        grid_separation = 'dyu dxu'.split(),momentum = 'usurf vsurf'.split())
+
+    forcings_list[f"gcm"]  = gsbf(u_v_dataset,'usurf vsurf'.split(),'S_x S_y'.split())
     
 
-    
+    from utils.xarray import plot_ds,drop_unused_coords
+
     subgrid_forcing_names = list(forcings_list.keys())
     cmpr_forcings = None
     for typenum,(name,forcings) in enumerate(forcings_list.items()):
@@ -261,10 +214,7 @@ def main():
             cmpr_forcings = xr.merge([cmpr_forcings,forcings])
         else:
             cmpr_forcings = forcings
-    
 
-    
-    from utils.xarray import plot_ds,drop_unused_coords
     def plot_forcing_(forcing,root):
         forcing = drop_unused_coords(forcing)
         nms = names
@@ -274,12 +224,20 @@ def main():
             fs = {}
             fs = {name_fun(nm,i):\
                 forcing[name_fun(nm,i)] for i in range(n)}
+            for j in range(1):
+                fs = dict(fs,**{f"|{name_fun(nm,j)} - {name_fun(nm,i)}|":\
+                    np.abs(forcing[name_fun(nm,j)] - forcing[name_fun(nm,i)])
+                        for i in range(n)})
                 
-            fs = dict(fs,**{f"log10(relative err {name_fun(nm,0)},{name_fun(nm,i)})":\
-                np.log10(np.abs(forcing[name_fun(nm,0)] - forcing[name_fun(nm,i)])/np.amax(forcing[name_fun(nm,0)]))
-                    for i in range(n)})
-                
-            plot_ds(fs,root + nm,ncols = n,dims = ['xu','yu'])
+            if 'res' in nm:
+                cmap = 'inferno'
+                lognorm = True
+            else:
+                cmap = ['seismic','inferno']
+                lognorm = [False,True]
+            
+
+            plot_ds(fs,root + nm,ncols = n,dims = ['xu','yu'],cmap = cmap,lognorm=lognorm)
     plot_forcing_(cmpr_forcings,'saves/plots/filtering/local5_')
 
 if __name__ == '__main__':

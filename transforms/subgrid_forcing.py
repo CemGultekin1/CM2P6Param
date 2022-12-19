@@ -1,6 +1,6 @@
 import itertools
-from transforms.coarse_graining import base_transform, gcm_filtering,greedy_coarse_grain, plain_coarse_grain, scipy_filtering
-from transforms.coarse_graining_inverse import inverse_gcm_filtering
+from transforms.coarse_graining import base_transform, gcm_filtering,greedy_coarse_grain, greedy_scipy_filtering, plain_coarse_grain, scipy_filtering
+from transforms.coarse_graining_inverse import inverse_gcm_filtering, inverse_greedy_scipy_filtering
 from transforms.grids import forward_difference
 from utils.xarray import concat, unbind
 
@@ -8,12 +8,14 @@ from utils.xarray import concat, unbind
 # import numpy as np
 
 class base_subgrid_forcing(base_transform):
+    filtering_class = None
+    coarse_grain_class = None
     def __init__(self,*args,\
         grid_separation = 'dy dx'.split(),\
         momentum = 'u v'.split(),**kwargs):
         super().__init__(*args,**kwargs)
-        self.filtering = None
-        self.coarse_grain = None
+        self.filtering = self.filtering_class(*args,**kwargs)
+        self.coarse_grain = self.coarse_grain_class(*args,**kwargs)
         self.grid_separation = grid_separation
         self.momentum = momentum
     def compute_flux(self,hresdict:dict,):
@@ -35,7 +37,7 @@ class base_subgrid_forcing(base_transform):
             rn : self._subgrid_forcing_formula(hres,lres,hres_flux,lres_flux,key) for key,rn in zip(keys,rename)
         })
         return concat(**{
-            key:self.coarse_grain(x) for key,x in forcings.items()
+            key:self.coarse_grain(x) for key,x in forcings.items()##
         })
 
 
@@ -49,9 +51,10 @@ class base_subgrid_forcing(base_transform):
 
 
 class base_lsrp_subgrid_forcing(base_subgrid_forcing):
+    inv_filtering_class = None
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
-        self.inv_filtering = None
+        self.inv_filtering = self.inv_filtering_class(*args,**kwargs)
         self._wet_density =  None
     def __call__(self, vars, keys,rename):
         forcings = unbind(super(base_lsrp_subgrid_forcing,self).__call__(vars,keys,rename))
@@ -69,34 +72,21 @@ class base_lsrp_subgrid_forcing(base_subgrid_forcing):
 
 
 
-class gcm_subgrid_forcing(base_subgrid_forcing,):
-    def __init__(self, *args,**kwargs):
-        super().__init__(*args, **kwargs)
-        self.filtering = gcm_filtering(*args,**kwargs)
-        self.coarse_grain = plain_coarse_grain(*args,**kwargs)#greedy_coarse_grain(*args,**kwargs)
+class gcm_subgrid_forcing(base_subgrid_forcing):
+    filtering_class = gcm_filtering
+    coarse_grain_class = greedy_coarse_grain
 
-class scipy_subgrid_forcing(base_subgrid_forcing,):
-    def __init__(self, *args,**kwargs):
-        super().__init__(*args, **kwargs)
-        self.filtering = scipy_filtering(*args,**kwargs)
-        self.coarse_grain = plain_coarse_grain(*args,**kwargs)
+class scipy_subgrid_forcing(base_subgrid_forcing):
+    filtering_class = scipy_filtering
+    coarse_grain_class =  plain_coarse_grain
 
+class greedy_scipy_subgrid_forcing(scipy_subgrid_forcing):
+    filtering_class = greedy_scipy_filtering
+    coarse_grain_class =  greedy_coarse_grain
+
+class greedy_scipy_lsrp_subgrid_forcing(base_lsrp_subgrid_forcing,greedy_scipy_subgrid_forcing):
+    inv_filtering_class = inverse_greedy_scipy_filtering
 
 class gcm_lsrp_subgrid_forcing(base_lsrp_subgrid_forcing,gcm_subgrid_forcing):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.inv_filtering = inverse_gcm_filtering(*args,**kwargs)
-        # self._wet_density = prepare_wet_density(self.inv_filtering._full_wet_density,self.dims,sp = 2)
+    inv_filtering_class = inverse_gcm_filtering
         
-
-
-# def prepare_wet_density(wet_density,dims,sp = 1,thresh = 0.99):
-#     return xr.where(wet_density > thresh, wet_density,0)
-#     land_density = 1 - wet_density
-#     cland = land_density*0
-#     t = 0
-#     for i in itertools.product(range(-sp,sp+1),range(-sp,sp+1)):
-#         cland += land_density.roll({d:i_ for d,i_ in zip(dims,i)})
-#         t += 1
-#     cland = cland/t
-#     return xr.where(cland < 1 - thresh, 1- cland, 0)

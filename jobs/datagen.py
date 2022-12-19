@@ -11,14 +11,17 @@ NCPU = 18
 NSEC = 10
 PERCPU = 10
 def python_args():
-    def givearg(sigma,depth,section):
-        st =  f"--minibatch 1 --prefetch_factor 1 --depth {depth} --sigma {sigma} --section {section} --mode data --num_workers {NCPU}"
+    def givearg(filtering,sigma,depth,section):
+        st =  f"--minibatch 1 --prefetch_factor 1 --depth {depth} --sigma {sigma} --section {section} --mode data --num_workers {NCPU} --filtering {filtering}"
         return st
+    
+    filtering = ['gaussian','gcm']
     sigmas = [4,8,12,16]
     depths = [0,5]
     
+    
     sections = [f'{i} {NSEC}' for i in range(NSEC)]
-    prods = (sigmas,depths,sections)
+    prods = (filtering,sigmas,depths,sections)
     lines = []
     for args in itertools.product(*prods):
         lines.append(givearg(*args))

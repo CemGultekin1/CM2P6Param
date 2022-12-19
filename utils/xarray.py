@@ -32,7 +32,7 @@ def land_fill(u_:xr.DataArray,factor,ntimes,zero_tendency = False):
         )
         u = xr.where(np.isnan(u),u0bar,u)
     return u
-def plot_ds(ds,imname,ncols = 3,dims = ['lat','lon'],cmap = 'seismic'):
+def plot_ds(ds,imname,ncols = 3,dims = ['lat','lon'],cmap = 'seismic',lognorm = False):
     kwargs = dict(dims = dims,cmap = cmap)
     if isinstance(ds,list):
         for i,ds_ in enumerate(ds):
@@ -48,6 +48,7 @@ def plot_ds(ds,imname,ncols = 3,dims = ['lat','lon'],cmap = 'seismic'):
     import matplotlib.pyplot as plt
     import matplotlib
     import itertools
+    import matplotlib.colors as mcolors
     
     
     excdims = []
@@ -82,6 +83,18 @@ def plot_ds(ds,imname,ncols = 3,dims = ['lat','lon'],cmap = 'seismic'):
     nrows = int(np.ceil(len(vars)/ncols))
     fig,axs = plt.subplots(nrows,ncols,figsize=(ncols*6,nrows*5))
     print('nrows,ncols\t',nrows,ncols)
+
+    def listify(cmap):
+        if not isinstance(cmap ,list):
+            cmap = [cmap]*nrows
+        cmap = cmap + [cmap[-1]]*(nrows - len(cmap))
+        return cmap
+
+    cmap = listify(cmap)
+    lognorm = listify(lognorm)
+
+
+
     for z,(i,j) in enumerate(itertools.product(range(nrows),range(ncols))):
         if nrows == 1 and ncols == 1:
             ax = axs
@@ -94,9 +107,15 @@ def plot_ds(ds,imname,ncols = 3,dims = ['lat','lon'],cmap = 'seismic'):
         if z >= len(vars):
             continue
         u = flat_vars[vars[z]]
-        cmap = matplotlib.cm.get_cmap(cmap)
-        cmap.set_bad('black',.4)
-        u.plot(ax = ax,cmap = cmap)
+        
+        cmap_ = matplotlib.cm.get_cmap(cmap[i])
+        cmap_.set_bad('black',.4)
+
+        if lognorm[i]:
+            norm = mcolors.LogNorm()
+        else:
+            norm = mcolors.Normalize()
+        u.plot(ax = ax,cmap = cmap_,norm = norm)
         ax.set_title(vars[z])
         ax.set_ylabel('')
     fig.savefig(imname)
@@ -115,6 +134,15 @@ def tonumpydict(x:xr.Dataset):
         if c == 'time':
             coords[c] = np.array(coords[c]).astype(str)
     return data_vars,coords
+
+def make_dimensional(x:xr.Dataset,coordname,coordval):
+    dv,c = tonumpydict(x)
+    ndv = {}
+    for name,(dims,vals) in dv.items():
+        ndv[name] = ([coordname],vals.reshape([-1]))
+    c[coordname] = np.array([coordval])
+    return xr.Dataset(data_vars = ndv,coords = c)
+
 def fromnumpydict(data_vars,coords):
     for key in data_vars:
         batchnum = data_vars[key][1].shape[0]

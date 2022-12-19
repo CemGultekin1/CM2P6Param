@@ -1,4 +1,5 @@
 from typing import Callable
+from transforms.coarse_graining_inverse import inverse_greedy_scipy_filtering
 from utils.no_torch_xarray import concat, tonumpydict
 from utils.xarray import unbind
 import xarray as xr
@@ -15,7 +16,7 @@ class HighResCm2p6:
     coarse_grain : Callable
     initiated : bool
     def __init__(self,ds:xr.Dataset,sigma,*args,section = [0,1],**kwargs):
-        self.ds = ds.copy()#.isel({f"{prefix}{direction}":slice(1500,2500) for prefix in 'u t'.split() for direction in 'lat lon'.split()})
+        self.ds = ds.copy()#.isel({f"{prefix}{direction}":slice(1500,1800) for prefix in 'u t'.split() for direction in 'lat lon'.split()})
         self.sigma = sigma
         self.initiated = False
         self.wet_mask = None
@@ -24,6 +25,12 @@ class HighResCm2p6:
         self._ugrid_scipy_forcing = None
         self._tgrid_scipy_forcing = None
         self._grid_interpolation = None
+        self._scipy_forcing_class = scipy_subgrid_forcing
+        if kwargs.get('filtering') == 'gcm':
+            self.forcing_class = gcm_lsrp_subgrid_forcing
+        else:
+            assert kwargs.get('filtering') == 'gaussian'
+            self.forcing_class = inverse_greedy_scipy_filtering
         a,b = section
         nt = len(self.ds.time)
         time_secs = np.linspace(0,nt,b+1).astype(int)
@@ -136,7 +143,7 @@ class HighResCm2p6:
                 mask_ = mask__
             else:
                 mask_ += mask__
-        mask_.name = 'wet_mask'
+        mask_.name = 'interior_wet_mask'
         mask_ = xr.where(mask_>0,0,1)
         mask_ = mask_.isel(time = 0)
         self.join_wet_mask(mask_)
@@ -185,12 +192,12 @@ class HighResCm2p6:
         return fields
     def append_mask(self,ds,i):
         wetmask = self.get_mask(i)
-        # ds = xr.merge([ds,wetmask])
-        ds = xr.merge([wetmask])
-        ti,_ = self.time_depth_indices(i)
-        ds = ds.expand_dims(dim = {"time":[ti]},axis = 0)
+        ds = xr.merge([ds,wetmask])
+        # ds = xr.merge([wetmask])
+        # ti,_ = self.time_depth_indices(i)
+        # ds = ds.expand_dims(dim = {"time":[ti]},axis = 0)
         return ds
     def __getitem__(self,i):
-        # ds = self.get_forcings(i,)
-        ds = self.append_mask(None,i)
+        ds = self.get_forcings(i,)
+        ds = self.append_mask(ds,i)
         return tonumpydict(ds)

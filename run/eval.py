@@ -211,15 +211,16 @@ def main():
                 predicted_forcings,true_forcings = lsrp_pred(predicted_forcings,true_forcings)
                 predicted_forcings,lsrp_forcings = predicted_forcings
                 stats = update_stats(stats,lsrp_forcings,true_forcings,lsrpid)
-            
-            err = np.log10(np.abs(true_forcings - predicted_forcings))
-            plot_ds(predicted_forcings,'predicted_forcings_2',ncols = 1)
-            plot_ds(true_forcings,'true_forcings_2',ncols = 1)           
-            plot_ds(err,'err_2',ncols = 1)
-            
             stats = update_stats(stats,predicted_forcings,true_forcings,modelid)
+            
+            # err = np.log10(np.abs(true_forcings - predicted_forcings))
+            # plot_ds(predicted_forcings,'predicted_forcings_2',ncols = 1)
+            # plot_ds(true_forcings,'true_forcings_2',ncols = 1)           
+            # plot_ds(err,'err_2',ncols = 1)
+            
+            
 
-            return
+            # return
             nt += 1
 
             # break

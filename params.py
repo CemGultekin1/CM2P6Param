@@ -7,7 +7,6 @@ USUAL_PARAMS = {
 
 SCALAR_PARAMS = {
     "sigma" : {"type": int, "choices" : (4,8,12,16)},
-    "depth" : {"type": float, "default" : 0.},
     "co2" : {"type":bool,"default":False},
 }
 
@@ -19,6 +18,8 @@ DATA_PARAMS = {
     "latitude" : {"type": bool, "default":False},
     "lsrp" :  {"type": int, "default":0},
     "interior" :  {"type": bool, "default":False},
+    "filtering" :  {"type": str, "choices" : ["gcm","gaussian"]},
+    "depth" : {"type": float, "default" : 0.},
 }
 
 

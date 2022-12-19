@@ -5,7 +5,7 @@ from utils.paths import GRID_INFO
 root = "/scratch/zanna/data/cm2.6"
 
 
-def get_filename(sigma,depth,co2,locdir = root):
+def get_filename(sigma,depth,co2,filtering,locdir = root):
     if sigma > 1:
         co2 = '1pct_co2' if co2 else ''
         surf = 'surface' if depth < 1e-3 else 'beneath_surface'
@@ -18,30 +18,30 @@ def get_filename(sigma,depth,co2,locdir = root):
         filename = filename.replace('_.zarr','.zarr')
     path = os.path.join(locdir,filename)
     if sigma > 1:
-        return path.replace('.zarr','_.zarr')
-    else:
-        return path
+        if filtering is not None:
+            path = path.replace('.zarr',f'_{filtering}.zarr')
+    return path
 
 def get_high_res_grid_location():
     return GRID_INFO
 def get_high_res_data_location(args):
     prms,_ = options(args,key = "data")
-    return get_filename(1,prms.depth,prms.co2)
+    return get_filename(1,prms.depth,prms.co2,prms.filtering)
 
 
 def get_low_res_data_location(args):
     prms,_ = options(args,key = "data")
-    return  get_filename(prms.sigma,prms.depth,prms.co2)
+    return  get_filename(prms.sigma,prms.depth,prms.co2,prms.filtering)
 
 def get_low_res_data_wet_mask_location(args):
     prms,_ = options(args,key = "data")
-    return  get_filename(prms.sigma,prms.depth,prms.co2).replace('_.zarr','_wet_mask.zarr')
+    return  get_filename(prms.sigma,prms.depth,prms.co2,None).replace('.zarr','wet_mask.zarr')
 
 
 def get_preliminary_low_res_data_location(args):
     prms,_ = options(args,key = "run")
     a,b = prms.section
-    filename = get_filename(prms.sigma,prms.depth,prms.co2,locdir = '/scratch/cg3306/climate/CM2P6Param/saves/data')
+    filename = get_filename(prms.sigma,prms.depth,prms.co2,prms.filtering,locdir = '/scratch/cg3306/climate/CM2P6Param/saves/data')
     filename = filename.replace('.zarr',f'_{a}_{b}.zarr')
     return filename
 

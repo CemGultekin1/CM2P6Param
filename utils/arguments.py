@@ -60,7 +60,7 @@ def options(string_input,key:str = "model"):
         prms = DATA_PARAMS
     elif key == "run":
         prms = RUN_PARAMS
-    elif key == "scalar":
+    elif key == "scalars":
         prms = SCALAR_PARAMS
     elif key == "train":
         prms = TRAIN_PARAMS
@@ -106,7 +106,7 @@ def args2num(prms:dict,args:argparse.Namespace):
 
     for i,(u,v) in zip(range(nkeys),args.__dict__.items()):
         if prms[u]["default"] != v:
-            s = append_el(s,i,v)
+            s = append_el(s,u,v)
 
 
     s = tuple(s)

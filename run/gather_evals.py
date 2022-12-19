@@ -72,6 +72,7 @@ def main():
             coordvals[val] = coordvals.pop(rn)
         snfile = os.path.join(root,modelid + '.nc')
         if not os.path.exists(snfile):
+            print(snfile)
             continue
         try:
             sn = xr.open_dataset(snfile)

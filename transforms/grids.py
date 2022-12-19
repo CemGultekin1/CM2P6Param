@@ -92,8 +92,8 @@ def longitudinal_nan_cut_values(sfd):
 
 def forward_difference(x:xr.DataArray,dx:xr.DataArray,field:xr.DataArray):
     dx = ( x - x.roll({field : 1}))/dx
-    dxf = dx[field].values
-    dx[field] = dxf
+    # dxf = dx[field].values
+    # dx[field] = dxf
     return dx
 
     

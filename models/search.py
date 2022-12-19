@@ -14,13 +14,15 @@ def is_evaluated(modelid):
     return os.path.exists(get_eval_path(modelid))
 def is_trained(modelid):
     statedictfile,logfile = statedict_path(modelid),model_logs_json_path(modelid)
-    if not os.path.exists(statedictfile) or not os.path.exists(logfile):
+    if not os.path.exists(statedictfile):
         return False
-    with open(logfile,'r') as f:
-        logs = json.load(f)
-    if logs['lr'][-1] < 1e-7 or logs['epoch'][-1] >= get_default('maxepoch') :
+    if os.path.exists(logfile):
+        with open(logfile,'r') as f:
+            logs = json.load(f)
+        if logs['lr'][-1] < 1e-7 or logs['epoch'][-1] >= get_default('maxepoch') :
+            return True
+    else:
         return True
-    return False
 
 def find_best_match(incargs:str,):
     def read_params(args:str):

@@ -4,7 +4,7 @@ from utils.arguments import options
 from utils.paths import SCALARS
 
 def get_scalar_path(args):
-    _,scalarid = options(args,key = 'scalar')
+    _,scalarid = options(args,key = 'scalars')
     file = os.path.join(SCALARS,scalarid)
     return file
 def load_scalars(args,):

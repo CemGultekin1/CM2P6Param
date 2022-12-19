@@ -43,27 +43,15 @@ def run():
             if ds.time.values[0] != dst.time.values[0]:
                 flushed_print(dst.time.values[0],time)
                 chk = {k:len(dst[k]) for k in list(dst.coords)}
-                names = [n for n in list(dst.data_vars.keys()) if 'wet_mask' != n]
-                for n in names:
-                    dst = dst.drop(n)
-                dst = dst.isel(time = 0)
-                filename = get_low_res_data_location(datargs)#.replace('.zarr','_.zarr')
-                filename = filename.replace('.zarr','wet_mask.zarr')
-                dst.to_zarr(filename,mode='w')
-                print(filename)
-                dst_ = xr.open_zarr(filename)
-                print(dst_)
-                return
-                # dst.to_zarr(filename,mode='a')
-                # if not initflag:
-                #     dst = dst.chunk(chunks=chk)
-                #     dst.to_zarr(filename,mode='w')
-                #     initflag = True
-                # else:
-                #     dst = drop_timeless(dst)
-                #     dst = dst.chunk(chunks=chk)
-                #     dst.to_zarr(filename,mode='a',append_dim = 'time')
-                # dst = None
+                if not initflag:
+                    dst = dst.chunk(chunks=chk)
+                    dst.to_zarr(filename,mode='w')
+                    initflag = True
+                else:
+                    dst = drop_timeless(dst)
+                    dst = dst.chunk(chunks=chk)
+                    dst.to_zarr(filename,mode='a',append_dim = 'time')
+                dst = None
         if dst is None:
             dst = ds
         else:

@@ -1,18 +1,26 @@
 import itertools
-from transforms.coarse_graining import base_transform, gcm_filtering, greedy_coarse_grain
+from transforms.coarse_graining import base_transform,filtering, gcm_filtering, greedy_coarse_grain, greedy_scipy_filtering
 import numpy as np
 import xarray as xr
 
-class inverse_gcm_filtering(gcm_filtering):
+
+class inverse_filtering:
+    filtering_class = None
     def __init__(self,*args,**kwargs):
-        super().__init__(*args,**kwargs)
         self.coarse_grain = greedy_coarse_grain(*args,**kwargs)
         self.mat_gcm = matmult_gcm_filtering(*args,**kwargs)
-        fwet = self.base_filter(self.grid.wet_mask,area_weighting=True)*self.grid.wet_mask
-        self._full_wet_density = self.coarse_grain(fwet,greedy = False)
+        self.filtering  :filtering = self.filtering_class(*args,**kwargs)
+        self.coarse_grained_wet_density = self.coarse_grain(self.filtering.wet_density,greedy = False)
 
     def __call__(self,x):
-        return self.mat_gcm(x,inverse = True,wet_density = self._full_wet_density)
+        return self.mat_gcm(x,inverse = True,wet_density = self.coarse_grained_wet_density)
+
+class inverse_greedy_scipy_filtering(inverse_filtering):
+    filtering_class = greedy_scipy_filtering
+
+
+class inverse_gcm_filtering(inverse_filtering):
+    filtering_class = gcm_filtering
 
 def right_inverse_matrix(mat):
     q,r = np.linalg.qr(mat.T)
@@ -30,6 +38,7 @@ class matmult_gcm_1d(base_transform):
         padded_weights = np.zeros(n)
         padded_weights[:2*m + 1] = self.weights
         padded_weights = np.roll(padded_weights,-m)
+
         for i in range(n):
             filter_mat[i,:] = np.roll(padded_weights, i)*area
         cfm = filter_mat*1
@@ -38,6 +47,7 @@ class matmult_gcm_1d(base_transform):
         cfm = cfm[::self.sigma]
         cfm = cfm[:n//self.sigma]
         cfm = cfm/np.sum(cfm,axis = 1,keepdims = True)
+
         self._matrix = cfm
         self._right_inv_matrix = right_inverse_matrix(self._matrix)
     def __call__(self,x,ax = 0,inverse = False):

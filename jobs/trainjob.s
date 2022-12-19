@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --time=24:00:00
-#SBATCH --array=1,2,10,11,12,25,26,27
+#SBATCH --time=12:00:00
+#SBATCH --array=42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124
 #SBATCH --mem=150GB
 #SBATCH --job-name=trainjob
 #SBATCH --output=/scratch/cg3306/climate/CM2P6Param/saves/slurm_logs/trainjob_%a_%A.out
@@ -14,5 +14,4 @@ module purge
 singularity exec --nv --overlay .ext3:ro /scratch/work/public/singularity/cuda11.2.2-cudnn8-devel-ubuntu20.04.sif /bin/bash -c "\
 	source src.sh;\
 	python3 run/train.py $ARGS;\
-	python3 run/train.py $ARGS --mode eval;\
 	"
