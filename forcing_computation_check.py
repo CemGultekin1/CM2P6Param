@@ -174,7 +174,7 @@ def main():
     root = '/scratch/zanna/data/cm2.6/'
     file = 'surface.zarr'
     path = os.path.join(root,file)
-    sl = dict(xu_ocean = slice(1000,2500),yu_ocean = slice(1000,2500))
+    sl = dict(xu_ocean = slice(1500,2500),yu_ocean = slice(1000,1800))
     u_v_dataset = xr.open_zarr(path,).isel(time = 0).isel(**sl).load()
     u_v_dataset = u_v_dataset.drop('surface_temp')
 
@@ -190,11 +190,7 @@ def main():
 
     forcings_list['Arthur'] = org_forcing
 
-    ssbf = greedy_scipy_lsrp_subgrid_forcing(scale,grid_data,\
-        dims = ['yu_ocean','xu_ocean'],\
-        grid_separation = 'dyu dxu'.split(),momentum = 'usurf vsurf'.split())   
 
-    forcings_list[f"greedy_gaussian"] = ssbf(u_v_dataset,'usurf vsurf'.split(),'S_x S_y'.split())
 
     gsbf = gcm_lsrp_subgrid_forcing(scale,grid_data,\
         dims = ['yu_ocean','xu_ocean'],\
@@ -202,6 +198,13 @@ def main():
 
     forcings_list[f"gcm"]  = gsbf(u_v_dataset,'usurf vsurf'.split(),'S_x S_y'.split())
     
+
+    ssbf = greedy_scipy_lsrp_subgrid_forcing(scale,grid_data,\
+        dims = ['yu_ocean','xu_ocean'],\
+        grid_separation = 'dyu dxu'.split(),momentum = 'usurf vsurf'.split())   
+
+    forcings_list[f"greedy_gaussian"] = ssbf(u_v_dataset,'usurf vsurf'.split(),'S_x S_y'.split())
+
 
     from utils.xarray import plot_ds,drop_unused_coords
 
@@ -224,20 +227,24 @@ def main():
             fs = {}
             fs = {name_fun(nm,i):\
                 forcing[name_fun(nm,i)] for i in range(n)}
-            for j in range(1):
-                fs = dict(fs,**{f"|{name_fun(nm,j)} - {name_fun(nm,i)}|":\
-                    np.abs(forcing[name_fun(nm,j)] - forcing[name_fun(nm,i)])
-                        for i in range(n)})
-                
+            for j in range(n):
+                ref = forcing[name_fun(nm,j)]
+                sc = xr.where(np.isnan(ref),0,1)
+                sc = np.abs(ref).sum()/sc.sum()
+                fs = dict(fs,**{f"log10_relerr({name_fun(nm,i)},{name_fun(nm,j)})":\
+                    np.log10(np.abs(forcing[name_fun(nm,j)] - forcing[name_fun(nm,i)]))
+                    - np.log10(np.abs(sc))
+                        for i in range(n) if i<j})
+            for key,val in fs.items():
+                if 'relerr' in key:
+                    fs[key] = xr.where(val>0,0,val)
             if 'res' in nm:
                 cmap = 'inferno'
-                lognorm = True
             else:
                 cmap = ['seismic','inferno']
-                lognorm = [False,True]
             
 
-            plot_ds(fs,root + nm,ncols = n,dims = ['xu','yu'],cmap = cmap,lognorm=lognorm)
+            plot_ds(fs,root + nm,ncols = n,dims = ['xu','yu'],cmap = cmap)
     plot_forcing_(cmpr_forcings,'saves/plots/filtering/local5_')
 
 if __name__ == '__main__':

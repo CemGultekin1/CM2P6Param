@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --time=8:00:00
-#SBATCH --array=1-10,81-90
+#SBATCH --time=12:00:00
+#SBATCH --array=87
 #SBATCH --mem=180GB
 #SBATCH --job-name=datagen
 #SBATCH --output=/scratch/cg3306/climate/CM2P6Param/saves/slurm_logs/datagen_%a_%A.out

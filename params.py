@@ -6,10 +6,8 @@ USUAL_PARAMS = {
 }
 
 SCALAR_PARAMS = {
-    "sigma" : {"type": int, "choices" : (4,8,12,16)},
-    "co2" : {"type":bool,"default":False},
+    "sigma" : {"type": int, "choices" : (4,8,12,16)},    
 }
-
 
 
 DATA_PARAMS = {
@@ -20,6 +18,7 @@ DATA_PARAMS = {
     "interior" :  {"type": bool, "default":False},
     "filtering" :  {"type": str, "choices" : ["gcm","gaussian"]},
     "depth" : {"type": float, "default" : 0.},
+    "co2" : {"type":bool,"default":False},
 }
 
 

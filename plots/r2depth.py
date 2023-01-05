@@ -12,12 +12,12 @@ import numpy as np
 
 def main():
     root = EVALS
-    models = os.path.join(SLURM,'evaljob.txt')
+    models = os.path.join(SLURM,'trainjob.txt')
     target = R2_PLOTS
     file1 = open(models, 'r')
     lines = file1.readlines()
     file1.close()
-    lines = lines + ['lsrp']
+    lines = lines[40:] + ['lsrp']
     coords = ['latitude','linsupres','depth','seed']
     coordnames = ['latitude_features','CNN_LSRP','training_depth','seed']
     r2vals = None

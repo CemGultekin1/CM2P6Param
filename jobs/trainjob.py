@@ -14,13 +14,15 @@ NCPU = 16
 def get_arch_defaults():
     nms = ('widths','kernels','batchnorm','skipconn')
     return (get_default(nm) for nm in nms)
-def constant_nparam_model(sigma):
+def constant_nparam_model(sigma,kernel_factor = None):
+    if kernel_factor is None:
+        kernel_factor = 4/sigma
     widths,kernels,batchnorm,skipconn = get_arch_defaults()
-    widths,kernels = adjustcnn(widths,kernels,batchnorm,skipconn,0,kernel_factor = 4/sigma,constant_nparam = True)
+    widths,kernels = adjustcnn(widths,kernels,batchnorm,skipconn,0,kernel_factor = kernel_factor,constant_nparam = True)
     return widths,kernels
-def getarch(args):
+def getarch(args,**kwargs):
     modelargs,_ = options(args,'model')
-    widths,kernels = constant_nparam_model(modelargs.sigma)
+    widths,kernels = constant_nparam_model(modelargs.sigma,**kwargs)
     if modelargs.temperature:
         widthin = 3 
     else:
@@ -30,8 +32,8 @@ def getarch(args):
         widthin+=2
     widths[0] = widthin
     return tuple(widths),tuple(kernels)
-def fix_architecture(args):
-    widths,kernels = getarch(args)
+def fix_architecture(args,**kwargs):
+    widths,kernels = getarch(args,**kwargs)
     args = replace_param(args,'widths',widths)
     args = replace_param(args,'kernels',kernels)
     return args
@@ -88,15 +90,49 @@ def generate_training_tasks():
         domain = 'global',
     )
     argslist = argslist + python_args(**kwargs,**base_kwargs)
-    import numpy as np
-    _,idx = np.unique(np.array(argslist),return_index=True)
-    argslist = np.array(argslist)
-    argslist = argslist[np.sort(idx)].tolist()
+    
     
     for i in range(len(argslist)):
         args = fix_architecture(argslist[i].split())
         args = fix_minibatch(args)
         argslist[i] = ' '.join(args)
+
+
+    def kernel_size_switched(kernelscale):
+        kwargs = dict(
+            lsrp = [0,1],
+            depth =0,
+            sigma = [4,8,12,16],
+            temperature = True,
+            lossfun = 'MSE',
+            latitude = True,
+            domain = 'global',
+        )
+        argslist = python_args(**kwargs,**base_kwargs)
+        import numpy as np
+        _,idx = np.unique(np.array(argslist),return_index=True)
+        argslist = np.array(argslist)
+        argslist = argslist[np.sort(idx)].tolist()
+        
+        for i in range(len(argslist)):
+            args = fix_architecture(argslist[i].split(),kernel_factor = kernelscale)
+            args = fix_minibatch(args)
+            argslist[i] = ' '.join(args)
+        return argslist
+    kernel_factors = [float(f)/21. for f in [21,15,11,9,7,5,4,3,2,1]]
+    argslist_ = []
+    for kf in kernel_factors:
+        argslist_.extend(kernel_size_switched(kf))
+    argslist.extend(argslist_)
+
+    import numpy as np
+    _,idx = np.unique(np.array(argslist),return_index=True)
+    argslist = np.array(argslist)
+    argslist = argslist[np.sort(idx)].tolist()
+
+
+
+    
     njobs = len(argslist)
     istrained = []
     for i in range(njobs):

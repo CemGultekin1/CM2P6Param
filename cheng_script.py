@@ -19,10 +19,10 @@ nn_load_file='/scratch/cimes/cz3321/MOM6/MOM6-examples/src/MOM6/config_src/exter
 filters=[5, 5, 3, 3, 3, 3, 3, 3]
 widths=[128, 64, 32, 32, 32, 32, 32, 4]
 
-u_scale = 0.09366456674147008
-v_scale = 0.07199937308403034
-Su_scale = 4.760835219400542e-08
-Sv_scale = 4.713789845633698e-08
+u_scale = 0.09439346225350978
+v_scale = 0.07252696573672539
+Su_scale = 4.9041400042653195e-08
+Sv_scale = 4.8550991806254025e-08
 
 #load the neural network
 class CNN(nn.Module):

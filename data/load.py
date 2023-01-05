@@ -97,12 +97,13 @@ def load_xr_dataset(args):
     else:
         data_address = get_low_res_data_location(args)
     if not os.path.exists(data_address):
+        print(data_address)
         raise RequestDoesntExist
     ds_zarr= xr.open_zarr(data_address,consolidated=False )
     if runargs.mode == 'data':  
         ds_zarr = load_grid(ds_zarr)
-    else:
-        ds_zarr = load_wet_mask(ds_zarr,args)
+    # else:
+    #     ds_zarr = load_wet_mask(ds_zarr,args)
     if runargs.sanity:
         ds_zarr = ds_zarr.isel(time = slice(0,1))
     ds_zarr,scs=  preprocess_dataset(args,ds_zarr)
@@ -262,15 +263,7 @@ def preprocess_dataset(args,ds:xr.Dataset):
         ds = ds.isel(co2 = 0)
         return ds
     ds = add_co2(ds,prms)
-
-    # if prms.mode == 'view':
-    #     np.random.seed(0)
-    #     t1 = get_time_values(True)
-    #     t0 = get_time_values(False)
-    #     t01 = np.array([t for t in t0 if t in t1])
-    #     tis = np.sort(np.random.randint(0,len(t01),size = 512))
-    #     time_vals = t01[tis]
-    #     ds = ds.sel(time = time_vals)
+    scs = load_scalars(args)
     if prms.depth > 1e-3:
         if 'depth' not in coord_names:
             raise RequestDoesntExist
@@ -282,6 +275,8 @@ def preprocess_dataset(args,ds:xr.Dataset):
             depthvals_=ds.coords['depth'].values
             ind = np.argmin(np.abs(depthvals_ - prms.depth ))
             ds = ds.isel(depth = ind)
+            if prms.mode != 'scalars':
+                scs = scs.sel(depth = prms.depth,method = 'nearest')
             if np.abs(ds.depth.values-prms.depth)>1:
                 print(f'requested depth {prms.depth},\t existing depth = {ds.depth.values}')
                 raise RequestDoesntExist
@@ -289,6 +284,8 @@ def preprocess_dataset(args,ds:xr.Dataset):
         ds['depth'] = [0]
         if prms.mode != 'data':
             ds = ds.isel(depth = 0)
+            if prms.mode != 'scalars':
+                scs = scs.isel(depth = 0)
     if prms.mode in ['train','eval','view'] and 'tr_depth' in ds.coords:
         depthval = ds.depth.values
         trd = ds.tr_depth.values
@@ -296,7 +293,7 @@ def preprocess_dataset(args,ds:xr.Dataset):
         if np.abs(trd[tr_ind] - depthval)>1:
             raise RequestDoesntExist
         ds = ds.isel(tr_depth = tr_ind)
-    scs = load_scalars(args)
+    
     if prms.mode != 'scalars' and scs is not None and prms.mode != 'data' :
         if 'tr_depth' in scs:
             depthval = ds.depth.values

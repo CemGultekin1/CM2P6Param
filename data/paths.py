@@ -35,7 +35,7 @@ def get_low_res_data_location(args):
 
 def get_low_res_data_wet_mask_location(args):
     prms,_ = options(args,key = "data")
-    return  get_filename(prms.sigma,prms.depth,prms.co2,None).replace('.zarr','wet_mask.zarr')
+    return  get_filename(prms.sigma,prms.depth,prms.co2,None).replace('.zarr','_wet_mask.zarr')
 
 
 def get_preliminary_low_res_data_location(args):

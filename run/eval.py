@@ -152,8 +152,8 @@ def main():
     
     kwargs = dict(contained = '' if not lsrp_flag else 'res')
     assert runargs.mode == "eval"
-    # multidatargs = populate_data_options(args,non_static_params=['depth','co2'],domain = 'global')
-    multidatargs = [args]
+    multidatargs = populate_data_options(args,non_static_params=['depth','co2'],domain = 'global')
+    # multidatargs = [args]
     allstats = {}
     for datargs in multidatargs:
         try:
@@ -216,7 +216,7 @@ def main():
             # err = np.log10(np.abs(true_forcings - predicted_forcings))
             # plot_ds(predicted_forcings,'predicted_forcings_2',ncols = 1)
             # plot_ds(true_forcings,'true_forcings_2',ncols = 1)           
-            # plot_ds(err,'err_2',ncols = 1)
+            # plot_ds(err,'err_2',ncols = 1,cmap = 'magma')
             
             
 

@@ -79,41 +79,6 @@ class CNN(nn.Module):
         return mean,precision
 
 
-class DeprecatedCNN(nn.Module):
-    def __init__(self,widths,kernels,batchnorm,skipconn,seed):#,**kwargs):
-        super(CNN, self).__init__()
-        device = get_device()
-        self.device = device
-
-        self.skipcons = False
-        layers = OrderedDict()
-        spread = 0
-        for i in range(len(kernels)):
-            spread+=kernels[i]-1
-        self.spread = spread//2
-
-        torch.manual_seed(seed)
-
-
-        lastlayer = lambda i: i != len(kernels) -1
-        for i in range(len(kernels)):
-            layers[f'conv-{i}'] = CNNLayer(widths[i],widths[i+1],kernels[i],\
-                batchnorm[i],skipconn[i],lastlayer(i))
-
-        for u in layers:
-            layers[u] = layers[u].to(device)
-        self.receptive_field=int(spread*2+1)
-        self.conv_body = nn.Sequential(layers)
-        softplus = OrderedDict()
-        softplus['softplus'] = nn.Softplus()
-        self.softplus = nn.Sequential(softplus)
-
-
-    def forward(self, x):
-        x = self.conv_body(x)
-        mean,precision=torch.split(x,x.shape[1]//2,dim=1)
-        precision=self.softplus(precision)
-        return mean,precision
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters())
 

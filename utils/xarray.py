@@ -32,7 +32,9 @@ def land_fill(u_:xr.DataArray,factor,ntimes,zero_tendency = False):
         )
         u = xr.where(np.isnan(u),u0bar,u)
     return u
-def plot_ds(ds,imname,ncols = 3,dims = ['lat','lon'],cmap = 'seismic',lognorm = False):
+def plot_ds(ds,imname,ncols = 3,dims = ['lat','lon'],\
+    cmap = 'seismic',\
+    lognorm = False,scale_grouping = []):
     kwargs = dict(dims = dims,cmap = cmap)
     if isinstance(ds,list):
         for i,ds_ in enumerate(ds):
@@ -94,6 +96,26 @@ def plot_ds(ds,imname,ncols = 3,dims = ['lat','lon'],cmap = 'seismic',lognorm = 
     lognorm = listify(lognorm)
 
 
+    def find_min_max(name):
+        if not scale_grouping:
+            return dict()
+        found_flag = False
+        for psc,grouping in scale_grouping:
+            if name in grouping:
+                found_flag = True
+                break
+        if not found_flag:
+            return dict()
+        vmax = -np.inf
+        for var in grouping:
+            vmax_ = np.amax(np.abs(flat_vars[var].fillna(0).values))
+            vmax = np.maximum(vmax,vmax_)
+            if psc:
+                break
+        return dict(vmin = -vmax,vmax = vmax)
+
+
+
 
     for z,(i,j) in enumerate(itertools.product(range(nrows),range(ncols))):
         if nrows == 1 and ncols == 1:
@@ -106,6 +128,7 @@ def plot_ds(ds,imname,ncols = 3,dims = ['lat','lon'],cmap = 'seismic',lognorm = 
             ax = axs[i,j]
         if z >= len(vars):
             continue
+        
         u = flat_vars[vars[z]]
         
         cmap_ = matplotlib.cm.get_cmap(cmap[i])
@@ -115,7 +138,7 @@ def plot_ds(ds,imname,ncols = 3,dims = ['lat','lon'],cmap = 'seismic',lognorm = 
             norm = mcolors.LogNorm()
         else:
             norm = mcolors.Normalize()
-        u.plot(ax = ax,cmap = cmap_,norm = norm)
+        u.plot(ax = ax,cmap = cmap_,norm = norm,**find_min_max(vars[z]))
         ax.set_title(vars[z])
         ax.set_ylabel('')
     fig.savefig(imname)

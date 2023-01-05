@@ -79,7 +79,6 @@ def main():
         except:
             continue
         data[modelid] = append_statistics(sn,coordvals)
-        
         flushed_print(i,snfile.split('/')[-1])
         # if i == 32:
         #     break
@@ -99,7 +98,7 @@ def main():
         loc_coord = {key:val.values for key,val in ds.coords.items()}
         lkeys = list(loc_coord.keys())
         for valc in itertools.product(*loc_coord.values()):
-            print({k:v for k,v in zip(lkeys,valc)})
+            # print({k:v for k,v in zip(lkeys,valc)})
             inds = tuple([merged_coord[k].index(v) for k,v in zip(lkeys,valc)])
             alpha = np.ravel_multi_index(inds,shape)
             _ds = ds.sel(**{k:v for k,v in zip(lkeys,valc)}).copy()
@@ -108,7 +107,7 @@ def main():
                     data_vars[key] = empty_arr()
                 assert np.all(np.isnan(data_vars[key][alpha] ))
                 data_vars[key][alpha] = _ds[key].values
-                print(f'data_vars[{key}][{alpha}] = {_ds[key].values}')
+                # print(f'data_vars[{key}][{alpha}] = {_ds[key].values}')
     for key,val in data_vars.items():
         data_vars[key] = (list(merged_coord.keys()),val.reshape(shape))
     ds = xr.Dataset(data_vars = data_vars,coords = merged_coord)
