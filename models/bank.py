@@ -20,7 +20,7 @@ def chan_nums(modelargs):
     if modelargs.latitude:
         ninchans += 2
     return ninchans,noutchans
-def init_architecture(archargs:Namespace):
+def init_architecture(archargs:Namespace)->CNN:
     net=CNN(**archargs.__dict__)
     net = net.to(get_device())
     return net

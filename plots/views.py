@@ -18,7 +18,8 @@ def main():
     file1 = open(models, 'r')
     lines = file1.readlines()
     file1.close()
-    # lines = ['lsrp'] + lines
+
+    lines = ['G-0','G-1']
     title_inc = ['sigma','domain','depth','latitude','lsrp']
     title_nam = ['sigma','train-domain','train-depth','latitude','lsrp']
     subplotkwargs = dict()#projection=ccrs.PlateCarree(),)
@@ -30,19 +31,25 @@ def main():
     # ans = 'u v T'.split()
     # ans = ans  + [f"S{a}" for a in ans] + [f"S{a}_true" for a in ans]
     for line in lines:
-        if line == 'lsrp':
-            modelid = 'lsrp'
-            title = 'LSRP'
-        else:
-            modelargs,modelid = options(line.split(),key = "model")
-            title = ',   '.join([f"{name}: {modelargs.__getattribute__(key)}" for key,name in zip(title_inc,title_nam)])
+        # if line == 'lsrp':
+        #     modelid = 'lsrp'
+        #     title = 'LSRP'
+        # else:
+        #     modelargs,modelid = options(line.split(),key = "model")
+        #     title = ',   '.join([f"{name}: {modelargs.__getattribute__(key)}" for key,name in zip(title_inc,title_nam)])
+        
+        # for old models
+        modelid = line
+        title = line
+
         snfile = os.path.join(root,modelid + '.nc')
         
         if not os.path.exists(snfile):
             continue
         sn = xr.open_dataset(snfile)
-        runargs,_ = options(line.split(),key = "run")
-        sn = pass_geo_grid(sn,runargs.sigma)
+
+        # runargs,_ = options(line.split(),key = "run")
+        sn = pass_geo_grid(sn,4)#runargs.sigma)
  
         depthvals = sn.depth.values
         timevals = sn.time.values

@@ -64,6 +64,7 @@ class CNN(nn.Module):
             
         lastlayer = lambda i: i != len(kernels) -1
         for i in range(len(kernels)):
+            print(f'widths[i],widths[i+1],kernels[i],batchnorm[i]:\t{widths[i],widths[i+1],kernels[i],batchnorm[i]}')
             add_layer(widths[i],widths[i+1],kernels[i],batchnorm[i],skipconn[i],lastlayer(i))
         add_softplus()
 
@@ -118,7 +119,7 @@ def adjustcnn(widths,kernels,batchnorm,skipconn,seed,kernel_factor = 1.,width_fa
 
 class LCNN(nn.Module):
     def __init__(self,widths,kernels,batchnorm,skipconn,seed):#,**kwargs):
-        super(CNN, self).__init__()
+        super(LCNN, self).__init__()
         if torch.cuda.is_available():
             device = "cuda:0"
         else:
@@ -131,7 +132,7 @@ class LCNN(nn.Module):
         for i in range(len(kernels)):
             spread+=(kernels[i]-1)/2
         spread = int(spread)
-
+        self.spread = spread
         torch.manual_seed(seed)
 
         self.nn_layers = nn.ModuleList()

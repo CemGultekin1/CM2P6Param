@@ -157,12 +157,16 @@ def main():
         # ]
         scale_grouping = lambda key :[
             (False,[f"{key}mean0",f"{key}mean1"]),
+            (False,[f"{key}err0",f"{key}err1"]),
         ]
         err0 = forcings - mean0
         err1 = forcings - mean1
         outputs = dict(
             mean0 = mean0,
             mean1 = mean1,
+            err0 = err0,
+            err1 = err1,
+            diff = mean1 - mean0
         )
         for key,val in outputs.items():
             outputs[key] = rename(val,key)

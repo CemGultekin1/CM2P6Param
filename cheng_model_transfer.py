@@ -95,11 +95,6 @@ def main():
     runargs,_ = options(args,key = "run")
     _,state_dict,net,_,_,_,_,_=load_model(args)
 
-    # with torch.no_grad():
-    #     weight,bias = batch_normalization_weights(net.nn_layers[-2])
-    #     net.nn_layers[-3].weight.data = net.nn_layers[-3].weight.data * weight.reshape([-1,1,1,1])
-    #     net.nn_layers[-3].bias.data = net.nn_layers[-3].bias.data * weight + bias
-
     net0 = CNN()
     net0.eval()
 

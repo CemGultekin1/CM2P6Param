@@ -2,6 +2,7 @@ import json
 import os
 from models.bank import init_architecture
 from models.lossfuns import MSE, heteroscedasticGaussianLoss
+from models.nets.cnn import LCNN
 import torch
 from utils.arguments import options
 from utils.parallel import get_device
@@ -44,6 +45,15 @@ def load_modelsdict():
         modelsdict = {}
     return modelsdict
 
+
+def load_old_model(model_id:int):
+    file_location = f'/scratch/cg3306/climate/runs/G-{model_id}/best-model'
+    args = '--filtering gaussian --widths 2 128 64 32 32 32 32 32 4 --kernels 5 5 3 3 3 3 3 3 --batchnorm 1 1 1 1 1 1 1 0'.split()
+    archargs,_ = options(args,key = "arch")
+    net = LCNN(archargs.widths, archargs.kernels,True,False, 0)
+    state_dict = torch.load(file_location,map_location=torch.device(get_device()))
+    net.load_state_dict(state_dict)
+    return f'G-{model_id}',net
 
 def load_model(args):
     archargs,_ = options(args,key = "arch")

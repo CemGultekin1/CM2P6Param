@@ -229,7 +229,7 @@ def get_data(args,torch_flag = False,data_loaders = True,**kwargs):
         if ns.mode != "train":
             minibatch = None
         params={'batch_size':minibatch,\
-            'shuffle': ns.mode == "train",\
+            'shuffle': ns.mode in ["train","view"],\
             'num_workers':ns.num_workers,\
             'prefetch_factor':ns.prefetch_factor}
         torchdsets = (TorchDatasetWrap(dset_) for dset_ in dsets)

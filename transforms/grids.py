@@ -25,8 +25,6 @@ def lose_tgrid(ds):
             coords['lon'] = ds.coords['ulon'].values
         elif key != 'tlat' or key != 'tlon':
             coords[key] =ds.coords[key].values
-    # if 'tr_depth' in ds.coords:
-    #     coords['tr_depth'] = ds.coords['tr_depth'].values
 
     return xr.Dataset(data_vars = data_vars,coords = coords)
 
