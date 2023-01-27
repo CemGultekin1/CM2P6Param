@@ -19,7 +19,7 @@ def main():
     lines = file1.readlines()
     file1.close()
 
-    lines = ['G-0','G-1']
+    # lines = ['G-0','G-1']
     title_inc = ['sigma','domain','depth','latitude','lsrp']
     title_nam = ['sigma','train-domain','train-depth','latitude','lsrp']
     subplotkwargs = dict()#projection=ccrs.PlateCarree(),)
@@ -31,16 +31,16 @@ def main():
     # ans = 'u v T'.split()
     # ans = ans  + [f"S{a}" for a in ans] + [f"S{a}_true" for a in ans]
     for line in lines:
-        # if line == 'lsrp':
-        #     modelid = 'lsrp'
-        #     title = 'LSRP'
-        # else:
-        #     modelargs,modelid = options(line.split(),key = "model")
-        #     title = ',   '.join([f"{name}: {modelargs.__getattribute__(key)}" for key,name in zip(title_inc,title_nam)])
+        if line == 'lsrp':
+            modelid = 'lsrp'
+            title = 'LSRP'
+        else:
+            modelargs,modelid = options(line.split(),key = "model")
+            title = ',   '.join([f"{name}: {modelargs.__getattribute__(key)}" for key,name in zip(title_inc,title_nam)])
         
-        # for old models
-        modelid = line
-        title = line
+        ##for old models
+        # modelid = line
+        # title = line
 
         snfile = os.path.join(root,modelid + '.nc')
         

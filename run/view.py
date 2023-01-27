@@ -19,8 +19,8 @@ import xarray as xr
 def main():
     args = sys.argv[1:]
     
-    # modelid,_,net,_,_,_,_,runargs=load_model(args)
-    modelid,net = load_old_model(1)
+    modelid,_,net,_,_,_,_,runargs=load_model(args)
+    # modelid,net = load_old_model(1)
     device = get_device()
     net.to(device)
 
