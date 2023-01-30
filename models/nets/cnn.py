@@ -115,7 +115,12 @@ def adjustcnn(widths,kernels,batchnorm,skipconn,seed,kernel_factor = 1.,width_fa
         widths = [widths[0]] + wd + [widths[-1]]
     return widths,kernels
 
-
+def kernels2spread(kernels):
+    spread = 0
+    for i in range(len(kernels)):
+        spread+=(kernels[i]-1)/2
+    spread = int(spread)
+    return spread
 
 class LCNN(nn.Module):
     def __init__(self,widths,kernels,batchnorm,skipconn,seed):#,**kwargs):
@@ -128,11 +133,8 @@ class LCNN(nn.Module):
 
         self.skipcons = False
         # layers = OrderedDict()
-        spread = 0
-        for i in range(len(kernels)):
-            spread+=(kernels[i]-1)/2
-        spread = int(spread)
-        self.spread = spread
+        
+        self.spread = kernels2spread(kernels)
         torch.manual_seed(seed)
 
         self.nn_layers = nn.ModuleList()

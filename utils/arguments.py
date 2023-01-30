@@ -113,11 +113,15 @@ def args2num(prms:dict,args:argparse.Namespace):
     return hashlib.sha224(str(s).encode()).hexdigest()
 
 
-def args2dict(args,key = 'model',coords = dict):
+def args2dict(args,key = 'model',coords = dict(), transform_funs = dict()):
     modelargs,modelid = options(args,key = key)
     coordvals = {}
     for coord in coords:
-        val = modelargs.__getattribute__(coord)
+        if coord not in transform_funs:
+            val = modelargs.__getattribute__(coord)
+        else:
+            inputs1 = [modelargs.__getattribute__(v) for v in transform_funs[coord]['inputs']]
+            val = transform_funs[coord]['fun'](*inputs1)
         if isinstance(val,bool):
             val = int(val)
         coordvals[coord] = [val]

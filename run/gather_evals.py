@@ -1,5 +1,6 @@
 import itertools
 import os
+from models.nets.cnn import kernels2spread
 from plots.metrics import metrics_dataset
 from utils.paths import SLURM, EVALS, all_eval_path
 from utils.slurm import flushed_print
@@ -19,6 +20,7 @@ def get_lsrp_modelid(args):
     vals[0] = f'lsrp:{lsrpid}'
     line =' '.join([f'--{k} {v}' for k,v in zip(keys,vals)])
     _,lsrpid = options(line.split(),key = "model")
+    print(line)
     return True, lsrpid,line
 def turn_to_lsrp_models(lines):
     lsrplines = []
@@ -53,6 +55,9 @@ def append_statistics(sn:xr.Dataset,coordvals):
     return modelev
 def merge_and_save(stats):
     xr.merge(list(stats.values())).to_netcdf(all_eval_path(),mode = 'w')
+
+def kernel_size_fun(kernels):
+    return kernels2spread(kernels)*2 + 1
 def main():
     root = EVALS
     models = os.path.join(SLURM,'trainjob.txt')
@@ -62,12 +67,18 @@ def main():
 
 
     lines = lines + turn_to_lsrp_models(lines)
-    coords = ['sigma','temperature','domain','latitude','lsrp','depth','seed','model']
+    transform_funs = dict(
+        kernel_size = dict(
+            inputs = ['kernels'],
+            fun = kernel_size_fun
+        )
+    )
+    coords = ['sigma','temperature','domain','latitude','lsrp','depth','seed','model','kernel_size']
     rename = dict(depth = 'training_depth')
     data = {}
     coord = {}
     for i,line in enumerate(lines):
-        coordvals,(_,modelid) = args2dict(line.split(),key = 'model',coords = coords)
+        coordvals,(_,modelid) = args2dict(line.split(),key = 'model',coords = coords,transform_funs=transform_funs)
         for rn,val in rename.items():
             coordvals[val] = coordvals.pop(rn)
         snfile = os.path.join(root,modelid + '.nc')
