@@ -1,6 +1,7 @@
 #!/bin/env python
 
 from data.load import get_data
+from models.load import old_model_state_dict_location
 import torch
 from torch.nn import functional as F
 from torch import nn
@@ -82,7 +83,7 @@ class ScaledCNN:
         return mean,std
 
 def load_cheng_model():
-    nn_load_file='cheng_global_model.pt'
+    nn_load_file=old_model_state_dict_location(0)#'cheng_global_model.pt'
     u_scale = 0.09439346225350978
     v_scale = 0.07252696573672539
     Su_scale = 4.9041400042653195e-08

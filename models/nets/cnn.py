@@ -125,10 +125,7 @@ def kernels2spread(kernels):
 class LCNN(nn.Module):
     def __init__(self,widths,kernels,batchnorm,skipconn,seed):#,**kwargs):
         super(LCNN, self).__init__()
-        if torch.cuda.is_available():
-            device = "cuda:0"
-        else:
-            device = "cpu"
+        device = get_device()
         self.device = device
 
         self.skipcons = False
@@ -142,12 +139,12 @@ class LCNN(nn.Module):
         width = widths[1:]
 
         filter_size = kernels
-        self.nn_layers.append(nn.Conv2d(initwidth, width[0], filter_size[0]) )
+        self.nn_layers.append(nn.Conv2d(initwidth, width[0], filter_size[0]).to(device) )
         self.num_layers = len(filter_size)
         for i in range(1,self.num_layers):
             self.nn_layers.append(nn.BatchNorm2d(width[i-1]).to(device) )
-            self.nn_layers.append(nn.Conv2d(width[i-1], width[i], filter_size[i]) )
-        self.nn_layers.append(nn.Softplus())
+            self.nn_layers.append(nn.Conv2d(width[i-1], width[i], filter_size[i]).to(device) )
+        self.nn_layers.append(nn.Softplus().to(device))
 
 
 
@@ -161,7 +158,7 @@ class LCNN(nn.Module):
 
         # for u in layers:
         #     layers[u] = layers[u].to(device)
-        self.receptive_field=int(spread*2+1)
+        self.receptive_field=int(self.spread*2+1)
         # self.conv_body = nn.Sequential(layers)
         # softplus = OrderedDict()
         # softplus['softplus'] = nn.Softplus()

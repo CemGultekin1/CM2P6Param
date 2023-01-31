@@ -1,6 +1,7 @@
 import itertools
 import os
 import matplotlib.pyplot as plt
+from models.load import load_old_model
 from plots.metrics import metrics_dataset
 from utils.paths import SLURM, R2_PLOTS, EVALS
 from utils.xarray import skipna_mean
@@ -10,19 +11,19 @@ from utils.slurm import flushed_print
 import numpy as np
 def main():
     root = EVALS
-    models = os.path.join(SLURM,'trainjob.txt')
-    target = R2_PLOTS
-    file1 = open(models, 'r')
-    lines = file1.readlines()
-    file1.close()
+    target = R2_PLOTS  
+    lines = 'G-0 G-1'.split()
     title_inc = ['sigma','domain','depth','latitude','lsrp']
     title_name = ['sigma','train-domain','train-depth','latitude','lsrp']
-    # skip_lines = [
-    #     '--lsrp 1 --depth 0 --sigma 4 --temperature True --lossfun MSE --latitude True --domain global --num_workers 16 --disp 50 --widths 5 128 64 32 32 32 32 32 6 --kernels 5 5 3 3 3 3 3 3 --minibatch 2',
-    # ]
+
     for line in lines:
-        # line = '--lsrp 1 --depth 0 --sigma 4 --temperature True --lossfun MSE --latitude True --domain global --num_workers 16 --disp 50 --widths 5 128 64 32 32 32 32 32 6 --kernels 5 5 3 3 3 3 3 3 --minibatch 2'
-        modelargs,modelid = options(line.split(),key = "model")
+
+
+        args = '--filtering gaussian --widths 2 128 64 32 32 32 32 32 4 --kernels 5 5 3 3 3 3 3 3 --batchnorm 1 1 1 1 1 1 1 0'.split()
+        args.extend('--mode eval --num_workers 1'.split())
+        modelid = line
+        
+        modelargs,_ = options(args,key = "model")
         vals = [modelargs.__getattribute__(key) for key in title_inc]
         vals = [int(val) if isinstance(val,float) else val for val in vals]
         title = ',   '.join([f"{name}: {val}" for name,val in zip(title_name,vals)])
@@ -49,7 +50,7 @@ def main():
             names = "Su Sv ST".split()
             unames = np.unique([n.split('_')[0] for n in list(s.data_vars)])
             names = [n for n in names if n in unames]
-            ftypes = ['r2','mse','sc2','corr']
+            ftypes = ['r2','mse']#,'sc2','corr']
             
             nrows = len(names)
             ncols = len(ftypes)
