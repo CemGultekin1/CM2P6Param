@@ -94,11 +94,12 @@ def cnn_train(args):
             # plot_method(outfields,'outfields.png')
             # plot_method(mask,'mask.png')
             # return
-            infields,outfields,mask = infields.to(device),outfields.to(device),mask.to(device)
+            # infields,outfields,mask = infields.to(device),outfields.to(device),mask.to(device)
             timer.end('data')
             timer.start('model')
             
             outputs = net.forward(infields)
+            outfields,mask = outfields.to(device),mask.to(device)
 
             # with torch.set_grad_enabled(False):
             #     net.eval()

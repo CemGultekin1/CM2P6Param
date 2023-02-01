@@ -47,7 +47,9 @@ def fix_minibatch(args):
     return args
 def check_training_task(args):
     runargs,_ = options(args,key = "run")
-    if runargs.rerun:
+    if runargs.temperature or runargs.lsrp>0:
+        return True
+    if runargs.reset_model:
         return False
     _,modelid = options(args,key = "model")
     return is_trained(modelid)
@@ -56,6 +58,8 @@ def generate_training_tasks():
     base_kwargs = dict(
         num_workers = NCPU,
         disp = 50,
+        filtering = 'gaussian',
+        batchnorm = [1]*7 + [0]
     )
     kwargs = dict(
         lsrp = [0],     

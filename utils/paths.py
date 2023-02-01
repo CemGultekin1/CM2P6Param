@@ -12,12 +12,14 @@ SAVES = os.path.join(REPO,'saves')
 
 SLURM_LOGS = os.path.join(SAVES,'slurm_logs')
 EVALS = os.path.join(SAVES,'evals')
+TIME_LAPSE = os.path.join(SAVES,'time_lapse')
 VIEWS = os.path.join(SAVES,'views')
 
 SCALARS = os.path.join(SAVES,'scalars')
 LSRP = os.path.join(SAVES,'lsrp')
 PLOTS = os.path.join(SAVES,'plots')
 VIEW_PLOTS = os.path.join(PLOTS,'views')
+TIME_LAPSE_PLOTS = os.path.join(PLOTS,'time_lapse')
 R2_PLOTS = os.path.join(PLOTS,'r2')
 
 

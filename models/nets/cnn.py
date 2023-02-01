@@ -1,84 +1,103 @@
-from collections import OrderedDict
+from typing import Dict
 import torch
 from torch import nn
 from torch.nn import functional as F
 import numpy as np
 from utils.parallel import get_device
-class CNNLayer(nn.Module):
-    def __init__(self,widthin,widthout, kernel, batchnorm,skip,nnlnr):
-        super(CNNLayer,self).__init__()
-        device = get_device()
-        self.skip = skip
-        self.kernel = nn.Conv2d(widthin,widthout,kernel).to(device)
-        self.batchnorm  = None
-        self.relu = None
-        if batchnorm:
-            self.batchnorm = nn.BatchNorm2d(widthout).to(device)
-        if nnlnr:
-            self.relu = nn.ReLU(inplace = True).to(device)
-    def subforward(self,x):
-        x = self.kernel(x)
-        for m in [self.batchnorm,self.relu]:
-            if m is not None:
-                x = self.batchnorm(x)
-        return x
-    def forward(self,x):
-        if self.skip:
-            return x + self.subforward(x)
-        else:
-            return self.subforward(x)
 
+class Layer:
+    def __init__(self,nn_layers:list,device) -> None:
+        self.device = device
+        self.nn_layers =nn_layers
+        self.section = []
+    def add(self,nn_obj):
+        self.section.append(len(self.nn_layers))
+        self.nn_layers.append(nn_obj.to(self.device))
+    def __call__(self,x):
+        for j in self.section:
+            x = self.nn_layers[j](x)
+        return x
+
+class CNN_Layer(Layer):
+    def __init__(self,nn_layers:list,device,widthin,widthout,kernel,batchnorm,nnlnr) -> None:
+        super().__init__(nn_layers,device)
+        self.add(nn.Conv2d(widthin,widthout,kernel))
+        if batchnorm:
+            self.add(nn.BatchNorm2d(widthout))
+        if nnlnr:
+            self.add(nn.ReLU(inplace = True))
+
+class Softmax_Layer(Layer):
+    def __init__(self,nn_layers:list,device,split) -> None:
+        super().__init__(nn_layers,device)
+        self.add(nn.Softplus())
+        self.split = split
+    def __call__(self, x):
+        if self.split>1:
+            xs = list(torch.split(x,x.shape[1]//self.split,dim=1))
+            xs[-1] = super().__call__(xs[-1])
+            return tuple(xs)
+        return super().__call__(x)
+        
+
+class Sequential(Layer):
+    def __init__(self,nn_layers,device,widths,kernels,batchnorm,softmax_layer = False,split = 1):
+        super().__init__(nn_layers,device)
+        self.sections = []
+        spread = 0
+        self.nlayers = len(kernels)
+        for i in range(self.nlayers):
+            spread+=kernels[i]-1
+        self.spread = spread//2
+        for i in range(self.nlayers):
+            self.sections.append(CNN_Layer(nn_layers,device,widths[i],widths[i+1],kernels[i],batchnorm[i], i < self.nlayers - 1))
+        if softmax_layer:
+            self.sections.append(Softmax_Layer(nn_layers,device,split))
+    def __call__(self, x):
+        for lyr in self.section:
+            x = lyr.__call__(x)
+        return x
 
 class CNN(nn.Module):
-    def __init__(self,widths = None,kernels = None,batchnorm = None,skipconn = None,seed = None,**kwargs):
+    def __init__(self,widths = None,kernels = None,batchnorm = None,seed = None,**kwargs):
         super(CNN, self).__init__()
         device = get_device()
         self.device = device
-
-        self.skipcons = False
-        spread = 0
-        for i in range(len(kernels)):
-            spread+=kernels[i]-1
-        self.spread = spread//2
-
         torch.manual_seed(seed)
-        self.nlayers = len(kernels)
-        self.layerinds = []
         self.nn_layers = nn.ModuleList()
-        self.skipconn = skipconn
-        def add_layer(widthin,widthout,kernel,batchnorm,skipconn,nnlnr):
-            lyr = []
-            lyr.append(len(self.nn_layers))
-            self.nn_layers.append(nn.Conv2d(widthin,widthout,kernel).to(device))
-            if batchnorm:
-                lyr.append(len(self.nn_layers))
-                self.nn_layers.append(nn.BatchNorm2d(widthout).to(device))
-            if nnlnr:
-                lyr.append(len(self.nn_layers))
-                self.nn_layers.append(nn.ReLU(inplace = True).to(device))
-            self.layerinds.append(lyr)
-            
-        def add_softplus():
-            self.layerinds.append([len(self.nn_layers)])
-            self.nn_layers.append(nn.Softplus())
-            
-        lastlayer = lambda i: i != len(kernels) -1
-        for i in range(len(kernels)):
-            print(f'widths[i],widths[i+1],kernels[i],batchnorm[i]:\t{widths[i],widths[i+1],kernels[i],batchnorm[i]}')
-            add_layer(widths[i],widths[i+1],kernels[i],batchnorm[i],skipconn[i],lastlayer(i))
-        add_softplus()
-
-    def forward_one_layer(self,x,i):
-        for j in self.layerinds[i]:
-            x = self.nn_layers[j](x)
-        return x
-    def forward(self, x):
-        for i in range(self.nlayers):
-            x = self.forward_one_layer(x,i)
-        mean,precision=torch.split(x,x.shape[1]//2,dim=1)
-        precision=self.nn_layers[-1](precision)
-        return mean,precision
-
+        self.sequence :Dict[str,Layer] = dict()
+        if kwargs.get('model')=='dfcnn':
+            self.sequence['conditional_mean'] =\
+                 Sequential(self.nn_layers,device,widths,kernels,batchnorm)
+            self.sequence['conditional_variance'] =\
+                 Sequential(self.nn_layers,device,widths,kernels,batchnorm,softmax_layer=True,split = 1)
+        else:
+            assert kwargs.get('model')=='fcnn'
+            self.sequence['heteroscedastic'] = \
+                Sequential(self.nn_layers,device, widths,kernels,batchnorm,softmax_layer=True,split = 2)
+        self.actives = list(self.sequence.keys())
+    def set_actives(self,sts:list):
+        actives = list(self.sequence.keys())
+        new_actives = []
+        for st in sts:
+            if isinstance(st,int):
+                st = actives[st]
+            assert st in self.sequence
+            new_actives.append(st)
+        self.actives = new_actives
+    def copy_if_needed(self,x,i):
+        if len(self.sequence)>1:
+            return torch.clone(x)
+    def forward(self,x):
+        outputs = []
+        for i,(name,net) in enumerate(self.sequence.items()):
+            if name not in self.actives:
+                continue
+            x1 = self.copy_if_needed(x,i).to(self.device)
+            x1 = net(x1)
+            outputs.append(x1)
+        return outputs
+        
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters())
@@ -148,31 +167,10 @@ class LCNN(nn.Module):
             self.nn_layers.append(nn.BatchNorm2d(width[i-1]).to(device) )
             self.nn_layers.append(nn.Conv2d(width[i-1], width[i], filter_size[i]) )
         self.nn_layers.append(nn.Softplus())
-
-
-
-        # lastlayer = lambda i: i != len(kernels) -1
-        # for i in range(len(kernels)):
-        #     layers[f'conv-{i}'] = CNNLayer(widths[i],widths[i+1],kernels[i],\
-        #         batchnorm[i],skipconn[i],lastlayer(i))
-        #     # layers[f'conv-{i}'] = nn.Conv2d(widths[i],widths[i+1],kernels[i])
-        #     # layers[f'norm-{i}'] = nn.BatchNorm2d(widths[i+1])
-        #     # layers[f'relu-{i}'] = nn.ReLU(inplace = True)
-
-        # for u in layers:
-        #     layers[u] = layers[u].to(device)
-        self.receptive_field=int(spread*2+1)
-        # self.conv_body = nn.Sequential(layers)
-        # softplus = OrderedDict()
-        # softplus['softplus'] = nn.Softplus()
-        # self.softplus = nn.Sequential(softplus)
+        self.receptive_field=int(self.spread*2+1)
 
 
     def forward(self, x):
-        # x = self.conv_body(x)
-        # mean,precision=torch.split(x,x.shape[1]//2,dim=1)
-        # precision=self.softplus(precision)
-        # return mean,precision
         cn=0
         for _ in range(self.num_layers-1):
             x = self.nn_layers[cn](x)

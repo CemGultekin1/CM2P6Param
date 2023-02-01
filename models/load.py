@@ -25,15 +25,18 @@ def get_statedict(modelid):
     statedictfile =  statedict_path(modelid)
     logfile = model_logs_json_path(modelid)
     device = get_device()
+    state_dict = None
+    logs = {"epoch":[],"train-loss":[],"test-loss":[],"val-loss":[],"lr":[],"batchsize":[]}
     if os.path.exists(statedictfile):
         print(f"model {modelid} state_dict has been found")
         state_dict = torch.load(statedictfile,map_location=torch.device(device))
-        with open(logfile) as f:
-            logs = json.load(f)
+        if os.path.exists(logfile):
+            with open(logfile) as f:
+                logs = json.load(f)
     else:
         print(f"model {modelid} state_dict has not been found")
-        state_dict = None
-        logs = {"epoch":[],"train-loss":[],"test-loss":[],"val-loss":[],"lr":[],"batchsize":[]}
+        
+        
     return state_dict,logs
 
 def load_modelsdict():
@@ -76,7 +79,7 @@ def load_model(args):
         # gamma = 1.
 
     scheduler=torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,factor=0.5,patience=2)
-    rerun_flag = runargs.rerun and runargs.mode == 'train'
+    rerun_flag = runargs.reset_model and runargs.mode == 'train'
     if state_dict is not None and not rerun_flag:
         # net.load_state_dict(state_dict["last_model"])
         if runargs.mode == "train":
@@ -86,9 +89,9 @@ def load_model(args):
             net.load_state_dict(state_dict["best_model"])
             net.eval()
         print(f"Loaded an existing model")
-        if "optimizer" in state_dict:
+        if "optimizer" in state_dict and not runargs.reset_optimizer:
             optimizer.load_state_dict(state_dict["optimizer"])
-        if "scheduler" in state_dict:
+        if "scheduler" in state_dict and not runargs.reset_optimizer:
             scheduler.load_state_dict(state_dict["scheduler"])
     else:
         if state_dict is not None:

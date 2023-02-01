@@ -26,7 +26,7 @@ DATA_PARAMS = {
 
 TRAIN_PARAMS = {
     "lr" : {"type": float, "default" : 1e-2},
-    "lossfun" : {"type":str, "choices":["heteroscedastic","MSE"]}
+    "lossfun" : {"type":str, "choices":["heteroscedastic","MSE","CECV"]}
 }
 
 
@@ -46,7 +46,7 @@ ARCH_PARAMS = {
     "skipconn" : {"type":int,"nargs":'+',"default":tuple([0]*8)},
     "batchnorm" : {"type":int,"nargs":'+',"default":tuple([1]*8)},
     "seed" : {"type":int,"default":0},
-    "model" : {"type":str, "choices":["fcnn","lsrp:0","lsrp:1"]}
+    "model" : {"type":str, "choices":["fcnn","dfcnn","lsrp:0","lsrp:1"]}
 }
 
 
@@ -56,7 +56,8 @@ RUN_PARAMS = {
     "prefetch_factor" : {"type": int, "default": 1},
     "maxepoch" : {"type": int, "default" : 500},
     "persistent_workers" : {"type":bool,"default":True},
-    "rerun":{"type":bool,"default":False},
+    "reset_model":{"type":bool,"default":False},
+    "reset_optimizer":{"type":bool,"default":False},
     "relog":{"type":bool,"default":False},
     "disp" :  {"type":int,"default":-1},
     "mode" : {"type": str, "choices" : ["train","eval","data","scalars","view"],},
