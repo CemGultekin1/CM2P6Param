@@ -55,7 +55,6 @@ class HighResCm2p6:
     def get_hres_dataset(self,i):
         ti,di = self.time_depth_indices(i)
         ds = self.ds.isel(time = ti,depth = di) 
-        # ds = ds.isel(**{f"{k0}{k1}":slice(1000,1960) for k0 in 'u t'.split() for k1 in 'lat lon'.split()})
         return ds
 
     @property
