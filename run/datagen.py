@@ -29,7 +29,8 @@ def drop_timeless(ds:xr.Dataset):
 def run():
     datargs = sys.argv[1:]
     generator,= get_data(datargs,half_spread = 0, torch_flag = False, data_loaders = True,groups = ('all',))
-    filename = get_preliminary_low_res_data_location(datargs)
+    filename = get_preliminary_low_res_data_location(datargs).replace('.','_krylov.')
+    print(f'filename = {filename}')
     datargs,_ = options(datargs,key = "data")
     initflag = False
     dst = None
@@ -39,6 +40,13 @@ def run():
         time.end('data')
         data_vars,coords = torch2numpy(data_vars,coords)
         ds = xr.Dataset(data_vars = data_vars,coords = coords)
+
+        chk = {k:len(ds[k]) for k in list(ds.coords)}
+        ds = ds.chunk(chunks=chk)
+        ds.to_zarr(filename,mode='w')
+        print(ds)
+        return
+
         if dst is not None:
             if ds.time.values[0] != dst.time.values[0]:
                 flushed_print(dst.time.values[0],time)
@@ -46,6 +54,8 @@ def run():
                 if not initflag:
                     dst = dst.chunk(chunks=chk)
                     dst.to_zarr(filename,mode='w')
+                    print(dst)
+                    return
                     initflag = True
                 else:
                     dst = drop_timeless(dst)

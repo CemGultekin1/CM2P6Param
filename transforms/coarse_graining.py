@@ -1,4 +1,3 @@
-import itertools
 import numpy as np
 import gcm_filters as gcm
 import xarray as xr
