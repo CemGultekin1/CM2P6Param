@@ -142,14 +142,15 @@ class krylov_lsrp_subgrid_forcing(base_lsrp_subgrid_forcing):
         wl =    dwxr.decorate(forward,      intype = 'dry',  outtype = 'wet')
         
         def run_gmres(u:xr.DataArray):
-            solver = two_parts_krylov_inversion(16,1e-2,ww,wl,w2l)
+            solver = two_parts_krylov_inversion(8,1e-2,ww,wl,w2l)
             drywet_separate_solution = solver.solve(dwxr.get_wet_part(u))
             solution = dwxr.merge(*drywet_separate_solution)
             return self.inv_filtering(solution,inverse = True)
         hres0 = {key: run_gmres(val) if key not in hres0 else hres0[key] for key,val in clres.items()}
 
         
-            
+        if 'temp' in keys:
+            plot_ds(hres0,'hres0.png')
 
         forcings_lsrp,(clres0,lres0) = super(base_lsrp_subgrid_forcing,self).__call__(hres0,keys,rename,clres = clres0,lres = lres0)
         forcings_lsrp = {f"{key}_res":  forcings[key] - forcings_lsrp[key] for key in rename}
