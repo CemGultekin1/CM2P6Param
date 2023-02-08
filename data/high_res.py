@@ -15,7 +15,7 @@ class HighResCm2p6:
     coarse_grain : Callable
     initiated : bool
     def __init__(self,ds:xr.Dataset,sigma,*args,section = [0,1],**kwargs):
-        self.ds = ds.copy()#.isel({f"{prefix}{direction}":slice(1500,2500) for prefix in 'u t'.split() for direction in 'lat lon'.split()})
+        self.ds = ds.copy()#.isel({f"{prefix}{direction}":slice(1500,1800) for prefix in 'u t'.split() for direction in 'lat lon'.split()})
         self.sigma = sigma
         self.initiated = False
         self.wet_mask = None

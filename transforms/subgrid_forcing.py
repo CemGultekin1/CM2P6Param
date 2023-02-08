@@ -70,7 +70,7 @@ class base_lsrp_subgrid_forcing(base_subgrid_forcing):
 
 
 
-class dry_wet_xarray:
+class xr2np_utility:
     def __init__(self,ds,) -> None:
         self.ds = ds.copy()
         self.flat_wetpoints = (1 - np.isnan(self.ds.data.reshape([-1]))).astype(bool)
@@ -125,33 +125,27 @@ class dry_wet_xarray:
 class krylov_lsrp_subgrid_forcing(base_lsrp_subgrid_forcing):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
-        self.leaky_inv_filtering : leaky_inverse_filtering = leaky_inverse_filtering(*args,**kwargs)
     def __call__(self, hres:dict, keys,rename,lres = {},clres = {},\
                              hres0= {},lres0 = {},clres0 = {}):
         forcings,(clres,lres) = super(base_lsrp_subgrid_forcing,self).__call__(hres,keys,rename,lres = lres,clres = clres)
-        def wet2wet(lres):
-            y = self.inv_filtering(lres)
-            lres1 = self.filtering(y)
-            clres = self.coarse_grain(lres1)
-            return clres
-        def dry2wet(lres):
-            y = self.leaky_inv_filtering(lres,inverse = True)
+        def forward(lres):
+            y = self.inv_filtering(lres,inverse = True)
             lres1 = self.filtering(y)
             clres = self.coarse_grain(lres1)
             return clres
         def wet2dry(lres):
-            return self.leaky_inv_filtering(self.leaky_inv_filtering(lres,inverse = True),inverse = False)
+            return self.inv_filtering(self.inv_filtering(lres,inverse = True),inverse = False)
 
-        dwxr = dry_wet_xarray(list(clres.values())[0])
-        ww =    dwxr.decorate(wet2wet,      intype = 'wet',  outtype = 'wet')
+        dwxr = xr2np_utility(list(clres.values())[0])
+        ww =    dwxr.decorate(forward,      intype = 'wet',  outtype = 'wet')
         w2l =   dwxr.decorate(wet2dry,      intype='wet',    outtype = 'dry')
-        wl =    dwxr.decorate(dry2wet,      intype = 'dry',  outtype = 'wet')
+        wl =    dwxr.decorate(forward,      intype = 'dry',  outtype = 'wet')
         
         def run_gmres(u:xr.DataArray):
             solver = two_parts_krylov_inversion(16,1e-2,ww,wl,w2l)
             drywet_separate_solution = solver.solve(dwxr.get_wet_part(u))
             solution = dwxr.merge(*drywet_separate_solution)
-            return self.inv_filtering(solution)
+            return self.inv_filtering(solution,inverse = True)
         hres0 = {key: run_gmres(val) if key not in hres0 else hres0[key] for key,val in clres.items()}
 
         
@@ -162,31 +156,6 @@ class krylov_lsrp_subgrid_forcing(base_lsrp_subgrid_forcing):
 
         forcings = dict(forcings,**forcings_lsrp)
 
-        # cmpr = dict(
-        #         hres,
-        #         **{
-        #             key+'_0':val for key,val in hres0.items()
-        #         },
-        #         **{
-        #             key+'_err':hres[key] - val for key,val in hres0.items()
-        #         }
-        #     )
-        # if 'temp' in hres0:
-        #     plot_ds(cmpr,'inverted_fields_temp.png',ncols = len(hres0))
-        # else:
-        #     plot_ds(cmpr,'inverted_fields_uv.png',ncols = len(hres0))
-
-
-        # logforcings = {key:np.log10(np.abs(val)) for key,val in forcings.items()}
-        # cmpr = dict(forcings,**logforcings)
-        
-        # if 'temp' in hres0:
-        #     plot_ds(cmpr,'lsrp_forcings_temp.png',ncols = len(rename))
-        # else:
-        #     plot_ds(cmpr,'lsrp_forcings_uv.png',ncols = len(rename))
-
-        # if 'temp' in hres0:
-        #     raise Exception
         return forcings,(clres,lres),(clres0,lres0,hres0)
     
 
@@ -207,7 +176,7 @@ class greedy_scipy_subgrid_forcing(scipy_subgrid_forcing):
 class greedy_scipy_lsrp_subgrid_forcing(krylov_lsrp_subgrid_forcing):#base_lsrp_subgrid_forcing):#
     filtering_class = greedy_scipy_filtering
     coarse_grain_class =  greedy_coarse_grain
-    inv_filtering_class = inverse_greedy_scipy_filtering
+    inv_filtering_class = leaky_inverse_filtering
 
 class gcm_lsrp_subgrid_forcing(base_lsrp_subgrid_forcing):
     filtering_class = gcm_filtering
