@@ -30,7 +30,7 @@ def run():
     datargs = sys.argv[1:]
     generator,= get_data(datargs,half_spread = 0, torch_flag = False, data_loaders = True,groups = ('all',))
     filename = get_preliminary_low_res_data_location(datargs)
-    datargs,_ = options(datargs,key = "data")
+    datargs,_ = options(datargs,key = "data") # s
     initflag = False
     dst = None
     time = Timer()
