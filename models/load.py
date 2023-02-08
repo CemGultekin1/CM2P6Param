@@ -46,16 +46,20 @@ def load_modelsdict():
     return modelsdict
 
 def old_model_state_dict_location(model_id:int,):
-     return f'/scratch/cg3306/climate/runs/G-{model_id}/best-model'
+     return f'/scratch/cg3306/climate/runs/G-{model_id}_MV/best-model'
 
 def load_old_model(model_id:int):
     file_location = old_model_state_dict_location(model_id)
     args = '--filtering gaussian --widths 2 128 64 32 32 32 32 32 4 --kernels 5 5 3 3 3 3 3 3 --batchnorm 1 1 1 1 1 1 1 0'.split()
     archargs,_ = options(args,key = "arch")
-    net = LCNN(archargs.widths, archargs.kernels,True,False, 0)
+    net = dict(
+        mean = LCNN(archargs.widths, archargs.kernels,True,False, 0),
+        var = LCNN(archargs.widths, archargs.kernels,True,False, 0),
+    )
     state_dict = torch.load(file_location,map_location=torch.device(get_device()))
-    net.load_state_dict(state_dict)
-    return f'G-{model_id}',net,args
+    net['mean'].load_state_dict(state_dict['mean'])
+    net['var'].load_state_dict(state_dict['var'])
+    return f'G_{model_id}_MV',net,args
 
 def load_model(args):
     archargs,_ = options(args,key = "arch")

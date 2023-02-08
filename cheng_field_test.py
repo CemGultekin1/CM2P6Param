@@ -71,7 +71,10 @@ class ScaledCNN:
             print(f'{name}\tone_input_{key}_mean:{one_output_mean[0,i].mean().item()}\tone_input_{key}_std:{one_output_std[0,i].mean().item()}')
             print(f'{name}\tzero_output_{key}_mean:{zero_output_mean[0,i].mean().item()}\tzero_input_{key}_std:{zero_output_std[0,i].mean().item()}')
         print()
+        self.spread = 10
     def forward(self,x):
+
+
         x = x/self.input_scalars
         x = x.type(torch.float32)
         with torch.no_grad():
@@ -94,15 +97,16 @@ def load_cheng_model():
 
 def load_cheng_model_first_version():
     nn_load_file='v1-best-model.pt'
-    u_scale=1/0.10278768092393875
-    v_scale=1/0.07726840674877167
-    world_radius_in_meters=6.371e6
-    angle_to_meters=world_radius_in_meters*2*np.pi/360
-    Su_scale=0.004745704121887684/angle_to_meters
-    Sv_scale=0.004386111628264189/angle_to_meters
+    u_scale=1#/0.10278768092393875
+    v_scale=1#/0.07726840674877167
+
+    # world_radius_in_meters=6.371e6
+    # angle_to_meters=world_radius_in_meters*2*np.pi/360
+    Su_scale=1#0.004745704121887684/angle_to_meters
+    Sv_scale=1#0.004386111628264189/angle_to_meters
     input_scalars = 1/np.array([u_scale,v_scale])
     output_scalars = np.array([Su_scale,Sv_scale])
-    return ScaledCNN(nn_load_file, input_scalars,output_scalars,'V0')
+    return 'old_global',ScaledCNN(nn_load_file, input_scalars,output_scalars,'V0')
 
 def main():
     cnn0 = load_cheng_model_first_version()

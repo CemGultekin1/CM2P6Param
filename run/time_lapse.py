@@ -1,6 +1,7 @@
 import itertools
 import os
 import sys
+from cheng_field_test import load_cheng_model_first_version
 from data.exceptions import RequestDoesntExist
 from plots.metrics import metrics_dataset, moments_dataset
 from run.train import Timer
@@ -181,7 +182,9 @@ class CoordinateLocalizer:
 
 
 def main():
-    modelid,net,args = load_old_model(int(sys.argv[1]))
+    modelid,_,args = load_old_model(int(sys.argv[1]))
+    modelid,net = load_cheng_model_first_version()
+
     
     args.extend('--mode eval --num_workers 1'.split())
     runargs,_ = options(args,key = "run")
@@ -193,9 +196,14 @@ def main():
     stats = None
     coords = [(30,-60),(-20,-104)]
     localizer = CoordinateLocalizer()
+    if net is dict:
+        spread = net['mean'].spread
+    else:
+        spread = net.spread
+        
     for datargs in multidatargs:
         try:
-            test_generator, = get_data(datargs,half_spread = net.spread, torch_flag = False, data_loaders = True,groups = ('train',))
+            test_generator, = get_data(datargs,half_spread = spread, torch_flag = False, data_loaders = True,groups = ('train',))
         except RequestDoesntExist:
             print('data not found!')
             test_generator = None
@@ -204,7 +212,7 @@ def main():
         nt = 0
         for fields,forcings,forcing_mask,field_coords,forcing_coords in test_generator:
             for cid,coord in  enumerate(coords):
-                _,loc_fields, = localizer.get_localized(coord, net.spread,field_coords,fields, )
+                _,loc_fields, = localizer.get_localized(coord, spread,field_coords,fields, )
                 loc_forcing_coords,loc_forcings,loc_forcing_mask, = localizer.get_localized(coord, 0,forcing_coords,forcings, forcing_mask)
   
                 fields_tensor = fromtorchdict2tensor(loc_fields).type(torch.float32)
@@ -218,10 +226,15 @@ def main():
 
 
                 with torch.set_grad_enabled(False):
-                    mean,std =  net.forward(fields_tensor.to(device))
-                    mean = mean.to("cpu")
-                    std = std.to("cpu")
-                    std = torch.sqrt(1/std)
+                    if net is dict:
+                        mean,_ =  net['mean'].forward(fields_tensor.to(device))
+                        _,var =  net['var'].forward(fields_tensor.to(device))
+                        mean = mean.to("cpu")
+                        var = var.to("cpu")
+                        std = torch.sqrt(var)
+                    else:
+                        mean,std = net.forward(fields_tensor.to(device))
+                        std = torch.sqrt(1/std)
                 
 
 

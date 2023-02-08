@@ -12,7 +12,7 @@ import numpy as np
 def main():
     root = TIME_LAPSE
     target = TIME_LAPSE_PLOTS  
-    lines = 'G-0 G-1'.split()
+    lines = 'G_0_MV old_global'.split()
     title_inc = ['sigma','domain','depth','latitude','lsrp']
     title_name = ['sigma','train-domain','train-depth','latitude','lsrp']
 
