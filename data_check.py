@@ -23,7 +23,7 @@ def check_forcings():
     root = 'saves/data/'
     import xarray as xr
     select = dict(time = 0,depth =0)#,lat = range(100,500),lon = range(100,500))
-    dss = {st:xr.open_zarr(root + f'coarse_4_surface_gaussian_0_1_{st}.zarr').isel(**select) for st in 'base krylov'.split()}
+    dss = {st:xr.open_zarr(root + f'coarse_16_surface_gaussian_0_10{st}.zarr').isel(**select) for st in ['_base','']}
     fields = [f'S{x}{y}' for x in 'u v temp'.split() for y in ['','_res']] + 'u v temp'.split()
     k0,k1 = list(dss.keys())
     import matplotlib.pyplot as plt

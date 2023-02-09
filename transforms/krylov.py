@@ -93,49 +93,6 @@ class krylov_inversion(growing_orthogonals_decomposition):
         return np.stack(self.iterates,axis=1)@coeffs
 
 
-
-class two_parts_krylov_inversion(growing_orthogonals_decomposition):
-    def __init__(self,maxiter,reltol,matmultip_1,matmultip_2,transform_1_2) -> None:
-        super().__init__()
-        self.maxiter = maxiter
-        self.reltol = reltol
-        self.matmultip_1 = matmultip_1
-        self.matmultip_2 = matmultip_2
-        self.transform_1_2 = transform_1_2
-        self.sources = []
-        self.iterates = []
-        
-    def add(self, x1,):
-        y1 = self.matmultip_1(x1)
-        x2 = self.transform_1_2(x1)
-        y2 = self.matmultip_2(x2)
-
-        if super().add(y1):
-            self.iterates.append(x1)
-            self.sources.append(1)
-        if super().add(y2):
-            self.iterates.append(x2)
-            self.sources.append(2)
-            
-    def solve(self,y:np.ndarray,):
-        self.add(y)
-        nres = [self.nres(y)]
-        i = 0
-        while i < self.maxiter and self.reltol < nres[-1]/nres[0]:
-            self.add(self.qmat[:,len(self.sources) -1 - self.sources[::-1].index(1)])
-            nres.append(self.nres(y))
-            i+=1
-            if nres[-1]/nres[0] > 1:
-                break
-        coeffs = super().solve(y)
-        src = np.array(self.sources)
-        x1 = np.stack([self.iterates[i] for i,j in enumerate(src) if j == 1],axis = 1)
-        x2 = np.stack([self.iterates[i] for i,j in enumerate(src) if j == 2],axis = 1)
-        x1star = x1@coeffs[src == 1]
-        x2star = x2@coeffs[src == 2]
-        return x1star,x2star
-
-
         
 def test_krylov_inversion():
     np.random.seed(0)
@@ -166,27 +123,3 @@ def test_krylov_inversion():
         return mat@x_
     gres = krylov_inversion(d,1e-2,matmultip)
     sltn = gres.solve(y)
-
-def main():
-    np.random.seed(0)
-    d1 = 256
-    r = 128
-    d2 = 128
-    mat1 = np.random.randn(d1,r)@np.random.randn(r,d1)
-    mat2 = np.random.randn(d1,d2)
-    tra12 = np.random.randn(d2,d1)
-    y = np.random.randn(d1)
-    def matmultip1(x_):
-        return mat1@x_
-    def matmultip2(x_):
-        return mat2@x_
-    def trans12(x):
-        return tra12@x
-    tpk = two_parts_krylov_inversion(d1,1e-2,matmultip1,matmultip2,trans12)
-    x1,x2 = tpk.solve(y)
-    err = np.linalg.norm(matmultip1(x1) + matmultip2(x2) - y)
-    print(f'err:\t{err}')
-    
-    
-if __name__ == '__main__':
-    main()

@@ -1,8 +1,8 @@
 from transforms.coarse_graining import base_transform, gcm_filtering,greedy_coarse_grain, greedy_scipy_filtering, plain_coarse_grain, scipy_filtering
-from transforms.coarse_graining_inverse import inverse_filtering, inverse_gcm_filtering, inverse_greedy_scipy_filtering, leaky_inverse_filtering
+from transforms.coarse_graining_inverse import inverse_filtering, inverse_greedy_scipy_filtering, leaky_inverse_filtering
 from transforms.grids import forward_difference
-from transforms.krylov import  krylov_inversion, two_parts_krylov_inversion
-from utils.xarray import concat, plot_ds, unbind
+from transforms.krylov import  krylov_inversion
+from utils.xarray import plot_ds
 import numpy as np
 import xarray as xr
 
@@ -201,13 +201,13 @@ class greedy_scipy_subgrid_forcing(scipy_subgrid_forcing):
     filtering_class = greedy_scipy_filtering
     coarse_grain_class =  greedy_coarse_grain
 
-class greedy_scipy_lsrp_subgrid_forcing(landfilling_krylov_lsrp_subgrid_forcing):#krylov_lsrp_subgrid_forcing):#
+class greedy_scipy_lsrp_subgrid_forcing(landfilling_krylov_lsrp_subgrid_forcing):#base_lsrp_subgrid_forcing):
     filtering_class = greedy_scipy_filtering
     coarse_grain_class =  greedy_coarse_grain
-    inv_filtering_class = leaky_inverse_filtering
+    inv_filtering_class = leaky_inverse_filtering#inverse_greedy_scipy_filtering
 
-class gcm_lsrp_subgrid_forcing(base_lsrp_subgrid_forcing):
+class gcm_lsrp_subgrid_forcing(landfilling_krylov_lsrp_subgrid_forcing):#base_lsrp_subgrid_forcing):
     filtering_class = gcm_filtering
     coarse_grain_class = greedy_coarse_grain
-    inv_filtering_class = inverse_gcm_filtering
+    inv_filtering_class = leaky_inverse_filtering#inverse_gcm_filtering
         

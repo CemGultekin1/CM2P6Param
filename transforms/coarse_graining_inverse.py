@@ -27,9 +27,17 @@ class inverse_gcm_filtering(inverse_filtering):
     filtering_class = gcm_filtering
 
 def right_inverse_matrix(mat):
+    # mat @ u = \bar{u}
     q,r = np.linalg.qr(mat.T)
+    # mat = r.T @ q.T
+    # mat @ ( q @ r^{-T}) = id
     return q @ np.linalg.inv(r).T
-    
+
+def side_multip(mat,x,ax):
+    if ax == 0:
+        return mat @ x
+    else:
+        return x @ mat.T
 class matmult_gcm_1d(base_transform):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
@@ -51,18 +59,21 @@ class matmult_gcm_1d(base_transform):
         cfm = cfm[::self.sigma]
         cfm = cfm[:n//self.sigma]
         cfm = cfm/np.sum(cfm,axis = 1,keepdims = True)
-
+        
         self._matrix = cfm
         self._right_inv_matrix = right_inverse_matrix(self._matrix)
+        self._projection = None
+    def project(self,x,ax = 0):
+        if self._projection is None:
+            self._projection = self._matrix@self._right_inv_matrix
+        mat = self._projection
+        return side_multip(mat,x,ax)
     def __call__(self,x,ax = 0,inverse = False):
         if inverse:
             mat = self._right_inv_matrix
         else:
             mat = self._matrix
-        if ax == 0:
-            return mat @ x
-        else:
-            return x @ mat.T
+        return side_multip(mat,x,ax)
 
 class matmult_gcm_filtering(base_transform):
     def __init__(self,*args,**kwargs):
@@ -72,7 +83,6 @@ class matmult_gcm_filtering(base_transform):
         self._lonfilt = matmult_gcm_1d(self.sigma,lon_area,**kwargs)
         self._latfilt = matmult_gcm_1d(self.sigma,lat_area,**kwargs)
         self._full_wet_density = self.base__call__(self.grid.wet_mask)
-        
     def np2xr(self,xvv,finegrid :bool = False):
         dims = self.dims
         if finegrid:
@@ -95,7 +105,6 @@ class matmult_gcm_filtering(base_transform):
         xv = x.fillna(0).values
         xvv = self._latfilt(self._lonfilt(xv,ax=1,inverse = inverse),ax = 0,inverse = inverse)
         return self.np2xr(xvv,finegrid=inverse)
-        
     def __call__(self,x,inverse = False,wet_density = None):
         if wet_density is None:
             wet_density = self._full_wet_density
@@ -110,8 +119,6 @@ class matmult_gcm_filtering(base_transform):
         if inverse:
             cx = xr.where(self.grid.wet_mask,cx,np.nan)
         return cx
-
-
 
 def filter_weights_1d(sigma):
     fw = filter_weights(sigma)
