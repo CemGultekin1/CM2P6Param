@@ -1,6 +1,5 @@
 from typing import Callable
 from utils.no_torch_xarray import concat, tonumpydict
-from utils.xarray import unbind
 import xarray as xr
 from transforms.grids import get_grid_vars, ugrid2tgrid_interpolation
 from transforms.subgrid_forcing import base_lsrp_subgrid_forcing, gcm_lsrp_subgrid_forcing, scipy_subgrid_forcing,greedy_scipy_lsrp_subgrid_forcing
@@ -129,7 +128,7 @@ class HighResCm2p6:
         if self.wet_mask is None:
             self.wet_mask = mask
         else:
-            self.wet_mask = xr.merge([self.wet_mask,mask]).wet_mask
+            self.wet_mask = xr.merge([self.wet_mask,mask])#.wet_mask
             
 
     def build_mask(self,i):
