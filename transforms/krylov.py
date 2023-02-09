@@ -83,14 +83,12 @@ class krylov_inversion(growing_orthogonals_decomposition):
         nres = [self.nres(y)]
         i = 0
         while i < self.maxiter and self.reltol < nres[-1]/nres[0]:
-            print(f'{i}:\t{nres[-1]}')
             x = self.implicit_matmultip(self.qmat[:,-1])
             self.add(x)
             nres.append(self.nres(y))
             i+=1
             if nres[-1]/nres[0] > 1:
                 break
-        print(f'{i}:\t{nres[-1]}')
         coeffs = super().solve(y)
         return np.stack(self.iterates,axis=1)@coeffs
 
@@ -124,13 +122,11 @@ class two_parts_krylov_inversion(growing_orthogonals_decomposition):
         nres = [self.nres(y)]
         i = 0
         while i < self.maxiter and self.reltol < nres[-1]/nres[0]:
-            print(f'{i}:\t{nres[-1]}')
             self.add(self.qmat[:,len(self.sources) -1 - self.sources[::-1].index(1)])
             nres.append(self.nres(y))
             i+=1
             if nres[-1]/nres[0] > 1:
                 break
-        print(f'{i}:\t{nres[-1]}')
         coeffs = super().solve(y)
         src = np.array(self.sources)
         x1 = np.stack([self.iterates[i] for i,j in enumerate(src) if j == 1],axis = 1)

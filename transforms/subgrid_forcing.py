@@ -1,7 +1,7 @@
 from transforms.coarse_graining import base_transform, gcm_filtering,greedy_coarse_grain, greedy_scipy_filtering, plain_coarse_grain, scipy_filtering
 from transforms.coarse_graining_inverse import inverse_filtering, inverse_gcm_filtering, inverse_greedy_scipy_filtering, leaky_inverse_filtering
 from transforms.grids import forward_difference
-from transforms.krylov import  two_parts_krylov_inversion
+from transforms.krylov import  krylov_inversion, two_parts_krylov_inversion
 from utils.xarray import concat, plot_ds, unbind
 import numpy as np
 import xarray as xr
@@ -84,32 +84,24 @@ class xr2np_utility:
     def get_wet_part(self,ds:xr.DataArray):
         data = ds.data.reshape([-1])
         return data[self.flat_wetpoints]
-    def decorate(self, call:callable,intype:str = 'wet',outtype = 'wet'):#,terminate_flag :bool = False):
-        inmask = self.get_mask(intype)
-        outmask = self.get_mask(outtype)
+    def zero_wet_part(self,ds:xr.DataArray):
+        shp = ds.data.shape
+        data = ds.data.reshape([-1])
+        data[self.flat_wetpoints] = 0
+        ds.data = data.reshape(shp)
+        return ds
+    def np2xr(self,x:np.ndarray):
+        ds = self.ds.copy()
+        shp = ds.data.shape
+        ds.data = x.reshape(shp)
+        return ds
+    def decorate(self, call:callable,):#,terminate_flag :bool = False):
         ds = self.ds.copy()#.fillna(0)
+        shp = ds.data.shape
         def __call(x:np.ndarray):
-            xx = ds.data
-            shp = xx.shape
-            xx = xx.reshape([-1,])
-            xx[inmask == 1] = x
-            xx[inmask == 0] = 0
-            xx = xx.reshape(*shp)
-            ds.data = xx
-            ds1 = call(ds.copy())
-            
-            # bf = dict(
-            #     before = ds,
-            #     after = ds1,
-            #     diff = ds1 - ds
-            # )
-            # imname = f'{intype}_{outtype}.png'
-            # print(imname)
-            # plot_ds(bf,imname,ncols = 3)
-            # if terminate_flag:
-            #     raise Exception
-            xx = ds1.data.reshape([-1])
-            return xx[outmask]
+            ds.data = x.reshape(shp)
+            ds1 = call(ds.fillna(0))
+            return ds1.data.reshape([-1])
         return __call
     def merge(self,wetx:np.ndarray,dryx:np.ndarray):
         ds = self.ds.copy()
@@ -158,6 +150,41 @@ class krylov_lsrp_subgrid_forcing(base_lsrp_subgrid_forcing):
         forcings = dict(forcings,**forcings_lsrp)
 
         return forcings,(clres,lres),(clres0,lres0,hres0)
+
+class landfilling_krylov_lsrp_subgrid_forcing(base_lsrp_subgrid_forcing):
+    def __call__(self, hres:dict, keys,rename,lres = {},clres = {},\
+                             hres0= {},lres0 = {},clres0 = {}):
+        forcings,(clres,lres) = super(base_lsrp_subgrid_forcing,self).__call__(hres,keys,rename,lres = lres,clres = clres)
+        dwxr = xr2np_utility(list(clres.values())[0])
+        def orthproj(lres):
+            return lres - self.inv_filtering(self.inv_filtering(lres,inverse = True),inverse = False)
+        def matmultip(lres):
+            zwet = dwxr.zero_wet_part(lres).fillna(0)
+            return orthproj(zwet).fillna(0)
+        decorated_matmultip = dwxr.decorate(matmultip)
+        def run_gmres(u:xr.DataArray):
+            u = u.fillna(0)
+            orthu = orthproj(u)
+            solver = krylov_inversion(8,1e-2,decorated_matmultip)
+            landfill_np = solver.solve( - orthu.fillna(0).values.reshape([-1]))
+            landfill_u = dwxr.zero_wet_part(dwxr.np2xr(landfill_np))
+            filled_u =  u + landfill_u
+            return self.inv_filtering(filled_u,inverse = True)
+        hres0 = {key: run_gmres(val) if key not in hres0 else hres0[key] for key,val in clres.items()}
+        # landfills = {key + '_landfill':run_gmres(val) for key,val in clres.items()}
+
+        # plot_ds(dict(clres,**landfills),'landfills.png')
+        # raise Exception
+        
+        # if 'temp' in keys:
+        #     plot_ds(hres0,'hres0.png')
+
+        forcings_lsrp,(clres0,lres0) = super(base_lsrp_subgrid_forcing,self).__call__(hres0,keys,rename,clres = clres0,lres = lres0)
+        forcings_lsrp = {f"{key}_res":  forcings[key] - forcings_lsrp[key] for key in rename}
+
+        forcings = dict(forcings,**forcings_lsrp)
+
+        return forcings,(clres,lres),(clres0,lres0,hres0)
     
 
 
@@ -174,7 +201,7 @@ class greedy_scipy_subgrid_forcing(scipy_subgrid_forcing):
     filtering_class = greedy_scipy_filtering
     coarse_grain_class =  greedy_coarse_grain
 
-class greedy_scipy_lsrp_subgrid_forcing(krylov_lsrp_subgrid_forcing):#base_lsrp_subgrid_forcing):#
+class greedy_scipy_lsrp_subgrid_forcing(landfilling_krylov_lsrp_subgrid_forcing):#krylov_lsrp_subgrid_forcing):#
     filtering_class = greedy_scipy_filtering
     coarse_grain_class =  greedy_coarse_grain
     inv_filtering_class = leaky_inverse_filtering
