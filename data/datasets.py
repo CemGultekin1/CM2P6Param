@@ -490,18 +490,9 @@ class Dataset(torch.utils.data.Dataset):
         conv.bias.data = conv.bias.data*0
         mask = torch.from_numpy(np.stack([mask],axis=0)).type(torch.float32)
         density = conv(mask)/dlat/dlon
-        # print('X.shape: ',X.shape)
-        # print('mask.shape: ',mask.shape)
-        # print('density.shape: ',density.shape)
         return density.detach().numpy()[0,0]
     def most_ocean_points(self,dy,dx,sep,num):
         density = self.land_density_map(dy,dx)
-        # import matplotlib.pyplot as plt
-        # plt.imshow(density[::-1])
-        # plt.savefig('density.png')
-        # plt.close()
-        # if not np.any(density==0):
-        #     return None
         inds = np.dstack(np.unravel_index(np.argsort(density.ravel()), density.shape))[0]
         # inds = inds[::-1,:]
         inds = inds + self.rec_field//2

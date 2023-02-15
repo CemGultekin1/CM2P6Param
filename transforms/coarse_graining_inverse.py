@@ -1,14 +1,13 @@
 import itertools
 from transforms.coarse_graining import base_transform,filtering, gcm_filtering, greedy_coarse_grain, greedy_scipy_filtering
 import numpy as np
-from utils.xarray import plot_ds
 import xarray as xr
 
 class leaky_inverse_filtering:
     coarse_grained_wet_density = None
     def __init__(self,*args,**kwargs):
         self.coarse_grain = greedy_coarse_grain(*args,**kwargs)
-        self.mat_gcm = matmult_gcm_filtering(*args,**kwargs)
+        self.mat_gcm = matmult_masked_filtering(*args,**kwargs)
     def __call__(self,x,inverse :bool = True):
         return self.mat_gcm(x,inverse = inverse,wet_density = self.coarse_grained_wet_density)
 
@@ -75,14 +74,13 @@ class matmult_gcm_1d(base_transform):
             mat = self._matrix
         return side_multip(mat,x,ax)
 
-class matmult_gcm_filtering(base_transform):
+class matmult_filtering(base_transform):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
         lon_area = self.grid.mean(dim = self.dims[0])
         lat_area = self.grid.mean(dim = self.dims[1])
         self._lonfilt = matmult_gcm_1d(self.sigma,lon_area,**kwargs)
         self._latfilt = matmult_gcm_1d(self.sigma,lat_area,**kwargs)
-        self._full_wet_density = self.base__call__(self.grid.wet_mask)
     def np2xr(self,xvv,finegrid :bool = False):
         dims = self.dims
         if finegrid:
@@ -101,23 +99,27 @@ class matmult_gcm_filtering(base_transform):
                     key : self.grid[key].coarsen(**{key : self.sigma,'boundary' : 'trim'}).mean().values for key in dims
                 }
             )
-    def base__call__(self,x,inverse = False):
+    def apply_matmult_filters(self,x,inverse = False):
         xv = x.fillna(0).values
         xvv = self._latfilt(self._lonfilt(xv,ax=1,inverse = inverse),ax = 0,inverse = inverse)
         return self.np2xr(xvv,finegrid=inverse)
+    def __call__(self,x,inverse = False,):
+        cx = self.apply_matmult_filters(x,inverse = inverse)
+        if inverse:
+            cx = xr.where(self.grid.wet_mask,cx,np.nan)
+        return cx
+class matmult_masked_filtering(matmult_filtering):
+    def __init__(self,*args,**kwargs):
+        super().__init__(*args,**kwargs)
+        self._full_wet_density = self.apply_matmult_filters(self.grid.wet_mask)
     def __call__(self,x,inverse = False,wet_density = None):
         if wet_density is None:
             wet_density = self._full_wet_density
         if inverse:
-            xw = x*wet_density
-        else:
-            xw = x.copy()
-
-        cx = self.base__call__(xw,inverse = inverse)
+            x = x*wet_density
+        cx = super().__call__(x,inverse = inverse)
         if not inverse:
             cx = cx/wet_density
-        if inverse:
-            cx = xr.where(self.grid.wet_mask,cx,np.nan)
         return cx
 
 def filter_weights_1d(sigma):

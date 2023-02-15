@@ -1,12 +1,8 @@
-import itertools
 import os
 import sys
 from data.paths import get_low_res_data_location, get_preliminary_low_res_data_location
-from data.load import get_data
-from utils.arguments import options
 from utils.slurm import flushed_print
 import xarray as xr
-import torch
 import numpy as np
 NSEC= 10
 def append_zarr(path0,path1,overwrite):
@@ -38,7 +34,7 @@ def run():
     for i in range(lower_limit,upper_limit):
         datargs = ls[i].split()
         path1 = get_preliminary_low_res_data_location(datargs)
-        path0 = get_low_res_data_location(datargs).replace('.zarr','_.zarr')
+        path0 = get_low_res_data_location(datargs)#.replace('.zarr','_.zarr')
         overwrite =  i == lower_limit
         append_zarr(path0,path1,overwrite)
                 

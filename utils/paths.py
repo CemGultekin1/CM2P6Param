@@ -1,9 +1,11 @@
 import os
-cg3306 = '/scratch/cg3306/climate'
-cm2p6 = '/scratch/zanna/data/cm2.6'
-repo_name = 'CM2P6Param'
-GRID_INFO = os.path.join(cm2p6,'GFDL_CM2_6_grid.nc')
-REPO = os.path.join(cg3306,repo_name)
+USER_PATH = '/scratch/cg3306/climate'
+CM2P6_PATH = '/scratch/zanna/data/cm2.6'
+COARSE_CM2P6_PATH = os.path.join(CM2P6_PATH,'coarse_datasets')
+REPO_NAME = 'CM2P6Param'
+
+GRID_INFO = os.path.join(CM2P6_PATH,'GFDL_CM2_6_grid.nc')
+REPO = os.path.join(USER_PATH,REPO_NAME)
 SLURM = os.path.join(REPO,'jobs')
 
 MODELIDS_JSON = os.path.join(REPO,'modelids.json')
@@ -18,6 +20,7 @@ VIEWS = os.path.join(SAVES,'views')
 SCALARS = os.path.join(SAVES,'scalars')
 LSRP = os.path.join(SAVES,'lsrp')
 PLOTS = os.path.join(SAVES,'plots')
+TEMPORARY_DATA = os.path.join(SAVES,'data')
 VIEW_PLOTS = os.path.join(PLOTS,'views')
 TIME_LAPSE_PLOTS = os.path.join(PLOTS,'time_lapse')
 R2_PLOTS = os.path.join(PLOTS,'r2')

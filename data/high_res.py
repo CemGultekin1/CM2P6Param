@@ -5,8 +5,6 @@ from transforms.grids import get_grid_vars, ugrid2tgrid_interpolation
 from transforms.subgrid_forcing import base_lsrp_subgrid_forcing, gcm_lsrp_subgrid_forcing, scipy_subgrid_forcing,greedy_scipy_lsrp_subgrid_forcing
 import numpy as np
 
-
-
 class HighResCm2p6:
     ds : xr.Dataset
     sigma : int
@@ -115,7 +113,7 @@ class HighResCm2p6:
             self.build_mask(i)
         elif depthval not in self.wet_mask.depth.values:
             self.build_mask(i)
-        return self.wet_mask.isel(depth = [di])
+        return self.wet_mask.sel(depth = [depthval])
 
     def join_wet_mask(self,mask):
         def drop_time(mask):
@@ -129,8 +127,6 @@ class HighResCm2p6:
             self.wet_mask = mask
         else:
             self.wet_mask = xr.merge([self.wet_mask,mask])#.wet_mask
-            
-
     def build_mask(self,i):
         u,v,temp = self._base_get_hres(i)
         fields = self.fields2forcings(i,u,v,temp,scipy_filtering = True)
