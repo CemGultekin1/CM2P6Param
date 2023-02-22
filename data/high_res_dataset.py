@@ -1,8 +1,8 @@
 from typing import Callable
-from utils.no_torch_xarray import concat, tonumpydict
+from utils.xarray import concat, tonumpydict
 import xarray as xr
 from transforms.grids import get_grid_vars, ugrid2tgrid_interpolation
-from transforms.subgrid_forcing import base_lsrp_subgrid_forcing, gcm_lsrp_subgrid_forcing, scipy_subgrid_forcing,greedy_scipy_lsrp_subgrid_forcing
+from transforms.subgrid_forcing import base_lsrp_subgrid_forcing, filtering_classes, scipy_subgrid_forcing#,greedy_scipy_lsrp_subgrid_forcing
 import numpy as np
 
 class HighResCm2p6:
@@ -22,11 +22,12 @@ class HighResCm2p6:
         self._tgrid_scipy_forcing = None
         self._grid_interpolation = None
         self._scipy_forcing_class = scipy_subgrid_forcing
-        if kwargs.get('filtering') == 'gcm':
-            self.forcing_class = gcm_lsrp_subgrid_forcing
-        else:
-            assert kwargs.get('filtering') == 'gaussian'
-            self.forcing_class = greedy_scipy_lsrp_subgrid_forcing
+        self.forcing_class = filtering_classes[kwargs.get('filtering')]
+        # if kwargs.get('filtering') == 'gcm':
+        #     self.forcing_class = gcm_lsrp_subgrid_forcing
+        # else:
+        #     assert kwargs.get('filtering') == 'gaussian'
+        #     self.forcing_class = greedy_scipy_lsrp_subgrid_forcing
         a,b = section
         nt = len(self.ds.time)
         time_secs = np.linspace(0,nt,b+1).astype(int)
@@ -201,5 +202,6 @@ class HighResCm2p6:
         return ds
     def __getitem__(self,i):
         ds = self.get_forcings(i,)
-        ds = self.append_mask(ds,i)
-        return tonumpydict(ds)
+        # ds = self.append_mask(ds,i)
+        nds =  tonumpydict(ds)
+        return nds

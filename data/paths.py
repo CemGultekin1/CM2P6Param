@@ -25,7 +25,7 @@ def get_filename(sigma,depth,co2,filtering,locdir = CM2P6_PATH):
     return path
 
 def get_high_res_grid_location():
-    return GRID_INFO.copy()
+    return GRID_INFO
 
 def get_high_res_data_location(args):
     prms,_ = options(args,key = "data")

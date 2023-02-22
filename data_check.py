@@ -20,10 +20,10 @@ def check_existing_datasets():
     dvar.plot(ax = axs[2])
     plt.savefig('different_datasets.png')
 def check_forcings():
-    root = 'saves/data/'
+    root = '/scratch/zanna/data/cm2.6/coarse_datasets/'
     import xarray as xr
     select = dict(time = 0,depth =0)#,lat = range(100,500),lon = range(100,500))
-    dss = {i:xr.open_zarr(root + f'coarse_4_surface_gaussian_{i}_10.zarr').isel(**select) for i in [0,1]}
+    dss = {i:xr.open_zarr(root + f'coarse_4_surface_gaussian_{i}_1.zarr').isel(**select) for i in [0,0]}
     fields = [f'S{x}{y}' for x in 'u v temp'.split() for y in ['','_res']] + 'u v temp'.split()
     k0,k1 = list(dss.keys())
     import matplotlib.pyplot as plt

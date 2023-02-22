@@ -41,11 +41,11 @@ def run():
         data_vars,coords = torch2numpy(data_vars,coords)
         ds = xr.Dataset(data_vars = data_vars,coords = coords)
 
-        # chk = {k:len(ds[k]) for k in list(ds.coords)}
-        # ds = ds.chunk(chunks=chk)
-        # ds.to_zarr(filename,mode='w')
-        # print(ds)
-        # return
+        chk = {k:len(ds[k]) for k in list(ds.coords)}
+        ds = ds.chunk(chunks=chk)
+        ds.to_zarr(filename,mode='w')
+        plot_ds(ds.isel(time = 0,depth = 0),'ds.png')
+        return
 
         if dst is not None:
             if ds.time.values[0] != dst.time.values[0]:

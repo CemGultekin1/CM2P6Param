@@ -50,7 +50,6 @@ class growing_orthogonals_decomposition:
         n0 = np.linalg.norm(v)
         r,v_orth =self.q_orthogonal(v)
         n = np.linalg.norm(v_orth)
-
         relnorm = n/n0
         if relnorm < 1e-5:
             return False

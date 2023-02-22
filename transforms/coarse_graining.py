@@ -12,22 +12,20 @@ class plain_coarse_grain(base_transform):
     def __init__(self, *args, **kwargs):
         super().__init__( *args, **kwargs)
         self._coarse_specs = dict({axis : self.sigma for axis in self.dims},boundary = 'trim')
+        self.coarse_wet_density = self.grid.wet_mask.coarsen(**self._coarse_specs).mean()
+        self.coarse_wet_mask = xr.where(self.coarse_wet_density>0,1,0)
     def __call__(self,x):
-        landmask = xr.where(np.isnan(x),1,0)
-        forcing_coarse = x.coarsen(**self._coarse_specs).mean()
-        coarse_landmask = landmask.coarsen(**self._coarse_specs).mean()
-        forcing_coarse = xr.where(coarse_landmask>0,np.nan,forcing_coarse)
+        forcing_coarse = x.fillna(0).coarsen(**self._coarse_specs).mean()
+        forcing_coarse = xr.where(self.coarse_wet_mask,forcing_coarse,np.nan)
         return  forcing_coarse
 
 class greedy_coarse_grain(plain_coarse_grain):
-    def __init__(self,*args,**kwargs):
-        super().__init__(*args,**kwargs)
     def __call__(self,x,greedy = True):
         if greedy:
-            wet_mask = xr.where(np.isnan(x),0,1)
+            # wet_mask = xr.where(np.isnan(x),0,1)
             forcing_coarse = x.fillna(0).coarsen(**self._coarse_specs).mean()
-            wet_mask_coarse = wet_mask.coarsen(**self._coarse_specs).mean()
-            return forcing_coarse/wet_mask_coarse
+            # wet_mask_coarse = wet_mask.coarsen(**self._coarse_specs).mean()
+            return forcing_coarse/self.coarse_wet_density#/wet_mask_coarse
         else:
             return super().__call__(x)
 
@@ -38,24 +36,24 @@ class filtering(base_transform):
         self._wet_mask = None
     @property
     def norm(self,):
-        if self._norm is not None:
-            return self._norm
-        else:
-            return self.get_norm()
+        if self._norm is None:
+            self._norm =  self.get_norm()
+        return self._norm
     def get_norm(self,):
         return self.base_filter(self.grid.area)
     def base_filter(self,x):
-        return 
+        return None
     def filter(self,x):
-        return 
+        return None
     def __call__(self,x):
-        return self.filter(x)/self.norm 
-    @property
-    def wet_density(self,):
-        if self._wet_mask is None:
-            return self.filter(self.grid.area*self.grid.wet_mask)/self.filter(self.grid.area)*self.grid.wet_mask
-        else:
-            return self._wet_mask
+        norm = self.norm 
+        return self.filter(x)/norm
+    # @property
+    # def wet_density(self,):
+    #     if self._wet_mask is None:
+    #         return self.filter(self.grid.area*self.grid.wet_mask)/self.filter(self.grid.area)*self.grid.wet_mask
+    #     else:
+    #         return self._wet_mask
 
 class gcm_filtering(filtering):
     def __init__(self,*args,**kwargs):
@@ -69,9 +67,10 @@ class gcm_filtering(filtering):
 
 class scipy_filtering(filtering):
     def filter(self,x):
-        return xr.apply_ufunc(\
+        return  xr.apply_ufunc(\
             lambda data: gaussian_filter(data, self.sigma/2, mode='wrap'),\
-            self.grid.area*x,dask='parallelized', output_dtypes=[float, ])
+            self.grid.area*x.fillna(0),dask='parallelized', output_dtypes=[float, ])
+        
     def base_filter(self,x):
         return xr.apply_ufunc(\
             lambda data: gaussian_filter(data, self.sigma/2, mode='wrap'),\

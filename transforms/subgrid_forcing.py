@@ -1,9 +1,9 @@
 from transforms.coarse_graining import base_transform, gcm_filtering,greedy_coarse_grain, greedy_scipy_filtering, plain_coarse_grain, scipy_filtering
-from transforms.coarse_graining_inverse import inverse_filtering, leaky_inverse_filtering
+from transforms.coarse_graining_inverse import  matmult_masked_filtering,matmult_filtering
 from transforms.grids import forward_difference
 from transforms.krylov import  krylov_inversion
-from utils.xarray import plot_ds
 import numpy as np
+from utils.xarray import plot_ds
 import xarray as xr
 
 
@@ -52,17 +52,13 @@ class base_lsrp_subgrid_forcing(base_subgrid_forcing):
     inv_filtering_class = None
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
-        self.inv_filtering : inverse_filtering = self.inv_filtering_class(*args,**kwargs)
+        self.inv_filtering : matmult_filtering = self.inv_filtering_class(*args,**kwargs)
     def __call__(self, hres, keys,rename,lres = {},clres = {},\
                              hres0= {},lres0 = {},clres0 = {}):
-        forcings,(clres, lres) = super(base_lsrp_subgrid_forcing,self).__call__(hres,keys,rename,lres =  lres,clres = clres)
-        # coarse_vars = {key:clres[key] for key in vars.keys()}
-
-        # lres = {x:self.filtering(y,) if x not in lres else lres[x] for x,y in vars.items()}
-        # coarse_vars = {key:self.coarse_grain(val)for key,val in lres.items()}
+        forcings,(clres, lres) = super().__call__(hres,keys,rename,lres =  lres,clres = clres)
         hres0 = {key:self.inv_filtering(val) if key not in hres0 else hres0[key] for key,val in clres.items() if key in hres}
-
-        forcings_lsrp,(clres0,lres0)= super(base_lsrp_subgrid_forcing,self).__call__(hres0,keys,rename,lres = lres0,clres = clres0)
+        
+        forcings_lsrp,(clres0,lres0)= super().__call__(hres0,keys,rename,lres = lres0,clres = clres0)
         forcings_lsrp = {f"{key}_res":  forcings[key] - forcings_lsrp[key] for key in rename}
         forcings = dict(forcings,**forcings_lsrp)
         return forcings,(clres,lres),(clres0,lres0,hres0)
@@ -114,47 +110,11 @@ class xr2np_utility:
         ds.data = xx
         return ds
 
-class krylov_lsrp_subgrid_forcing(base_lsrp_subgrid_forcing):
-    def __init__(self,*args,**kwargs):
-        super().__init__(*args,**kwargs)
-    def __call__(self, hres:dict, keys,rename,lres = {},clres = {},\
-                             hres0= {},lres0 = {},clres0 = {}):
-        forcings,(clres,lres) = super(base_lsrp_subgrid_forcing,self).__call__(hres,keys,rename,lres = lres,clres = clres)
-        def forward(lres):
-            y = self.inv_filtering(lres,inverse = True)
-            lres1 = self.filtering(y)
-            clres = self.coarse_grain(lres1)
-            return clres
-        def wet2dry(lres):
-            return self.inv_filtering(self.inv_filtering(lres,inverse = True),inverse = False)
-
-        dwxr = xr2np_utility(list(clres.values())[0])
-        ww =    dwxr.decorate(forward,      intype = 'wet',  outtype = 'wet')
-        w2l =   dwxr.decorate(wet2dry,      intype='wet',    outtype = 'dry')
-        wl =    dwxr.decorate(forward,      intype = 'dry',  outtype = 'wet')
-        
-        def run_gmres(u:xr.DataArray):
-            solver = two_parts_krylov_inversion(8,1e-2,ww,wl,w2l)
-            drywet_separate_solution = solver.solve(dwxr.get_wet_part(u))
-            solution = dwxr.merge(*drywet_separate_solution)
-            return self.inv_filtering(solution,inverse = True)
-        hres0 = {key: run_gmres(val) if key not in hres0 else hres0[key] for key,val in clres.items()}
-
-        
-        if 'temp' in keys:
-            plot_ds(hres0,'hres0.png')
-
-        forcings_lsrp,(clres0,lres0) = super(base_lsrp_subgrid_forcing,self).__call__(hres0,keys,rename,clres = clres0,lres = lres0)
-        forcings_lsrp = {f"{key}_res":  forcings[key] - forcings_lsrp[key] for key in rename}
-
-        forcings = dict(forcings,**forcings_lsrp)
-
-        return forcings,(clres,lres),(clres0,lres0,hres0)
-
 class landfilling_krylov_lsrp_subgrid_forcing(base_lsrp_subgrid_forcing):
     def __call__(self, hres:dict, keys,rename,lres = {},clres = {},\
                              hres0= {},lres0 = {},clres0 = {}):
         forcings,(clres,lres) = super(base_lsrp_subgrid_forcing,self).__call__(hres,keys,rename,lres = lres,clres = clres)
+
         dwxr = xr2np_utility(list(clres.values())[0])
         def orthproj(lres):
             return lres - self.inv_filtering(self.inv_filtering(lres,inverse = True),inverse = False)
@@ -164,7 +124,11 @@ class landfilling_krylov_lsrp_subgrid_forcing(base_lsrp_subgrid_forcing):
         decorated_matmultip = dwxr.decorate(matmultip)
         def run_gmres(u:xr.DataArray):
             u = u.fillna(0)
+            
             orthu = orthproj(u)
+
+            # plot_ds({'orthu':orthu},'orthu.png',ncols = 1)
+            # raise Exception
             solver = krylov_inversion(8,1e-2,decorated_matmultip)
             landfill_np = solver.solve( - orthu.fillna(0).values.reshape([-1]))
             landfill_u = dwxr.zero_wet_part(dwxr.np2xr(landfill_np))
@@ -189,25 +153,43 @@ class landfilling_krylov_lsrp_subgrid_forcing(base_lsrp_subgrid_forcing):
 
 
 
-class gcm_subgrid_forcing(base_subgrid_forcing):
-    filtering_class = gcm_filtering
-    coarse_grain_class = greedy_coarse_grain
+# class gcm_subgrid_forcing(base_subgrid_forcing):
+#     filtering_class = gcm_filtering
+#     coarse_grain_class = greedy_coarse_grain
 
 class scipy_subgrid_forcing(base_subgrid_forcing):
     filtering_class = scipy_filtering
     coarse_grain_class =  plain_coarse_grain
 
-class greedy_scipy_subgrid_forcing(scipy_subgrid_forcing):
+# class greedy_scipy_subgrid_forcing(scipy_subgrid_forcing):
+#     filtering_class = greedy_scipy_filtering
+#     coarse_grain_class =  greedy_coarse_grain
+
+
+
+
+
+class scipy_lsrp_subgrid_forcing(landfilling_krylov_lsrp_subgrid_forcing):
+    filtering_class = scipy_filtering
+    coarse_grain_class =  plain_coarse_grain
+    inv_filtering_class = matmult_filtering
+
+
+class greedy_scipy_lsrp_subgrid_forcing(landfilling_krylov_lsrp_subgrid_forcing):
     filtering_class = greedy_scipy_filtering
     coarse_grain_class =  greedy_coarse_grain
+    inv_filtering_class = matmult_masked_filtering
 
-class greedy_scipy_lsrp_subgrid_forcing(landfilling_krylov_lsrp_subgrid_forcing):#base_lsrp_subgrid_forcing):
-    filtering_class = greedy_scipy_filtering
-    coarse_grain_class =  greedy_coarse_grain
-    inv_filtering_class = leaky_inverse_filtering#inverse_greedy_scipy_filtering
-
-class gcm_lsrp_subgrid_forcing(landfilling_krylov_lsrp_subgrid_forcing):#base_lsrp_subgrid_forcing):
+class gcm_lsrp_subgrid_forcing(landfilling_krylov_lsrp_subgrid_forcing):
     filtering_class = gcm_filtering
     coarse_grain_class = greedy_coarse_grain
-    inv_filtering_class = leaky_inverse_filtering#inverse_gcm_filtering
+    inv_filtering_class = matmult_masked_filtering
+
+
+
         
+filtering_classes = {
+    "gcm":gcm_lsrp_subgrid_forcing,\
+    "gaussian":scipy_lsrp_subgrid_forcing,\
+    "greedy_gaussian":greedy_scipy_lsrp_subgrid_forcing
+}

@@ -16,7 +16,7 @@ DATA_PARAMS = {
     "latitude" : {"type": bool, "default":False},
     "lsrp" :  {"type": int, "default":0},
     "interior" :  {"type": bool, "default":False},
-    "filtering" :  {"type": str, "choices" : ["gcm","gaussian"]},
+    "filtering" :  {"type": str, "choices" : ["gcm","gaussian","greedy_gaussian"]},
     "depth" : {"type": float, "default" : 0.},
     "co2" : {"type":bool,"default":False},
 }
