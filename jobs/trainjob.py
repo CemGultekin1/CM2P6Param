@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 from models.nets.cnn import adjustcnn
 from models.search import is_trained
 from params import get_default, replace_param
@@ -12,13 +13,13 @@ root = SLURM
 
 NCPU = 16
 def get_arch_defaults():
-    nms = ('widths','kernels','batchnorm','skipconn')
-    return (get_default(nm) for nm in nms)
+    nms = ('widths','kernels','batchnorm','seed','model')
+    return {nm : get_default(nm) for nm in nms}
 def constant_nparam_model(sigma,kernel_factor = None):
     if kernel_factor is None:
         kernel_factor = 4/sigma
-    widths,kernels,batchnorm,skipconn = get_arch_defaults()
-    widths,kernels = adjustcnn(widths,kernels,batchnorm,skipconn,0,kernel_factor = kernel_factor,constant_nparam = True)
+    kwargs = get_arch_defaults()
+    widths,kernels = adjustcnn(**kwargs,kernel_factor = kernel_factor,constant_nparam = True)
     return widths,kernels
 def getarch(args,**kwargs):
     modelargs,_ = options(args,'model')
@@ -54,37 +55,48 @@ def check_training_task(args):
     _,modelid = options(args,key = "model")
     return is_trained(modelid)
 
+def combine_all(kwargs:Dict[int,dict],base_kwargs):
+    argslist = []
+    for kwarg in kwargs.values():
+        argslist =  argslist + python_args(**kwarg,**base_kwargs)
+    return argslist
 def generate_training_tasks():
     base_kwargs = dict(
         num_workers = NCPU,
         disp = 50,
         filtering = 'gaussian',
-        batchnorm = [1]*7 + [0]
+        batchnorm = tuple([1]*7 + [0])
     )
-    kwargs = dict(
-        lsrp = [0],     
-        depth = [0],
+    kwargs = {}
+    kwargs[0] = dict(
+        lsrp = 0,     
+        depth = 0,
+        sigma = 4,
+        temperature = False,
+        lossfun = 'heteroscedastic',
+        latitude = False,
+        interior = True,
+        domain = ['four_regions','global'],
+    )
+    kwargs[1] = dict(
+        lsrp = 0,     
+        depth = 0,
         sigma = [4,8,12,16],
         temperature = False,
         lossfun = 'MSE',
-        latitude = [False],
+        latitude = False,
         domain = ['four_regions','global'],
     )
-    argslist = python_args(**kwargs,**base_kwargs)
-
-
-    kwargs = dict(
+    kwargs[2] = dict(
         lsrp = [0,1],     
-        depth = [0],
+        depth = 0,
         sigma = [4,8,12,16],
         temperature = True,
         lossfun = 'MSE',
         latitude = [False,True],
         domain = ['four_regions','global'],
     )
-    argslist = argslist + python_args(**kwargs,**base_kwargs)
-
-    kwargs = dict(
+    kwargs[3] = dict(
         lsrp = [0,1],     
         depth =[int(d) for d in DEPTHS],
         sigma = [8,12,16],
@@ -93,7 +105,8 @@ def generate_training_tasks():
         latitude = [False,True],
         domain = 'global',
     )
-    argslist = argslist + python_args(**kwargs,**base_kwargs)
+    
+    argslist = combine_all(kwargs,base_kwargs)
     
     
     for i in range(len(argslist)):

@@ -12,7 +12,7 @@ import numpy as np
 def main():
     root = TIME_LAPSE
     target = TIME_LAPSE_PLOTS  
-    lines = 'G-0 G-1'.split()
+    lines = ['G-0']
     title_inc = ['sigma','domain','depth','latitude','lsrp']
     title_name = ['sigma','train-domain','train-depth','latitude','lsrp']
 
@@ -48,14 +48,10 @@ def main():
         
         nrows = len(names)
         ncols = len(lats)
-        # _names = np.empty((nrows,1),dtype = object)
-        # for ii,jj in itertools.product(range(nrows),range(ncols)):
-        #     n = f"{names[ii]}_{ftypes[jj]}"
-        #     _names[ii,jj] = n
-    
         targetfile = os.path.join(targetfolder,f'time_lapse.png')
 
         fig,axs = plt.subplots(nrows,ncols,figsize = (ncols*12,nrows*5))
+        # print(ncols,nrows)
         for ir,ic in itertools.product(range(nrows),range(ncols)):
             var = s.isel(coord_id = ic,time = range(2,302))
             ax = axs[ir,ic]
@@ -67,7 +63,7 @@ def main():
             pred_1 = -1.96*std_val + pred_val
 
             for key,val in dict(true_val = true_val,pred_val = pred_val,std_val = std_val).items():
-                print(key,np.any(np.isnan(val)))
+                print(key,'is any nan vaues:\t ',np.any(np.isnan(val)))
 
             ax.plot(true_val,color = 'tab:blue', label = 'true',linewidth = 2)
             ax.plot(pred_val,color = 'tab:orange', label = 'mean',linewidth = 2)

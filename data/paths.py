@@ -17,11 +17,13 @@ def get_filename(sigma,depth,co2,filtering,locdir = CM2P6_PATH):
         filename = f'{surf}_{co2}.zarr'
         filename = filename.replace('_.zarr','.zarr')
     if sigma > 1:
-        locdir = os.path.join(locdir,COARSE_CM2P6_PATH)
+        locdir = COARSE_CM2P6_PATH
     path = os.path.join(locdir,filename)
+    
     if sigma > 1:
         if filtering is not None:
             path = path.replace('.zarr',f'_{filtering}.zarr')
+    
     return path
 
 def get_high_res_grid_location():

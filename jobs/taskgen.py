@@ -18,6 +18,8 @@ def python_args(**kwargs):
         for i,(key,vals) in zip(inds,kwargs.items()):
             if isinstance(vals,list):
                 val = vals[i]
+            elif isinstance(vals,tuple):
+                val = ' '.join([str(v) for v in vals])
             else:
                 val = vals
             args.append(f'--{key}')

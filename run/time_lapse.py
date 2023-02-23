@@ -5,7 +5,7 @@ from data.exceptions import RequestDoesntExist
 from run.eval import get_lsrp_modelid
 import torch
 from data.load import get_data
-from models.load import load_model
+from models.load import load_model, load_old_model
 from utils.arguments import options, populate_data_options
 from utils.parallel import get_device
 from utils.paths import TIME_LAPSE
@@ -58,6 +58,8 @@ def main():
     runargs,_ = options(args,key = "run")
 
     modelid,_,net,_,_,_,_,runargs=load_model(args)
+    # modelid,net=load_old_model('0')
+    net.eval()
     device = get_device()
     lsrp_flag, lsrpid = get_lsrp_modelid(args)
     if lsrp_flag:
@@ -65,9 +67,13 @@ def main():
     
     kwargs = dict(contained = '' if not lsrp_flag else 'res')
     assert runargs.mode == "eval"
-    multidatargs = populate_data_options(args,non_static_params=['depth','co2'],domain = 'global')
+    multidatargs = populate_data_options(args,non_static_params=[],domain = 'global')
+    for datargs in multidatargs:
+        print(' '.join(datargs))
+        print()
+    # return
     stats = None
-    coords = [(30,-60),(-20,-104)]
+    coords = [(30,-60),(-20,-104),(10,-38),(-15,-101)]
     localizer = CoordinateLocalizer()
     for datargs in multidatargs:
         try:

@@ -75,25 +75,24 @@ def cnn_train(args):
         for infields,outfields,mask in training_generator:
             if not torch.any(mask>0):
                 continue
-            # infields = infields[0].numpy()
-            # outfields = outfields[0].numpy()
-            # mask = mask[0].numpy()
-            # import matplotlib.pyplot as plt
-            # def plot_method(field,name):
-                
-            #     nchan = field.shape[0]
-            #     fig,axs = plt.subplots(nchan,1,figsize = (10,10*nchan))
-            #     for i in range(nchan):
-            #         print(name,i,np.mean(np.abs(field[i])))
-            #         ff = field[i]#.numpy()
-            #         ff = ff[::-1]
-            #         axs[i].imshow(ff)
-            #     fig.savefig(name)
-            #     plt.close()
-            # plot_method(infields,'infields.png')
-            # plot_method(outfields,'outfields.png')
-            # plot_method(mask,'mask.png')
-            # return
+            infields = infields[0].numpy()
+            outfields = outfields[0].numpy()
+            mask = mask[0].numpy()
+            import matplotlib.pyplot as plt
+            def plot_method(field,name):
+                nchan = field.shape[0]
+                fig,axs = plt.subplots(nchan,1,figsize = (10,10*nchan))
+                for i in range(nchan):
+                    print(name,i,np.mean(np.abs(field[i])))
+                    ff = field[i]#.numpy()
+                    ff = ff[::-1]
+                    axs[i].imshow(ff)
+                fig.savefig(name)
+                plt.close()
+            plot_method(infields,'infields.png')
+            plot_method(outfields,'outfields.png')
+            plot_method(mask,'mask.png')
+            return
             # infields,outfields,mask = infields.to(device),outfields.to(device),mask.to(device)
             timer.end('data')
             timer.start('model')

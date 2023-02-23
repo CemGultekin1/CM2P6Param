@@ -89,7 +89,7 @@ def load_xr_dataset(args):
     else:
         data_address = get_low_res_data_location(args)
     if not os.path.exists(data_address):
-        print(data_address)
+        print('RequestDoesntExist\t',data_address)
         raise RequestDoesntExist
     ds_zarr= xr.open_zarr(data_address,consolidated=False )
     if runargs.mode == 'data':  

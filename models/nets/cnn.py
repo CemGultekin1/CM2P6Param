@@ -76,6 +76,11 @@ class CNN(nn.Module):
             self.sequence['heteroscedastic'] = \
                 Sequential(self.nn_layers,device, widths,kernels,batchnorm,softmax_layer=True,split = 2)
         self.actives = list(self.sequence.keys())
+
+        spread = 0
+        for k in kernels:
+            spread += (k-1)/2
+        self.spread = int(spread)
     def set_actives(self,sts:list):
         actives = list(self.sequence.keys())
         new_actives = []
@@ -102,7 +107,9 @@ class CNN(nn.Module):
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters())
 
-def adjustcnn(widths,kernels,batchnorm,skipconn,seed,kernel_factor = 1.,width_factor =1., kernel_size = -1,constant_nparam = True):
+def adjustcnn(kernel_factor = 1.,width_factor =1., kernel_size = -1,constant_nparam = True,**kwargs):
+    kernels = kwargs.pop('kernels')
+    widths = kwargs.pop('widths')
     kernels = list(kernels)
     widths = list(widths)
     def compute_view_field(kernels):
@@ -111,7 +118,7 @@ def adjustcnn(widths,kernels,batchnorm,skipconn,seed,kernel_factor = 1.,width_fa
             spread+=kernels[i]-1
         return spread
 
-    n0 = count_parameters(CNN(widths,kernels,batchnorm,skipconn,seed))
+    n0 = count_parameters(CNN(kernels = kernels,widths = widths,**kwargs))
     view_field = compute_view_field(kernels)
     def compare(view,):
         if kernel_size < 0 :
@@ -128,7 +135,7 @@ def adjustcnn(widths,kernels,batchnorm,skipconn,seed,kernel_factor = 1.,width_fa
     if compute_view_field(kernels)%2 == 1 :
         kernels[i]+=1
     if constant_nparam:
-        n1 = count_parameters(CNN(widths,kernels,batchnorm,skipconn,seed))
+        n1 = count_parameters(CNN(kernels = kernels,widths = widths,**kwargs))
         wd = np.array(widths[1:-1])
         wd = np.round(wd * np.sqrt(n0/n1) * width_factor).astype(int).tolist()
         widths = [widths[0]] + wd + [widths[-1]]
@@ -140,6 +147,9 @@ def kernels2spread(kernels):
         spread+=(kernels[i]-1)/2
     spread = int(spread)
     return spread
+
+
+
 
 class LCNN(nn.Module):
     def __init__(self,widths,kernels,batchnorm,skipconn,seed):#,**kwargs):
@@ -183,3 +193,24 @@ class LCNN(nn.Module):
         precision=self.nn_layers[cn](precision)
 
         return mean,precision
+
+
+
+class DoubleLCNNWrapper(LCNN):
+    var_net :LCNN
+    def add_var_part(self,net:LCNN):
+        self.var_net = net
+    def forward(self, x):
+        mean,_ =  super().forward(x)
+        _,var = self.var_net.forward(x)
+        return mean,1/var
+    def train(self,mean = True,var = True):
+        if mean:
+            super().train()
+        if var:
+            self.var_net.train()
+    def eval(self,mean = True,var = True):
+        if mean:
+            super().eval()
+        if var:
+            self.var_net.eval()

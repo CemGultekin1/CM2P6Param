@@ -3,6 +3,7 @@ import hashlib
 import itertools
 from typing import List
 from params import DATA_PARAMS,MODEL_PARAMS,ARCH_PARAMS,RUN_PARAMS, SCALAR_PARAMS, TRAIN_PARAMS,USUAL_PARAMS
+import numpy as np
 def populate_data_options(args,non_static_params = ["depth","co2"],**kwargs):
     prms,_ = options(args,key = "run")
     d = prms.__dict__
@@ -46,6 +47,7 @@ def populate_data_options(args,non_static_params = ["depth","co2"],**kwargs):
             continue
         static_part += f" --{param} {d[param]}"
     arglines = [argl + static_part for argl in arglines]
+    arglines = np.unique(arglines).tolist()
     arglines = [argl.split() for argl in arglines]
     return arglines
 
