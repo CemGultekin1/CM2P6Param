@@ -5,12 +5,12 @@ Created on Wed Feb 19 12:15:35 2020
 @author: arthur
 """
 
-from transforms.subgrid_forcing import gcm_lsrp_subgrid_forcing, gcm_subgrid_forcing, greedy_scipy_lsrp_subgrid_forcing, greedy_scipy_subgrid_forcing, scipy_subgrid_forcing
+from transforms.subgrid_forcing import gcm_lsrp_subgrid_forcing, greedy_scipy_lsrp_subgrid_forcing
 
 import xarray as xr
 from scipy.ndimage import gaussian_filter
 import numpy as np
-import gcm_filters as gcm
+
 
 def advections(u_v_field: xr.Dataset, grid_data: xr.Dataset,**kwargs):
     """

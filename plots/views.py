@@ -8,7 +8,6 @@ from utils.paths import SLURM, VIEW_PLOTS, VIEWS
 import xarray as xr
 from utils.arguments import options
 import numpy as np
-import cartopy.crs as ccrs
 from data.coords import REGIONS
 
 def main():
@@ -22,14 +21,8 @@ def main():
     # lines = ['G-0','G-1']
     title_inc = ['sigma','domain','depth','latitude','lsrp']
     title_nam = ['sigma','train-domain','train-depth','latitude','lsrp']
-    subplotkwargs = dict()#projection=ccrs.PlateCarree(),)
-        # projection =  ccrs.PlateCarree()
-    # )
-    plotkwargs = lambda a : dict()#transform=ccrs.PlateCarree(),x = 'geolon' if a else 'lon',y = 'geolat' if a else 'lat',) 
-        # cbar_kwargs = {'shrink':0.6},
-    # )
-    # ans = 'u v T'.split()
-    # ans = ans  + [f"S{a}" for a in ans] + [f"S{a}_true" for a in ans]
+    subplotkwargs = dict()
+    plotkwargs = lambda a : dict()
     for line in lines:
         if line == 'lsrp':
             modelid = 'lsrp'

@@ -7,7 +7,7 @@ from run.train import Timer
 import torch
 from data.load import get_data
 from data.vars import get_var_mask_name
-from models.load import load_model
+from models.load import load_model, load_old_model
 import matplotlib.pyplot as plt
 from utils.arguments import options, populate_data_options
 from utils.parallel import get_device
@@ -146,13 +146,15 @@ def main():
     args = sys.argv[1:]
     runargs,_ = options(args,key = "run")
 
-    modelid,_,net,_,_,_,_,runargs=load_model(args)
+    # modelid,_,net,_,_,_,_,runargs=load_model(args)
+    modelid,net=load_old_model('0')
     device = get_device()
+    net.to(device)
     lsrp_flag, lsrpid = get_lsrp_modelid(args)
     
     kwargs = dict(contained = '' if not lsrp_flag else 'res')
     assert runargs.mode == "eval"
-    multidatargs = populate_data_options(args,non_static_params=['depth','co2'],domain = 'global')
+    multidatargs = populate_data_options(args,non_static_params=[],domain = 'global')
     # multidatargs = [args]
     allstats = {}
     for datargs in multidatargs:
@@ -222,6 +224,8 @@ def main():
 
             # return
             nt += 1
+            if runargs.disp > 0 and nt%runargs.disp==0:
+                print(nt)
 
             # break
             # if nt == 16:
@@ -241,9 +245,8 @@ def main():
                     
             #     fig.savefig(f'_{nt}_{key}.png')
             #     plt.close()
-            # if nt == 16:
-            #     return
-            #     return
+            # if nt >300:
+            #     break
             # break
 
         for key in stats:

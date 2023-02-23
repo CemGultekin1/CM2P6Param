@@ -15,6 +15,8 @@ def main():
     file1 = open(models, 'r')
     lines = file1.readlines()
     file1.close()
+    lines = lines[:1]
+    # lines = ['G-0']
     title_inc = ['sigma','domain','depth','latitude','lsrp']
     title_name = ['sigma','train-domain','train-depth','latitude','lsrp']
     # skip_lines = [
@@ -22,11 +24,13 @@ def main():
     # ]
     for line in lines:
         # line = '--lsrp 1 --depth 0 --sigma 4 --temperature True --lossfun MSE --latitude True --domain global --num_workers 16 --disp 50 --widths 5 128 64 32 32 32 32 32 6 --kernels 5 5 3 3 3 3 3 3 --minibatch 2'
-        modelargs,modelid = options(line.split(),key = "model")
+        modelargs,_ = options(line.split(),key = "model")
+        modelid = 'G-0'
         vals = [modelargs.__getattribute__(key) for key in title_inc]
         vals = [int(val) if isinstance(val,float) else val for val in vals]
         title = ',   '.join([f"{name}: {val}" for name,val in zip(title_name,vals)])
         snfile = os.path.join(root,modelid + '.nc')
+        print(f'looking for :{snfile}')
         if not os.path.exists(snfile):
             continue
         print(line)
@@ -66,7 +70,7 @@ def main():
                 var = s[name]
                 pkwargs = dict()
                 if 'r2' in name or 'corr' in name:
-                    pkwargs = dict(vmin = 0.5,vmax = 1)
+                    pkwargs = dict(vmin = 0,vmax = 1)
                 else:
                     var = np.log10(var)
                 var.plot(ax = axs[ir,ic],**pkwargs)

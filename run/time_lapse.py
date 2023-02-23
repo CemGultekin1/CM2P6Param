@@ -59,21 +59,25 @@ def main():
 
     modelid,_,net,_,_,_,_,runargs=load_model(args)
     # modelid,net=load_old_model('0')
-    net.eval()
+    
+    
     device = get_device()
+    net.eval()
+    net.to(device)
+
     lsrp_flag, lsrpid = get_lsrp_modelid(args)
     if lsrp_flag:
         raise NotImplemented
     
     kwargs = dict(contained = '' if not lsrp_flag else 'res')
     assert runargs.mode == "eval"
-    multidatargs = populate_data_options(args,non_static_params=[],domain = 'global')
+    multidatargs = populate_data_options(args,non_static_params=[],domain = 'global',interior = False)
     for datargs in multidatargs:
         print(' '.join(datargs))
         print()
     # return
     stats = None
-    coords = [(30,-60),(-20,-104),(10,-38),(-15,-101)]
+    coords = [(30,-60),(-20,-104),(10,-38),(-15,-101),(-12,-101),(0,-10),(0,-100)]
     localizer = CoordinateLocalizer()
     for datargs in multidatargs:
         try:
@@ -136,7 +140,7 @@ def main():
                 else:
                     stats = xr.merge([stats,ds])
             nt += 1
-            if nt == 400:
+            if nt == 310:
                 break
             flushed_print('\t\t',nt)
     if not os.path.exists(TIME_LAPSE):

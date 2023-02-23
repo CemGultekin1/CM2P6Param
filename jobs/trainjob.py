@@ -41,7 +41,7 @@ def fix_architecture(args,**kwargs):
 def fix_minibatch(args):
     datargs,_ = options(args,key = "data")
     # if datargs.domain == 'global':
-    optminibatch = int((datargs.sigma/4)**2*2)
+    optminibatch = int((datargs.sigma/4)**2*4)
     # else:
     #     optminibatch = int(64*(datargs.sigma/4)**2)
     args = replace_param(args,'minibatch',optminibatch)
@@ -75,7 +75,7 @@ def generate_training_tasks():
         temperature = False,
         lossfun = 'heteroscedastic',
         latitude = False,
-        interior = True,
+        interior = [True,False],
         domain = ['four_regions','global'],
     )
     kwargs[1] = dict(

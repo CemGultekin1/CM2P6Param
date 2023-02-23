@@ -26,7 +26,6 @@ class CNN_Layer(Layer):
             self.add(nn.BatchNorm2d(widthout))
         if nnlnr:
             self.add(nn.ReLU(inplace = True))
-
 class Softmax_Layer(Layer):
     def __init__(self,nn_layers:list,device,split) -> None:
         super().__init__(nn_layers,device)
@@ -54,7 +53,7 @@ class Sequential(Layer):
         if softmax_layer:
             self.sections.append(Softmax_Layer(nn_layers,device,split))
     def __call__(self, x):
-        for lyr in self.section:
+        for lyr in self.sections:
             x = lyr.__call__(x)
         return x
 
@@ -65,43 +64,33 @@ class CNN(nn.Module):
         self.device = device
         torch.manual_seed(seed)
         self.nn_layers = nn.ModuleList()
-        self.sequence :Dict[str,Layer] = dict()
-        if kwargs.get('model')=='dfcnn':
-            self.sequence['conditional_mean'] =\
-                 Sequential(self.nn_layers,device,widths,kernels,batchnorm)
-            self.sequence['conditional_variance'] =\
-                 Sequential(self.nn_layers,device,widths,kernels,batchnorm,softmax_layer=True,split = 1)
-        else:
-            assert kwargs.get('model')=='fcnn'
-            self.sequence['heteroscedastic'] = \
-                Sequential(self.nn_layers,device, widths,kernels,batchnorm,softmax_layer=True,split = 2)
-        self.actives = list(self.sequence.keys())
+        # self.sequence :Dict[str,Layer] = dict()
+        
+        self.sequence = \
+            Sequential(self.nn_layers,device, widths,kernels,batchnorm,softmax_layer=True,split = 2)
+        # self.actives = list(self.sequence.keys())
 
         spread = 0
         for k in kernels:
             spread += (k-1)/2
         self.spread = int(spread)
-    def set_actives(self,sts:list):
-        actives = list(self.sequence.keys())
-        new_actives = []
-        for st in sts:
-            if isinstance(st,int):
-                st = actives[st]
-            assert st in self.sequence
-            new_actives.append(st)
-        self.actives = new_actives
-    def copy_if_needed(self,x,i):
-        if len(self.sequence)>1:
-            return torch.clone(x)
+    # def set_actives(self,sts:list):
+    #     actives = list(self.sequence.keys())
+    #     new_actives = []
+    #     for st in sts:
+    #         if isinstance(st,int):
+    #             st = actives[st]
+    #         assert st in self.sequence
+    #         new_actives.append(st)
+    #     self.actives = new_actives
+    # def copy_if_needed(self,x,i):
+    #     if len(self.sequence)>1:
+    #         return torch.clone(x)
+    #     return x
     def forward(self,x):
-        outputs = []
-        for i,(name,net) in enumerate(self.sequence.items()):
-            if name not in self.actives:
-                continue
-            x1 = self.copy_if_needed(x,i).to(self.device)
-            x1 = net(x1)
-            outputs.append(x1)
-        return outputs
+        x1 = x.to(self.device)
+        x1 = self.sequence(x1)
+        return x1
         
 
 def count_parameters(model):
